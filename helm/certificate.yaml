@@ -1,0 +1,24 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-systechs-net-tls-production
+  namespace: traefik
+spec:
+  secretName: wildcard-systechs-net-tls-production
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-production
+  dnsNames:
+    - "*.systechs.net"
+    - "systechs.net"
+    - "*.auth.systechs.net"
+    # - "*.backstage.systechs.net"
+    # - "*.ghost.systechs.net"
+    # - "*.gitlab.systechs.net"
+    # - "*.grafana.systechs.net"
+    - "*.harbor.systechs.net"
+    - "*.jenkins.systechs.net"
+    # - "*.jupyterhub.systechs.net"
+    - "*.traefik.systechs.net"
+    # - "*.wordpress.systechs.net"
