@@ -1,0 +1,44 @@
+replicaCount: 1
+clusterName: reghub
+pathBase: /mssql
+
+image:
+  repository: mcr.microsoft.com/mssql/server
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "2022-latest"
+
+ACCEPT_EULA:
+    value: "y"
+MSSQL_PID:
+    value: "Express"
+MSSQL_AGENT_ENABLED:
+    value: "true"
+hostname: mssqllatest
+sa_password: "P@ssw0rd" #for local dev only!
+
+containers:
+    ports:
+      - name: mssql
+        containerPort: 1433
+        protocol: TCP
+
+podAnnotations: {}
+
+podSecurityContext:
+   fsGroup: 10001
+
+service:
+  type: LoadBalancer
+  port: 1433
+
+pvc:
+  StorageClass: "hostpath"
+  mssqldataaccessMode: ReadWriteOnce
+  mssqldbsize: "2Gi"
+  userdbaccessMode: ReadWriteOnce
+  userdbsize: "5Gi"
+  userlogaccessMode: ReadWriteOnce
+  userlogsize: "5Gi"
+  tempdbaccessMode: ReadWriteOnce
+  tempsize: "2Gi"
