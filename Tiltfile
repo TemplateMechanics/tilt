@@ -1,5 +1,17 @@
 load("ext://helm_remote", "helm_remote")
 load('ext://namespace', 'namespace_yaml')
+def certificate_creation(
+    service_name,
+):
+    build_context="./certificates/"
+    service_name_lower = "{}".format(service_name.lower())
+
+    local_resource(
+        "{}-certificate-creation".format(service_name_lower),
+        'cd {} && pwsh ./generate-certs.ps1'.format(build_context),
+        labels=["Local-Certificates"]
+    )
+
 def k8s_namespace(
     namespace_name,
     allow_duplicates=False,
@@ -20,7 +32,7 @@ def k8s_helm(
     chart_path = './helm/{}'.format(service_name) or chart_path
     values = './helm/{}/values.yaml'.format(service_name) or values
     release_name = service_name or release_name
-    resource_deps = resource_deps or []
+    # resource_deps = resource_deps or []
 
     k8s_yaml(
         helm(
@@ -84,17 +96,28 @@ def dotnet_service(
         resource_deps=['{}'.format(local_resource_name)],
     )
 ### Services ###
+# Create certificates
+certificate_creation('dev')
 # Create namespaces
 k8s_namespace('database')
 k8s_namespace('traefik')
 k8s_namespace('cert-manager')
+k8s_namespace('rabbitmq')
 ### Deploy Database ###
 ### MSSQL ###
-# k8s_helm(
-#     service_name = "mssql",
+k8s_helm(
+    service_name = "mssql",
+    namespace = "database",
+)
+## MongoDB ###
+# remote_helm(
+#     service_name = "mongodb",
+#     repo_url = "https://charts.bitnami.com/bitnami",
+#     values = ["./helm/mongodb.yaml"],
 #     namespace = "database",
+#     release_name = "mongodb",
 # )
-# Deploy Traefik
+## Traefik
 remote_helm(
     service_name = "traefik",
     repo_url = "https://helm.traefik.io/traefik",
@@ -103,12 +126,21 @@ remote_helm(
     release_name = "traefik",
 )
 ### Cert-Manager ###
-remote_helm(
-    service_name = "cert-manager",
-    repo_url = "https://charts.jetstack.io",
-    values = "./helm/cert-manager/values.yaml",
-    namespace = "cert-manager",
-    release_name = "cert-manager",
-)
-k8s_yaml('./helm/cluster-issuer.yaml')
-# k8s_yaml('./helm/certificate.yaml')
+# remote_helm(
+#     service_name = "cert-manager",
+#     repo_url = "https://charts.jetstack.io",
+#     values = "./helm/cert-manager.yaml",
+#     namespace = "cert-manager",
+#     release_name = "cert-manager",
+# )
+# k8s_yaml('./helm/cluster-issuer.yaml')
+# # k8s_yaml('./helm/certificate.yaml')
+
+### RabbitMQ from standard Helm chart ###
+# remote_helm(
+#     service_name = "rabbitmq",
+#     repo_url = "https://charts.bitnami.com/bitnami",
+#     values = ["./helm/rabbitmq.yaml"],
+#     namespace = "rabbitmq",
+#     release_name = "rabbitmq",
+# )

@@ -1,0 +1,56 @@
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]                                           # Default settings for the intermediate CA
+dir               = ./intermediateCA                     # Intermediate CA directory
+certs             = $dir/certs                           # Certificates directory
+crl_dir           = $dir/crl                             # CRL directory
+new_certs_dir     = $dir/newcerts                        # New certificates directory
+database          = $dir/index.txt                       # Certificate index file
+serial            = $dir/serial                          # Serial number file
+RANDFILE          = $dir/private/.rand                   # Random number file
+private_key       = $dir/private/intermediate.key.pem    # Intermediate CA private key
+certificate       = $dir/certs/intermediate.cert.pem     # Intermediate CA certificate
+crl               = $dir/crl/intermediate.crl.pem        # Intermediate CA CRL
+crlnumber         = $dir/crlnumber                       # Intermediate CA CRL number
+crl_extensions    = crl_ext                              # CRL extensions
+default_crl_days  = 30                                   # Default CRL validity days
+default_md        = sha256                               # Default message digest
+preserve          = no                                   # Preserve existing extensions
+email_in_dn       = no                                   # Exclude email from the DN
+name_opt          = ca_default                           # Formatting options for names
+cert_opt          = ca_default                           # Certificate output options
+policy            = policy_loose                         # Certificate policy
+
+[ policy_loose ]                                         # Policy for less strict validation
+countryName             = optional                       # Country is optional
+stateOrProvinceName     = optional                       # State or province is optional
+localityName            = optional                       # Locality is optional
+organizationName        = optional                       # Organization is optional
+organizationalUnitName  = optional                       # Organizational unit is optional
+commonName              = supplied                       # Must provide a common name
+emailAddress            = optional                       # Email address is optional
+
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = req_ext
+prompt = no
+
+[req_distinguished_name]
+C   = CA
+ST  = AB
+L   = Edmonton
+O   = SystematicTech
+OU  = R&D
+CN  = localhost
+
+[req_ext]
+subjectAltName = @alt_names
+
+[ alt_names ]
+IP.1 = 127.0.0.1
+DNS.1 = localhost
+DNS.2 = admin.localhost
+DNS.3 = api.localhost
+DNS.4 = auth.localhost
+DNS.6 = client.localhost
