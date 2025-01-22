@@ -1,2 +1,2 @@
-./certificates/intermediateCA
-./certificates/rootCA
+certificates/intermediateCA
+certificates/rootCA
