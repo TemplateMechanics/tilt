@@ -1,5 +1,5 @@
 replicaCount: 1
-clusterName: demo
+clusterName: docker-desktop
 pathBase: /mssql
 
 image:
