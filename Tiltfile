@@ -1,146 +1,171 @@
-load("ext://helm_remote", "helm_remote")
-load('ext://namespace', 'namespace_yaml')
-def certificate_creation(
-    service_name,
-):
-    build_context="./certificates/"
-    service_name_lower = "{}".format(service_name.lower())
+###############################################################################
+# LOAD TILT EXTENSIONS (only non-built-in functions)
+###############################################################################
 
+load("ext://helm_remote", "helm_remote")
+load("ext://namespace", "namespace_yaml")
+load("ext://cert_manager", "deploy_cert_manager")
+load("ext://git_resource", "git_resource")
+
+###############################################################################
+# HELPER FUNCTIONS
+###############################################################################
+
+# Create certificates using a local PowerShell script
+def certificate_creation(service_name):
+    build_context = "./certificates"
+    service_name_lower = service_name.lower()
     local_resource(
         "{}-certificate-creation".format(service_name_lower),
-        'cd {} && pwsh ./generate-certs.ps1'.format(build_context),
+        "cd {} && sudo pwsh ./generate-certs.ps1".format(build_context),
+        labels=["Local-Certificates"],
+    )
+
+
+    local_resource(
+        "{}-edge-certificate-install".format(service_name_lower),
+        "cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(build_context),
+        deps=["{}-certificate-creation".format(service_name_lower), "k8s_namespace"],
         labels=["Local-Certificates"]
     )
 
-def k8s_namespace(
-    namespace_name,
-    allow_duplicates=False,
-    ):
 
+def install_flux(service_name):
+    local_resource(
+        "{}-flux-install".format(service_name),
+        "flux install",
+        deps=["k8s_namespace"],
+        labels=["Flux"]
+    )
+
+# Create a Kubernetes namespace using a YAML snippet from the namespace extension
+def k8s_namespace(namespace_name, allow_duplicates=False):
     k8s_yaml(
-        namespace_yaml(
-            namespace_name,
-        ),
+        namespace_yaml(namespace_name),
         allow_duplicates=allow_duplicates,
     )
 
-def k8s_helm(
-    service_name,
-    namespace,
-    ):
-
-    chart_path = './helm/{}'.format(service_name) or chart_path
-    values = './helm/{}/values.yaml'.format(service_name) or values
-    release_name = service_name or release_name
-    # resource_deps = resource_deps or []
-
+# Deploy a Helm chart that lives in your local helm/ folder
+def k8s_helm(service_name, namespace):
+    chart_path = "./helm/{}".format(service_name)
+    values_path = "./helm/{}/values.yaml".format(service_name)
     k8s_yaml(
         helm(
-        chart_path,
-        values = values,
-        namespace=namespace or service_name,
-        name=service_name or release_name,
-      )
+            chart_path,
+            values=values_path,
+            namespace=namespace,
+            name=service_name,
+        )
     )
 
-def remote_helm(
-    service_name,
-    repo_url,
-    namespace,
-    release_name,
-    values,
-    ):
+# Deploy a helm chart using Kustomize
+def k8s_kustomize(path_to_dir, flags=[]):
+    k8s_yaml((kustomize(path_to_dir, flags=flags)))
 
-    values='helm/{}.yaml'.format(service_name)
-
+# Deploy a remote Helm chart from a given repository URL
+def remote_helm(service_name, repo_url, namespace, release_name, values):
     helm_remote(
         repo_name=service_name,
         repo_url=repo_url,
-        values=values,
-        namespace=namespace or service_name,
-        release_name=release_name or service_name,
-        chart=service_name
+        values=values,  # a string or a list of values files
+        namespace=namespace,
+        release_name=release_name,
+        chart=service_name,
     )
 
+# Build and deploy a .NET service
 def dotnet_service(
     service_name,
     publish_folder="publish",
-    host_port= 80 or None,
-    container_port= 80 or None,
-    ):
-
-    build_context="../{}".format(service_name)
-    dotnet_command="dotnet publish"
+    host_port=80,
+    container_port=80,
+):
+    build_context = "../{}".format(service_name)
     csproj_path = "{}/{}.csproj".format(build_context, service_name)
-    dotnet_command_flags="-c Release -o"
     publish_path = "{}/{}".format(build_context, publish_folder)
-    service_name_lower = "{}".format(service_name.lower())
+    service_name_lower = service_name.lower()
     local_resource_name = "{}-build".format(service_name_lower)
     k8s_yaml_path = "{}.yaml".format(service_name_lower)
 
+    # Build the .NET project locally
     local_resource(
         local_resource_name,
-        '{} {} {} {}'.format(dotnet_command, csproj_path, dotnet_command_flags, publish_path),
-        ignore = ['{}/obj'.format(build_context), '{}/bin'.format(build_context), '{}/.vs'.format(build_context), publish_path],
-        deps=['{}'.format(build_context)],
+        "dotnet publish {} -c Release -o {}".format(csproj_path, publish_path),
+        ignore=[
+            "{}/obj".format(build_context),
+            "{}/bin".format(build_context),
+            "{}/.vs".format(build_context),
+            publish_path,
+        ],
+        deps=[build_context],
     )
+
+    # Build the Docker image from the published output
     docker_build(
         service_name_lower,
         publish_path,
-        dockerfile='{}/Dockerfile'.format(build_context),
+        dockerfile="{}/Dockerfile".format(build_context),
     )
+
+    # Deploy the Kubernetes manifests
     k8s_yaml(k8s_yaml_path)
     k8s_resource(
         service_name_lower,
         port_forwards="{}:{}".format(host_port, container_port),
-        resource_deps=['{}'.format(local_resource_name)],
+        resource_deps=[local_resource_name],
     )
-### Services ###
-# Create certificates
-certificate_creation('dev')
-# Create namespaces
-k8s_namespace('database')
-k8s_namespace('traefik')
-k8s_namespace('cert-manager')
-k8s_namespace('rabbitmq')
-### Deploy Database ###
-### MSSQL ###
-k8s_helm(
-    service_name = "mssql",
-    namespace = "database",
-)
-## MongoDB ###
-# remote_helm(
-#     service_name = "mongodb",
-#     repo_url = "https://charts.bitnami.com/bitnami",
-#     values = ["./helm/mongodb.yaml"],
-#     namespace = "database",
-#     release_name = "mongodb",
-# )
-## Traefik
-remote_helm(
-    service_name = "traefik",
-    repo_url = "https://helm.traefik.io/traefik",
-    values = "./helm/traefik/values.yaml",
-    namespace = "traefik",
-    release_name = "traefik",
-)
-### Cert-Manager ###
-# remote_helm(
-#     service_name = "cert-manager",
-#     repo_url = "https://charts.jetstack.io",
-#     values = "./helm/cert-manager.yaml",
-#     namespace = "cert-manager",
-#     release_name = "cert-manager",
-# )
-# k8s_yaml('./helm/cluster-issuer.yaml')
-# # k8s_yaml('./helm/certificate.yaml')
 
-### RabbitMQ from standard Helm chart ###
+# Manage Git repositories using the git_resource extension.
+def checkout_git_resource(name, repo_url, ref="master", subpath=None):
+    git_resource(
+        name=name,
+        repo=repo_url,
+        ref=ref,
+        subpath=subpath,
+    )
+            
+###############################################################################
+# EXAMPLE USAGE
+###############################################################################
+# Create Kubernetes namespaces
+k8s_namespace("database")
+k8s_namespace("flux")
+k8s_namespace("traefik")
+
+# Create certificates via a local script (if applicable)
+certificate_creation("dev")
+
+# Install Flux
+install_flux("dev")
+
+# Deploy services
+# Deploy a local Helm chart (for example, MSSQL)
+k8s_helm(
+    service_name="mssql",
+    namespace="database",
+)
+
+# Deploy a remote Helm chart (for example, Traefik)
+remote_helm(
+    service_name="traefik",
+    repo_url="https://helm.traefik.io/traefik",
+    values="./helm/traefik.yaml",
+    namespace="traefik",
+    release_name="traefik",
+)
+
+k8s_kustomize("./helm/bitnami/")
+k8s_kustomize("./helm/jupyterhub/")
+# --- Additional deployments can be added below ---
+
+# Deploy RabbitMQ via remote Helm:
 # remote_helm(
-#     service_name = "rabbitmq",
-#     repo_url = "https://charts.bitnami.com/bitnami",
-#     values = ["./helm/rabbitmq.yaml"],
-#     namespace = "rabbitmq",
-#     release_name = "rabbitmq",
+#     service_name="rabbitmq",
+#     repo_url="https://charts.bitnami.com/bitnami",
+#     values="./helm/rabbitmq.yaml",
+#     namespace="rabbitmq",
+#     release_name="rabbitmq",
 # )
+
+# Deploy a .NET service:
+# dotnet_service("MyDotnetService", publish_folder="publish", host_port=8080, container_port=80)
