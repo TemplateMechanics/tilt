@@ -1,0 +1,55 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: jupyterhub
+  namespace: jupyterhub
+spec:
+  interval: 1m
+  chart:
+    spec:
+      chart: jupyterhub
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+        namespace: flux-system
+  values:
+    service:
+      type: ClusterIP
+      port: 80
+    ingress:
+      enabled: true
+      hostname: jupyterhub.localhost
+      path: /
+      pathType: Prefix
+    proxy:
+      service:
+        public:
+          type: ClusterIP
+    hub:
+      config:
+        JupyterHub:
+          admin_access: true
+          authenticator_class: dummy
+          DummyAuthenticator:
+      password: "P@ssw0rd"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jupyterhub
+  namespace: jupyterhub
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`jupyterhub.localhost`)
+      kind: Rule
+      # middlewares:
+      #   - name: traefik-security@kubernetescrd
+      #     namespace: traefik
+      services:
+        - name: jupyterhub-proxy-public
+          namespace: jupyterhub
+          port: 80

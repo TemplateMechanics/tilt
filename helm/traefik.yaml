@@ -734,7 +734,8 @@ ports:
     # It follows the provider naming convention: https://doc.traefik.io/traefik/providers/overview/#provider-namespace
     #   - namespace-name1@kubernetescrd
     #   - namespace-name2@kubernetescrd
-    middlewares: []
+    middlewares:
+      - traefik-security@kubernetescrd
   metrics:
     # -- When using hostNetwork, use another port to avoid conflict with node exporter:
     # https://github.com/prometheus/prometheus/wiki/Default-port-allocations
@@ -755,7 +756,10 @@ ports:
 tlsOptions: {}
 
 # -- TLS Store are created as [TLSStore CRDs](https://doc.traefik.io/traefik/https/tls/#default-certificate). This is useful if you want to set a default certificate. See EXAMPLE.md for details.
-tlsStore: {}
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: wildcard-tls-dev
 
 service:
   enabled: true
@@ -919,7 +923,20 @@ podSecurityContext:
 #
 # In some cases, it can avoid the need for additional, extended or adhoc deployments.
 # See #595 for more details and traefik/tests/values/extra.yaml for example.
-extraObjects: []
+extraObjects: 
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: security
+    spec:
+      headers:
+        accessControlAllowMethods:
+          - "*"
+        accessControlAllowHeaders: 
+          - "*"
+        accessControlAllowOriginListRegex:
+          - "https://(.*)?.localhost\\$"
+          - "http://(.*)?.localhost\\$"
 
 # -- This field override the default Release Namespace for Helm.
 # It will not affect optional CRDs such as `ServiceMonitor` and `PrometheusRules`
