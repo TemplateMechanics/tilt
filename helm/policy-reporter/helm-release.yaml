@@ -1,0 +1,28 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: policy-reporter
+  namespace: policy-reporter
+spec:
+  interval: 1m
+  chart:
+    spec:
+      chart: policy-reporter
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: policy-reporter
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 5
+  upgrade:
+    remediation:
+      retries: 5
+  values:
+    kyvernoPlugin:
+      enabled: true
+    ui:
+      enabled: true
+      plugins:
+        kyverno: true

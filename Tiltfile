@@ -28,7 +28,6 @@ def certificate_creation(service_name):
         labels=["Local-Certificates"]
     )
 
-
 def install_flux(service_name):
     local_resource(
         "{}-flux-install".format(service_name),
@@ -176,18 +175,12 @@ remote_helm(
 # Deploy Kustomized Helm resources with selective link generation
 k8s_kustomize("./helm/bitnami/", "bitnami", generate_link=False)
 k8s_kustomize("./helm/jupyterhub/", "jupyterhub", generate_link=True)
-# k8s_kustomize(".helm/jenkins/", "jenkins", generate_link=True)
-
-# --- Additional deployments can be added below ---
-
-# Deploy RabbitMQ via remote Helm:
-# remote_helm(
-#     service_name="rabbitmq",
-#     repo_url="https://charts.bitnami.com/bitnami",
-#     values="./helm/rabbitmq.yaml",
-#     namespace="rabbitmq",
-#     release_name="rabbitmq",
-# )
+k8s_kustomize("./helm/jenkins/", "jenkins", generate_link=True)
+k8s_kustomize("./helm/harbor/", "harbor", generate_link=True)
+k8s_kustomize("./helm/kyverno/", "kyverno", generate_link=False)
+k8s_kustomize("./helm/keycloak/", "auth", generate_link=True)
+k8s_kustomize("./helm/policy-reporter/", "policy-reporter", generate_link=False)
+k8s_kustomize("./helm/wordpress/", "wordpress", generate_link=True)
 
 # Deploy a .NET service:
 # dotnet_service("MyDotnetService", publish_folder="publish", host_port=8080, container_port=80)

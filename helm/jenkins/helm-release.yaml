@@ -16,6 +16,9 @@ spec:
         namespace: flux-system
   values:
     controller:
+      admin:
+        username: user
+        password: "P@ssw0rd" #Don't do this in production
       jenkinsUrl: https://jenkins.localhost
       testEnabled: false
 #       securityRealm:
@@ -81,9 +84,6 @@ spec:
   routes:
     - match: Host(`jenkins.localhost`) || Host(`www.jenkins.locahost`)
       kind: Rule
-      # middlewares:
-      #   - name: traefik-security@kubernetescrd
-      #     namespace: traefik
       services:
         - name: jenkins
           namespace: jenkins
