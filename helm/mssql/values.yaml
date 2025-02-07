@@ -15,7 +15,7 @@ MSSQL_PID:
 MSSQL_AGENT_ENABLED:
     value: "true"
 hostname: mssqllatest
-sa_password: "P@ssw0rd" #for local dev only!
+sa_password: "P@ssw0rd" #Don't do this in production
 
 containers:
     ports:

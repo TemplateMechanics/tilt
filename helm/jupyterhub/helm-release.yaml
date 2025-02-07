@@ -33,7 +33,7 @@ spec:
           admin_access: true
           authenticator_class: dummy
           DummyAuthenticator:
-      password: "P@ssw0rd"
+      password: "P@ssw0rd" #Don't do this in production
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
