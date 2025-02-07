@@ -21,7 +21,6 @@ def certificate_creation(service_name):
         labels=["Local-Certificates"],
     )
 
-
     local_resource(
         "{}-edge-certificate-install".format(service_name_lower),
         "cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(build_context),
@@ -58,9 +57,29 @@ def k8s_helm(service_name, namespace):
         )
     )
 
-# Deploy a helm chart using Kustomize
-def k8s_kustomize(path_to_dir, flags=[]):
-    k8s_yaml((kustomize(path_to_dir, flags=flags)))
+# Deploy a Helm chart using Kustomize and optionally generate a local HTTPS link for the resource
+def k8s_kustomize(path_to_dir, service_name, generate_link=False, flags=[]):
+    # Deploy the Kustomize resource
+    kustomized_yaml = kustomize(path_to_dir, flags=flags)
+    k8s_yaml(kustomized_yaml)
+
+    # If generate_link is enabled, construct and print the local HTTPS service URL
+    if generate_link:
+        service_url = "https://{}.localhost".format(service_name)
+        print("Kustomize Deployment Completed for {}: {}".format(service_name, service_url))
+        
+        # Create a local Tilt resource for the link
+        local_resource(
+            "{}".format(service_name),
+            cmd="echo 'Service available at {}'".format(service_url),
+            links=[service_url],  # Attach the link so it appears in the UI
+            labels=["Flux"]
+        )
+
+        return service_url  # Return the link for potential use elsewhere
+    else:
+        print("Kustomize Deployment Completed for {} (no link required).".format(service_name))
+        return None  # No link needed
 
 # Deploy a remote Helm chart from a given repository URL
 def remote_helm(service_name, repo_url, namespace, release_name, values):
@@ -154,8 +173,11 @@ remote_helm(
     release_name="traefik",
 )
 
-k8s_kustomize("./helm/bitnami/")
-k8s_kustomize("./helm/jupyterhub/")
+# Deploy Kustomized Helm resources with selective link generation
+k8s_kustomize("./helm/bitnami/", "bitnami", generate_link=False)
+k8s_kustomize("./helm/jupyterhub/", "jupyterhub", generate_link=True)
+# k8s_kustomize(".helm/jenkins/", "jenkins", generate_link=True)
+
 # --- Additional deployments can be added below ---
 
 # Deploy RabbitMQ via remote Helm:
