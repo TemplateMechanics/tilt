@@ -1,0 +1,90 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: jenkins
+      version: "*"
+      sourceRef:
+        kind: HelmRepository
+        name: jenkins
+        namespace: flux-system
+  values:
+    controller:
+      jenkinsUrl: https://jenkins.localhost
+      testEnabled: false
+#       securityRealm:
+#         type: "github"
+      installPlugins:
+          - kubernetes
+          - workflow-aggregator
+          - git
+          - configuration-as-code
+#         - ansible
+#         - ansicolor
+#         - authentication-tokens
+#         - bouncycastle-api
+#         - branch-api
+#         - command-launcher
+#         - configuration-as-code
+#         - credentials
+#         - credentials-binding
+#         - display-url-api
+#         - durable-task
+#         - git
+#         - gitlab-plugin
+#         - github
+#         - jackson2-api
+#         - jdk-tool
+#         - junit
+#         - kubernetes
+#         - kubernetes-credentials
+#         - kubernetes-cli
+#         - kubernetes-client-api
+#         - lockable-resources
+#         - mailer
+#         - material-theme
+#         - matrix-auth
+#         - matrix-project
+#         - pipeline-build-step
+#         - pipeline-graph-analysis
+#         - pipeline-input-step
+#         - pipeline-milestone-step
+#         - pipeline-model-api
+#         - pipeline-model-definition
+#         - pipeline-model-extensions
+#         - pipeline-rest-api
+#         - pipeline-stage-step
+#         - pipeline-stage-tags-metadata
+#         - pipeline-stage-view
+#         - plain-credentials
+#         - scm-api
+#         - script-security
+#         - snakeyaml-api
+#         - ssh-credentials
+#         - structs
+#         - terraform
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`jenkins.localhost`) || Host(`www.jenkins.locahost`)
+      kind: Rule
+      # middlewares:
+      #   - name: traefik-security@kubernetescrd
+      #     namespace: traefik
+      services:
+        - name: jenkins
+          namespace: jenkins
+          port: 8080
