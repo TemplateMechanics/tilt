@@ -11,13 +11,38 @@ load("ext://git_resource", "git_resource")
 # HELPER FUNCTIONS
 ###############################################################################
 
+
+# Detect OS Type
+def get_os_type():
+    windows_check = str(local("echo %OS%", quiet=True)).strip().lower()
+    if "windows" in windows_check:
+        return "windows"
+    
+    # If not Windows, assume Linux/macOS
+    uname_result = str(local("uname", quiet=True)).strip().lower()
+    if "darwin" in uname_result:
+        return "macos"
+    elif "linux" in uname_result:
+        return "linux"
+    
+    return "unknown"
+
 # Create certificates using a local PowerShell script
 def certificate_creation(service_name):
     build_context = "./certificates"
     service_name_lower = service_name.lower()
+    os_type = get_os_type()
+
+    if os_type == "windows":
+        command = "cd {} && powershell.exe -File ./generate-certs.ps1".format(build_context)
+    elif os_type == "macos":
+        command = "cd {} && sudo pwsh -File ./generate-certs.ps1".format(build_context)
+    else:  # Assume Linux
+        command = "cd {} && pwsh -File ./generate-certs.ps1".format(build_context)
+
     local_resource(
         "{}-certificate-creation".format(service_name_lower),
-        "cd {} && sudo pwsh ./generate-certs.ps1".format(build_context),
+        command,
         labels=["Local-Certificates"],
     )
 
