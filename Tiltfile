@@ -95,7 +95,7 @@ def k8s_kustomize(path_to_dir, service_name, generate_link=False, flags=[]):
         # Create a local Tilt resource for the link
         local_resource(
             "{}".format(service_name),
-            cmd="echo 'Service available at {}'".format(service_url),
+            cmd="echo Service available at {}".format(service_url),
             links=[service_url],  # Attach the link so it appears in the UI
             labels=["Flux"]
         )
