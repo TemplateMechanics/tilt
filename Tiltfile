@@ -199,13 +199,14 @@ remote_helm(
 
 # Deploy Kustomized Helm resources with selective link generation
 k8s_kustomize("./helm/bitnami/", "bitnami", generate_link=False)
-k8s_kustomize("./helm/jupyterhub/", "jupyterhub", generate_link=True)
-k8s_kustomize("./helm/jenkins/", "jenkins", generate_link=True)
-k8s_kustomize("./helm/harbor/", "harbor", generate_link=True)
-k8s_kustomize("./helm/kyverno/", "kyverno", generate_link=False)
-k8s_kustomize("./helm/keycloak/", "auth", generate_link=True)
-k8s_kustomize("./helm/policy-reporter/", "policy-reporter", generate_link=False)
-k8s_kustomize("./helm/wordpress/", "wordpress", generate_link=True)
+# k8s_kustomize("./helm/airflow/", "airflow", generate_link=True)
+# k8s_kustomize("./helm/jupyterhub/", "jupyterhub", generate_link=True)
+# k8s_kustomize("./helm/jenkins/", "jenkins", generate_link=True)
+# k8s_kustomize("./helm/harbor/", "harbor", generate_link=True)
+# k8s_kustomize("./helm/kyverno/", "kyverno", generate_link=False)
+# k8s_kustomize("./helm/keycloak/", "auth", generate_link=True)
+# k8s_kustomize("./helm/policy-reporter/", "policy-reporter", generate_link=False)
+# k8s_kustomize("./helm/wordpress/", "wordpress", generate_link=True)
 
 # Deploy a .NET service:
 # dotnet_service("MyDotnetService", publish_folder="publish", host_port=8080, container_port=80)
