@@ -1,0 +1,66 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  releaseName: airflow
+  chart:
+    spec:
+      chart: airflow
+      version: "*"  # Set the version you want
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+        namespace: flux-system
+  interval: 5m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    auth:
+      username: "admin"
+      password: "P@ssw0rd"  # ⚠️ DO NOT use this in production
+      fernetKey: "P@ssw0rd"  # ⚠️ DO NOT use this in production
+    web:
+      replicaCount: 1
+      resourcePreset: nano
+    scheduler:
+      replicaCount: 1
+      resourcePreset: nano
+    worker:
+      replicaCount: 1
+      resourcePreset: nano
+    postgresql:
+      enabled: true
+      auth:
+        enablePostgresUser: true
+        password: "P@ssw0rd"  # ⚠️ DO NOT use this in production
+        username: "airflow"
+        database: "airflow"
+    executor: KubernetesExecutor
+    rbac:
+      create: true
+    serviceAccount:
+      create: true
+    redis:
+      enabled: false
+# ---
+# apiVersion: traefik.io/v1alpha1
+# kind: IngressRoute
+# metadata:
+#   name: airflow
+#   namespace: airflow
+# spec:
+#   entryPoints:
+#     - websecure
+#   routes:
+#     - match: Host(`airflow.localhost`) || Host(`www.airflow.locahost`)
+#       kind: Rule
+#       services:
+#         - name: airflow
+#           namespace: airflow
+#           port: 80
