@@ -1,52 +1,119 @@
 # Project Tiltfile Overview
 
-This document provides an overview of the Tiltfile used in this project for setting up the development environment using Tilt.
+This document provides an overview of the Tiltfile used in this project for setting up the development environment using [Tilt](https://tilt.dev/).
 
-## .NET Service Configuration
+## Prerequisites
 
-### `dotnet_service` Function
+Before you begin, ensure you have the following installed:
 
-- **Purpose**: Defines a Tilt configuration for building and running a .NET service.
+- **Tilt**: Follow the [installation guide](https://docs.tilt.dev/install.html) to install Tilt on your system.
+- **Docker or Podman**: Required for building and running containerized services.
+  - [Docker Installation Guide](https://docs.docker.com/get-docker/)
+  - [Podman Installation Guide](https://podman.io/getting-started/installation)
+- **Kubernetes Cluster**: A local cluster like [Minikube](https://minikube.sigs.k8s.io/docs/start/) or [Docker Desktop's Kubernetes](https://docs.docker.com/desktop/kubernetes/) is recommended for local development.
+- **.NET SDK**: Necessary for building .NET services. Download it from the [.NET download page](https://dotnet.microsoft.com/download).
+- **Helm**: Used for managing Kubernetes charts. Install it from the [Helm installation guide](https://helm.sh/docs/intro/install/).
+- **Flux CLI**: Required for managing GitOps workflows. Install it from the [Flux installation guide](https://fluxcd.io/docs/installation/).
+- **PowerShell Core**: For running cross-platform PowerShell scripts, including certificate generation.
+
+## Loaded Extensions
+
+The following Tilt extensions are loaded in the `Tiltfile`:
+
+- **helm_remote**: For deploying remote Helm charts.
+- **namespace**: To create Kubernetes namespaces.
+- **cert_manager**: To deploy Cert Manager (currently utilized for certificate management).
+- **git_resource**: To manage Git repositories as resources in Tilt.
+
+## Helper Functions
+
+### `get_os_type`
+- **Purpose**: Detects the OS type (Windows, macOS, Linux) to handle OS-specific commands.
+
+### `certificate_creation(service_name)`
+- **Purpose**: Generates and installs SSL/TLS certificates using PowerShell scripts.
+- **Steps**:
+  1. Executes `generate-certs.ps1` to create certificates.
+  2. Installs the generated certificates as Kubernetes secrets.
+
+### `install_flux(service_name)`
+- **Purpose**: Installs Flux using the `flux install` command.
+
+### `k8s_namespace(namespace_name, allow_duplicates=False)`
+- **Purpose**: Creates a Kubernetes namespace using a YAML snippet.
+- **Parameters**:
+  - `namespace_name`: Name of the namespace.
+  - `allow_duplicates`: Allows reapplying the namespace without error.
+
+### `k8s_helm(service_name, namespace)`
+- **Purpose**: Deploys a Helm chart from the local `helm/` directory.
+- **Parameters**:
+  - `service_name`: Name of the service (also the Helm chart directory name).
+  - `namespace`: Kubernetes namespace for deployment.
+
+### `k8s_kustomize(path_to_dir, service_name, generate_link=False, flags=[])`
+- **Purpose**: Deploys a Kustomize resource and optionally generates a local HTTPS link.
+- **Parameters**:
+  - `path_to_dir`: Path to the Kustomize directory.
+  - `service_name`: Name of the service.
+  - `generate_link`: If `True`, generates a local HTTPS link for the service.
+
+### `remote_helm(service_name, repo_url, namespace, release_name, values)`
+- **Purpose**: Deploys a Helm chart from a remote repository.
 - **Parameters**:
   - `service_name`: Name of the service.
-  - `publish_folder`: Folder for the published output (default: "publish").
-  - `host_port`: Port on the host machine (default: 80).
-  - `container_port`: Port on the container (default: 80).
+  - `repo_url`: URL of the Helm chart repository.
+  - `namespace`: Kubernetes namespace for deployment.
+  - `release_name`: Name of the Helm release.
+  - `values`: Path to the Helm values file.
 
-### Steps:
-1. **Build Context**: Sets the context for the build, relative to the service name.
-2. **Dotnet Publish**: Executes the `dotnet publish` command to compile the project.
-3. **Docker Build**: Builds a Docker image for the service using the specified Dockerfile.
-4. **Kubernetes Configuration**: Loads Kubernetes YAML for service deployment.
-5. **Kubernetes Resource**: Sets up port forwarding and dependencies for the service.
+### `dotnet_service(service_name, publish_folder="publish", host_port=80, container_port=80)`
+- **Purpose**: Builds and deploys a .NET service.
+- **Steps**:
+  1. Publishes the .NET project using `dotnet publish`.
+  2. Builds a Docker image from the published output.
+  3. Deploys the service to Kubernetes using a YAML manifest.
+  4. Sets up port forwarding.
 
-## Example configurations
-### Dockerfile for Dotnet:
-```BASH
+### `checkout_git_resource(name, repo_url, ref="master", subpath=None)`
+- **Purpose**: Checks out a Git repository as a resource in Tilt.
+- **Parameters**:
+  - `name`: Resource name.
+  - `repo_url`: Git repository URL.
+  - `ref`: Branch or tag to checkout.
+  - `subpath`: Subpath within the repository.
+
+## Example Configurations
+
+### Dockerfile for .NET:
+
+```bash
 FROM mcr.microsoft.com/dotnet/aspnet:7.0
 COPY . /app/out
 WORKDIR /app/out
 ENTRYPOINT ["dotnet", "REPLACE_WITH_YOUR.dll"]
 ```
-### K8S YAML:
-```YAML
+
+### Kubernetes YAML:
+
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-name: YOUR_SERVICE_NAME
-namespace: YOUR_NAMESPACE
+  name: YOUR_SERVICE_NAME
+  namespace: YOUR_NAMESPACE
 spec:
-selector:
+  selector:
     matchLabels:
-    app: YOUR_SERVICE_NAME
-replicas: 1
-template:
+      app: YOUR_SERVICE_NAME
+  replicas: 1
+  template:
     metadata:
-    labels:
+      labels:
         app: YOUR_SERVICE_NAME
     spec:
-    containers:
-    - name: YOUR_SERVICE_NAME
+      containers:
+      - name: YOUR_SERVICE_NAME
         image: YOUR_SERVICE_NAME
         ports:
         - containerPort: 80
@@ -54,43 +121,87 @@ template:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-name: YOUR_SERVICE_NAME
-namespace: traefik
+  name: YOUR_SERVICE_NAME
+  namespace: traefik
 spec:
-entryPoints:
+  entryPoints:
     - web
-routes:
-- match: Host(`YOUR_SERVICE_NAME.localhost`)
+  routes:
+  - match: Host(`YOUR_SERVICE_NAME.localhost`)
     kind: Rule
     services:
     - name: YOUR_SERVICE_NAME
-    port: 80
+      port: 80
 ```
-## Kubernetes and Helm Configurations
 
-### Namespaces
-- Creates Kubernetes namespaces for `database`, `traefik`, and `cert-manager`.
+## Example Usage
 
-### Database Deployment
-- Deploys a Microsoft SQL Server using Helm chart configuration.
+### Create Kubernetes Namespaces
+```python
+k8s_namespace("database")
+k8s_namespace("flux")
+k8s_namespace("traefik")
+```
 
-### Traefik Ingress Controller
-- Deploys Traefik as an ingress controller using a remote Helm chart.
+### Generate Certificates
+```python
+certificate_creation("dev")
+```
 
-### Cert Manager (Commented Out)
-- Code for deploying Cert Manager using a standard Helm chart (currently commented out).
+### Install Flux
+```python
+install_flux("dev")
+```
 
-## Notes
-- Replace placeholders like `YOUR_SERVICE_NAME` and `YOUR_NAMESPACE` in the Kubernetes YAML configurations with actual values.
-- Uncomment and configure the Cert Manager section if SSL/TLS certificates management is required.
-- Ensure all paths (e.g., Helm chart paths) are correctly set relative to the Tiltfile's location.
+### Deploy a Local Helm Chart (e.g., MSSQL)
+```python
+k8s_helm(service_name="mssql", namespace="database")
+```
 
-## Example Files
-- Example Dockerfile and Kubernetes YAML snippets are included as comments within the `dotnet_service` function.
+### Deploy a Remote Helm Chart (e.g., Traefik)
+```python
+remote_helm(
+    service_name="traefik",
+    repo_url="https://helm.traefik.io/traefik",
+    values="./helm/traefik.yaml",
+    namespace="traefik",
+    release_name="traefik"
+)
+```
 
-## Extensions
-- Uses Tilt extensions like `helm_remote` and `namespace` for additional functionalities.
+### Deploy Kustomized Helm Resources
+```python
+k8s_kustomize("./helm/bitnami/", "bitnami", generate_link=False)
+```
 
----
+### Deploy a .NET Service
+```python
+dotnet_service("MyDotnetService", publish_folder="publish", host_port=8080, container_port=80)
+```
 
-For more detailed information on each configuration and how to customize it for your specific needs, refer to the respective official documentation for [.NET](https://docs.microsoft.com/en-us/dotnet/), [Docker](https://docs.docker.com/), [Kubernetes](https://kubernetes.io/), and [Helm](https://helm.sh/).
+## Dependencies
+
+Ensure the following dependencies are met:
+
+- **Tilt**: Version 0.23.2 or newer.
+- **Docker**: Version 20.10.7 or newer.
+- **Podman**: Version 3.0.0 or newer.
+- **Kubernetes**: Version 1.21 or newer.
+- **.NET SDK**: Version 5.0 or newer.
+- **Helm**: Version 3.5.0 or newer.
+- **Flux CLI**: Version 0.17.0 or newer.
+- **PowerShell Core**: Latest version for cross-platform scripting.
+
+## Common Issues
+
+- **Port Conflicts**: If the default ports are in use, adjust the `host_port` in the `dotnet_service` function accordingly.
+- **Dependency Errors**: Ensure all services are defined in the correct order, respecting their dependencies.
+- **Certificate Generation Issues**: Ensure PowerShell Core is installed and accessible for running cross-platform scripts.
+
+## Getting Help
+
+For support, consider the following resources:
+
+- **Tilt Documentation**: [https://docs.tilt.dev/](https://docs.tilt.dev/)
+- **Kubernetes Slack**: Join the `#tilt` channel for real-time assistance.
+- **GitHub Issues**: Report issues at [https://github.com/TemplateMechanics/tilt/issues](https://github.com/TemplateMechanics/tilt/issues)
