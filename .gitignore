@@ -1,2 +1,7 @@
 certificates/intermediateCA
 certificates/rootCA
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride

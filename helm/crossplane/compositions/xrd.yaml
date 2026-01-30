@@ -1,0 +1,104 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xdevapplications.devplatform.systechs.io
+spec:
+  group: devplatform.systechs.io
+  names:
+    kind: XDevApplication
+    plural: xdevapplications
+  claimNames:
+    kind: DevApplication
+    plural: devapplications
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # Basic app info
+                name:
+                  type: string
+                  description: "Application name (used for namespace, ingress, etc.)"
+                domain:
+                  type: string
+                  description: "Domain for ingress (e.g., myapp.localhost)"
+                
+                # Helm chart configuration
+                chart:
+                  type: object
+                  description: "Helm chart configuration"
+                  properties:
+                    repository:
+                      type: string
+                      description: "HelmRepository name in flux-system namespace"
+                    name:
+                      type: string
+                      description: "Chart name"
+                    version:
+                      type: string
+                      description: "Chart version (use '*' for latest)"
+                      default: "*"
+                    values:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                      description: "Helm values"
+                  required:
+                    - repository
+                    - name
+                
+                # Ingress configuration
+                ingress:
+                  type: object
+                  description: "Ingress configuration"
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    serviceName:
+                      type: string
+                      description: "Service name to route traffic to (defaults to app name)"
+                    servicePort:
+                      type: integer
+                      description: "Service port"
+                      default: 80
+                    alternativeDomains:
+                      type: array
+                      items:
+                        type: string
+                      description: "Alternative domains"
+                
+                # Monitoring configuration
+                monitoring:
+                  type: object
+                  description: "Monitoring configuration"
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: true
+                    metrics:
+                      type: boolean
+                      default: true
+                    logs:
+                      type: boolean
+                      default: true
+                    traces:
+                      type: boolean
+                      default: false
+                    metricsPort:
+                      type: integer
+                      default: 9090
+                    metricsPath:
+                      type: string
+                      default: "/metrics"
+              
+              required:
+                - name
+                - domain
+                - chart

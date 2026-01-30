@@ -1,5 +1,5 @@
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2beta1
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: harbor
@@ -9,71 +9,33 @@ spec:
   chart:
     spec:
       chart: harbor
-      version: "*"
+      version: ">=1.15.0"
       sourceRef:
         kind: HelmRepository
-        name: bitnami
+        name: harbor
         namespace: flux-system
   values:
+    expose:
+      type: ingress
+      tls:
+        enabled: false
+      ingress:
+        hosts:
+          core: harbor.localhost
+        className: traefik
     externalURL: http://harbor.localhost
-    exposureType: ingress
-    adminPassword: "P@ssw0rd" #Don't do this in production
+    harborAdminPassword: "P@ssw0rd"
     trivy:
       enabled: false
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: harbor
-  namespace: harbor
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - kind: Rule
-      match: Host(`harbor.localhost`) || Host(`www.harbor.localhost`) && PathPrefix(`/`)
-      priority: 1
-      services:
-        - name: harbor-portal
-          namespace: harbor
-          port: 80
-    - kind: Rule
-      match: Host(`harbor.localhost`) && PathPrefix(`/c/`) || Host(`www.harbor.localhost`) && PathPrefix(`/c/`)
-      priority: 10
-      services:
-        - kind: Service
-          name: harbor-core
-          namespace: harbor
-          port: 80
-    - kind: Rule
-      match: Host(`harbor.localhost`) && PathPrefix(`/api/`) || Host(`www.harbor.localhost`) && PathPrefix(`/api/`)
-      priority: 10
-      services:
-        - kind: Service
-          name: harbor-core
-          namespace: harbor
-          port: 80
-    - kind: Rule
-      match: Host(`harbor.localhost`) && PathPrefix(`/service/`) || Host(`www.harbor.localhost`) && PathPrefix(`/service/`)
-      priority: 10
-      services:
-        - kind: Service
-          name: harbor-core
-          namespace: harbor
-          port: 80
-    - kind: Rule
-      match: Host(`harbor.localhost`) && PathPrefix(`/v2/`) || Host(`www.harbor.localhost`) && PathPrefix(`/v2/`)
-      priority: 10
-      services:
-        - kind: Service
-          name: harbor-core
-          namespace: harbor
-          port: 80
-    - kind: Rule
-      match: Host(`harbor.localhost`) && PathPrefix(`/chartrepo/`) || Host(`www.harbor.localhost`) && PathPrefix(`/chartrepo/`)
-      priority: 10
-      services:
-        - kind: Service
-          name: harbor-core
-          namespace: harbor
-          port: 80
+    database:
+      type: internal
+    redis:
+      type: internal
+    persistence:
+      persistentVolumeClaim:
+        registry:
+          size: 5Gi
+        database:
+          size: 1Gi
+        redis:
+          size: 1Gi

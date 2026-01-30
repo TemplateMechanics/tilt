@@ -1,0 +1,8 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: ollama
+  namespace: ollama
+spec:
+  interval: 1h
+  url: https://otwld.github.io/ollama-helm/

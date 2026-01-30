@@ -1,0 +1,173 @@
+---
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: devapplication
+  labels:
+    crossplane.io/xrd: xdevapplications.devplatform.systechs.io
+spec:
+  compositeTypeRef:
+    apiVersion: devplatform.systechs.io/v1alpha1
+    kind: XDevApplication
+  
+  resources:
+    # 1. Create Namespace
+    - name: namespace
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: placeholder
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+    
+    # 2. Deploy Helm Release via Flux
+    - name: helmrelease
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: helm.toolkit.fluxcd.io/v2
+              kind: HelmRelease
+              metadata:
+                name: placeholder
+                namespace: placeholder
+              spec:
+                interval: 5m
+                chart:
+                  spec:
+                    chart: placeholder
+                    version: "*"
+                    sourceRef:
+                      kind: HelmRepository
+                      name: placeholder
+                      namespace: flux-system
+                values: {}
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.chart.name
+          toFieldPath: spec.forProvider.manifest.spec.chart.spec.chart
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.chart.version
+          toFieldPath: spec.forProvider.manifest.spec.chart.spec.version
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.chart.repository
+          toFieldPath: spec.forProvider.manifest.spec.chart.spec.sourceRef.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.chart.values
+          toFieldPath: spec.forProvider.manifest.spec.values
+          policy:
+            mergeOptions:
+              keepMapValues: true
+    
+    # 3. Create Traefik IngressRoute
+    - name: ingressroute
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: traefik.io/v1alpha1
+              kind: IngressRoute
+              metadata:
+                name: placeholder
+                namespace: placeholder
+              spec:
+                entryPoints:
+                  - websecure
+                routes:
+                  - match: Host(`placeholder.localhost`)
+                    kind: Rule
+                    middlewares:
+                      - name: security
+                        namespace: traefik
+                    services:
+                      - name: placeholder
+                        namespace: placeholder
+                        port: 80
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.domain
+          toFieldPath: spec.forProvider.manifest.spec.routes[0].match
+          transforms:
+            - type: string
+              string:
+                fmt: "Host(`%s`)"
+        # Default service name to spec.name (applied first)
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].name
+        # Override with explicit serviceName if provided (applied second, wins)
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.ingress.serviceName
+          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].name
+          policy:
+            fromFieldPath: Optional
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.ingress.servicePort
+          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].port
+    
+    # 4. Create ServiceMonitor for Prometheus (if monitoring.metrics enabled)
+    - name: servicemonitor
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: monitoring.coreos.com/v1
+              kind: ServiceMonitor
+              metadata:
+                name: placeholder
+                namespace: placeholder
+                labels:
+                  app: placeholder
+              spec:
+                selector:
+                  matchLabels:
+                    app.kubernetes.io/name: placeholder
+                endpoints:
+                  - port: metrics
+                    path: /metrics
+                    interval: 30s
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.metadata.labels.app
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.name
+          toFieldPath: spec.forProvider.manifest.spec.selector.matchLabels["app.kubernetes.io/name"]
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.monitoring.metricsPath
+          toFieldPath: spec.forProvider.manifest.spec.endpoints[0].path

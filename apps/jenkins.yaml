@@ -1,0 +1,39 @@
+---
+apiVersion: devplatform.systechs.io/v1alpha1
+kind: DevApplication
+metadata:
+  name: jenkins
+  namespace: default
+spec:
+  name: jenkins
+  domain: jenkins.localhost
+  
+  chart:
+    repository: jenkins
+    name: jenkins
+    version: "*"
+    values:
+      controller:
+        admin:
+          username: user
+          password: "P@ssw0rd"
+        jenkinsUrl: https://jenkins.localhost
+        testEnabled: false
+        installPlugins:
+          - kubernetes
+          - workflow-aggregator
+          - git
+          - configuration-as-code
+  
+  ingress:
+    enabled: true
+    serviceName: jenkins
+    servicePort: 8080
+  
+  monitoring:
+    enabled: true
+    metrics: true
+    logs: true
+    traces: false
+    metricsPort: 8080
+    metricsPath: /prometheus

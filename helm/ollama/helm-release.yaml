@@ -1,0 +1,66 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+  namespace: ollama
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: ollama
+      version: '>=0.1.0'
+      sourceRef:
+        kind: HelmRepository
+        name: ollama
+        namespace: ollama
+      interval: 1m
+  values:
+    ollama:
+      # GPU support - set to 1 if you have NVIDIA GPU
+      gpu:
+        enabled: false
+        type: 'nvidia'
+        number: 1
+      
+      # Models configuration
+      # - pull: downloads models at startup (increases startup time)
+      # - run: loads models into memory at startup
+      # - create: creates custom models from Modelfiles
+      models:
+        pull:
+          - tinyllama    # Small 637MB model for testing
+          # - llama3.2   # 2GB - good general purpose
+          # - mistral    # 4GB - high quality
+          # - codellama  # 4GB - code focused
+        run: []          # Don't preload into memory
+        create: []
+    
+    # Persistent storage for models
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 11434
+    
+    # Ingress configuration
+    ingress:
+      enabled: true
+      className: traefik
+      hosts:
+        - host: ollama.localhost
+          paths:
+            - path: /
+              pathType: Prefix
+    
+    # Resources
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi

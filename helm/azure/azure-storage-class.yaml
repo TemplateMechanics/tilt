@@ -1,0 +1,18 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: app-sc-batches
+provisioner: file.csi.azure.com
+allowVolumeExpansion: true
+mountOptions:
+ - dir_mode=0777
+ - file_mode=0777
+ - uid=0
+ - gid=0
+ - mfsymlinks
+ - cache=strict
+ - actimeo=30
+parameters:
+  skuName: Standard_LRS
+  storageAccount: myappbatches
+  resourceGroup: MC_myapp-rg_myapp-cluster_region

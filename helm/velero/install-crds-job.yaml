@@ -1,0 +1,31 @@
+# Install Velero CRDs
+# This should be run before deploying Velero resources
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: velero-install-crds
+  namespace: velero
+spec:
+  template:
+    metadata:
+      name: velero-install-crds
+    spec:
+      serviceAccountName: velero
+      restartPolicy: OnFailure
+      containers:
+        - name: kubectl
+          image: alpine/k8s:1.28.5
+          command:
+            - sh
+            - -c
+            - |
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_backups.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_backupstoragelocations.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_deletebackuprequests.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_downloadrequests.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_podvolumebackups.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_podvolumerestores.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_restores.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_schedules.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_serverstatusrequests.yaml
+              kubectl apply -f https://raw.githubusercontent.com/vmware-tanzu/velero/v1.14.1/config/crd/v1/bases/velero.io_volumesnapshotlocations.yaml

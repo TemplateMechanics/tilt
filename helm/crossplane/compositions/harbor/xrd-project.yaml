@@ -1,0 +1,49 @@
+---
+# XRD for Harbor Projects - manage Harbor resources via Crossplane
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xharborprojects.harbor.devplatform.systechs.io
+spec:
+  group: harbor.devplatform.systechs.io
+  names:
+    kind: XHarborProject
+    plural: xharborprojects
+  claimNames:
+    kind: HarborProject
+    plural: harborprojects
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: "Project name in Harbor"
+                public:
+                  type: boolean
+                  default: false
+                  description: "Whether the project is public"
+                storageLimit:
+                  type: string
+                  default: "-1"
+                  description: "Storage quota (-1 for unlimited)"
+                harborUrl:
+                  type: string
+                  default: "http://harbor-core.harbor.svc.cluster.local"
+                  description: "Harbor API URL"
+              required:
+                - name
+            status:
+              type: object
+              properties:
+                projectId:
+                  type: integer
+                ready:
+                  type: boolean
