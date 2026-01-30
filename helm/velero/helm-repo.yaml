@@ -1,0 +1,2 @@
+# Velero installed via direct kubectl manifests instead of Helm
+# This avoids dependencies on VMware Tanzu and Bitnami images

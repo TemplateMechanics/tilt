@@ -1,0 +1,37 @@
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# metadata:
+#   name: host-aliases
+#   annotations:
+#     policies.kyverno.io/title: Add Host Aliases
+#     policies.kyverno.io/category: Infrastructure
+#     policies.kyverno.io/subject: Deployments
+#     policies.kyverno.io/description: >-
+#       This policy adds custom host aliases to all pods.
+# spec:
+#   validationFailureAction: enforce
+#   background: true
+#   rules:
+#     - name: add-host-aliases
+#       match:
+#         any:
+#         - resources:
+#             kinds:
+#               - Deployment
+#             namespaces:
+#                 - app
+#       mutate:
+#         patchStrategicMerge:
+#           spec:
+#             template:
+#               spec:
+#                 hostAliases:
+#                 - ip: "10.0.10.6"
+#                   hostnames:
+#                   - "myregistry.azurecr.io"
+#                 - ip: "10.0.10.4"
+#                   hostnames:
+#                   - "myapp-sql.database.windows.net"
+#                 - ip: "10.224.0.200"
+#                   hostnames:
+#                   - "api.myapp.dev"

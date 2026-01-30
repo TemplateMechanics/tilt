@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: langfuse
+  namespace: langfuse
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: langfuse
+      version: '>=0.1.0'
+      sourceRef:
+        kind: HelmRepository
+        name: langfuse
+        namespace: langfuse
+      interval: 1m
+  values:
+    # Langfuse configuration
+    langfuse:
+      nextauth:
+        url: "http://langfuse.localhost"
+        secret: "changeme-random-secret-min-32-chars"
+      
+      salt: "changeme-random-salt"
+      
+      # Telemetry (set to false for privacy)
+      telemetryEnabled: false
+    
+    # PostgreSQL dependency
+    postgresql:
+      enabled: true
+      auth:
+        username: langfuse
+        password: langfuse
+        database: langfuse
+      primary:
+        persistence:
+          enabled: true
+          size: 8Gi
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 3000
+    
+    # Ingress configuration
+    ingress:
+      enabled: true
+      className: traefik
+      hosts:
+        - host: langfuse.localhost
+          paths:
+            - path: /
+              pathType: Prefix
+    
+    # Resources
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi

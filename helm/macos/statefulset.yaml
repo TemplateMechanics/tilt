@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: macos
+  namespace: macos
+spec:
+  serviceName: macos
+  replicas: 1
+  selector:
+    matchLabels:
+      app: macos
+  template:
+    metadata:
+      labels:
+        app: macos
+    spec:
+      # WARNING: This requires privileged access - use with caution!
+      hostNetwork: true
+      
+      # Node selector - uncomment and set to a specific node if needed
+      # nodeSelector:
+      #   kubernetes.io/hostname: your-node-name
+      
+      containers:
+      - name: macos
+        # Docker-OSX by sickcodes
+        # Options: ventura, monterey, big-sur, catalina
+        image: sickcodes/docker-osx:ventura
+        
+        # Security context - REQUIRED for KVM access
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - ALL
+        
+        # Environment variables for customization
+        env:
+        # Display variable for X11
+        - name: DISPLAY
+          value: ":0.0"
+        
+        # macOS version shortname
+        - name: SHORTNAME
+          value: "ventura"
+        
+        # Generate unique serial numbers
+        - name: GENERATE_UNIQUE
+          value: "true"
+        
+        # CPU model for newer macOS versions
+        - name: CPU
+          value: "Haswell-noTSX"
+        
+        # CPU flags
+        - name: CPUID_FLAGS
+          value: "kvm=on,vendor=GenuineIntel,+invtsc,vmware-cpuid-freq=on"
+        
+        # Master plist URL for serial generation
+        - name: MASTER_PLIST_URL
+          value: "https://raw.githubusercontent.com/sickcodes/osx-serial-generator/master/config-custom.plist"
+        
+        # RAM allocation (in GB)
+        - name: RAM
+          value: "8"
+        
+        # CPU SMP configuration
+        - name: SMP
+          value: "4"
+        
+        - name: CORES
+          value: "2"
+        
+        # Display resolution
+        - name: WIDTH
+          value: "1920"
+        - name: HEIGHT
+          value: "1080"
+        
+        # Skip boot picker menu
+        - name: NOPICKER
+          value: "true"
+        
+        # Ports
+        ports:
+        # VNC port
+        - containerPort: 5900
+          name: vnc
+          protocol: TCP
+        
+        # Screen sharing (if enabled)
+        - containerPort: 5800
+          name: web-vnc
+          protocol: TCP
+        
+        # SSH (if enabled)
+        - containerPort: 10022
+          name: ssh
+          protocol: TCP
+        
+        # Resources - adjust based on your needs
+        resources:
+          requests:
+            cpu: "4000m"
+            memory: "8Gi"
+          limits:
+            cpu: "8000m"
+            memory: "16Gi"
+        
+        # Volume mounts
+        volumeMounts:
+        - name: macos-disk
+          mountPath: /home/arch/OSX-KVM/mac_hdd_ng.img
+          subPath: mac_hdd_ng.img
+        
+        # KVM device access
+        - name: dev-kvm
+          mountPath: /dev/kvm
+        
+      volumes:
+      - name: macos-disk
+        persistentVolumeClaim:
+          claimName: macos-disk
+      
+      # Host device for KVM
+      - name: dev-kvm
+        hostPath:
+          path: /dev/kvm
+          type: CharDevice

@@ -1,0 +1,58 @@
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# metadata:
+#   name: container-resource-limits-chs
+#   annotations:
+#     policies.kyverno.io/title: Container Resource Limits
+#     policies.kyverno.io/category: Infrastructure
+#     policies.kyverno.io/subject: Deployments
+#     policies.kyverno.io/description: >-
+#       This policy validates and mutates resource limits to all containers in a Pod.
+# spec:
+#   validationFailureAction: enforce
+#   rules:
+#   - name: check-container-resources
+#     match:
+#       any:
+#       - resources:
+#           kinds:
+#           - Pod
+#           namespaces:
+#           - reghub
+#     validate:
+#       message: "All containers must have CPU and memory resource requests and limits defined."
+#       pattern:
+#         spec:
+#           containers:
+#           # Select all containers in the pod. The `name` field here is not specifically required but serves
+#           # as a visual aid for instructional purposes.
+#           - name: "*"
+#             resources:
+#               limits:
+#                 # '?' requires 1 alphanumeric character and '*' means that
+#                 # there can be 0 or more characters. Using them together
+#                 # e.g. '?*' requires at least one character.
+#                 memory: "?*"
+#               requests:
+#                 memory: "?*"
+#                 cpu: "?*"
+#   - name: add-container-resources
+#     match:
+#       any:
+#       - resources:
+#           kinds:
+#           - Pod
+#           namespaces:
+#           - reghub
+#     mutate:
+#       patchStrategicMerge:
+#         spec:
+#           containers:
+#           - (name): "*"
+#             resources:
+#               limits:
+#                 +(memory): 500Mi
+#                 +(cpu): 1
+#               requests:
+#                 +(memory): 200Mi
+#                 +(cpu): 0.1

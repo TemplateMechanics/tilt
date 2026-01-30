@@ -15,25 +15,36 @@ Set-Location -Path $PSScriptRoot
 
 # Detect OS
 $platformIsWindows = ($env:OS -like "*Windows*")
-$platformIsMacOS = ($env:OSTYPE -and $env:OSTYPE -like "*darwin*") -or ((Get-Command uname -ErrorAction SilentlyContinue) -and ((uname) -eq "Darwin"))
+$platformIsMacOS = (Get-Command uname -ErrorAction SilentlyContinue) -and ((uname) -eq "Darwin")
+$platformIsLinux = (Get-Command uname -ErrorAction SilentlyContinue) -and ((uname) -eq "Linux")
 $skipTrust = [System.Environment]::GetEnvironmentVariable("SKIP_CERT_TRUST") -eq "true"
+$forceRegenerate = [System.Environment]::GetEnvironmentVariable("FORCE_REGEN_CA") -eq "true"
+
+# Check if Root CA already exists
+$rootCAExists = (Test-Path "$rootCAPath/certs/ca.cert.pem") -and (Test-Path "$rootCAPath/private/ca.key.pem")
+$intermediateCAExists = (Test-Path "$intermediateCAPath/certs/intermediate.cert.pem") -and (Test-Path "$intermediateCAPath/private/intermediate.key.pem")
 
 # ---------------------------
 # Elevate privileges if necessary
 # ---------------------------
-if ($platformIsWindows) {
-    $adminCheck = [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-    $isAdmin = $adminCheck.IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
-    
-    if (-not $isAdmin) {
-        Write-Host "Restarting script with Administrator privileges..."
-        Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-        exit
+if (-not $skipTrust) {
+    if ($platformIsWindows) {
+        $adminCheck = [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+        $isAdmin = $adminCheck.IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+        
+        if (-not $isAdmin) {
+            Write-Host "Restarting script with Administrator privileges..."
+            Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+            exit
+        }
+    } elseif (($platformIsMacOS -or $platformIsLinux)) {
+        $currentUser = whoami
+        if ($currentUser -ne "root") {
+            Write-Host "Attempting to elevate privileges for certificate trust installation..."
+            & sudo pwsh -File "$PSCommandPath"
+            exit
+        }
     }
-} elseif ($platformIsMacOS -and -not $skipTrust -and $env:USER -ne "root") {
-    Write-Host "Attempting to elevate privileges on macOS..."
-    & sudo pwsh -File "$PSCommandPath"
-    exit
 }
 
 # ---------------------------
@@ -90,24 +101,44 @@ function CleanupCertificates($path, $keyFile, $certFile) {
     }
 }
 
-CleanupCertificates $rootCAPath "ca.key.pem" "ca.cert.pem"
-CleanupCertificates $intermediateCAPath "intermediate.key.pem" "intermediate.cert.pem"
+# Only cleanup Root CA if it doesn't exist or force regenerate is set
+if (-not $rootCAExists -or $forceRegenerate) {
+    Write-Host "Root CA will be regenerated (exists: $rootCAExists, force: $forceRegenerate)"
+    CleanupCertificates $rootCAPath "ca.key.pem" "ca.cert.pem"
+    CleanupCertificates $intermediateCAPath "intermediate.key.pem" "intermediate.cert.pem"
+} else {
+    Write-Host "Preserving existing Root CA and Intermediate CA"
+}
+
+# Always cleanup server cert (it will be regenerated with current SANs)
+CleanupCertificates $intermediateCAPath "localhost.key.pem" "localhost.cert.pem"
+if (Test-Path "$intermediateCAPath/certs/localhost-chain.cert.pem") {
+    Remove-Item -Force "$intermediateCAPath/certs/localhost-chain.cert.pem"
+}
 
 # ---------------------------
-# Generate Root CA
+# Generate Root CA (only if not exists or force regenerate)
 # ---------------------------
-Write-Host "`n--- Generating Root CA ---"
-openssl genrsa -out "$rootCAPath/private/ca.key.pem" 4096
-openssl req -config $rootConfig -key "$rootCAPath/private/ca.key.pem" -new -x509 -days 7300 -sha256 -extensions v3_ca -out "$rootCAPath/certs/ca.cert.pem" -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Root CA"
+if (-not $rootCAExists -or $forceRegenerate) {
+    Write-Host "`n--- Generating Root CA ---"
+    openssl genrsa -out "$rootCAPath/private/ca.key.pem" 4096
+    openssl req -config $rootConfig -key "$rootCAPath/private/ca.key.pem" -new -x509 -days 7300 -sha256 -extensions v3_ca -out "$rootCAPath/certs/ca.cert.pem" -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Root CA"
+} else {
+    Write-Host "`n--- Skipping Root CA generation (already exists) ---"
+}
 
 # ---------------------------
-# Generate Intermediate CA
+# Generate Intermediate CA (only if not exists or force regenerate)
 # ---------------------------
-Write-Host "`n--- Generating Intermediate CA ---"
-openssl genrsa -out "$intermediateCAPath/private/intermediate.key.pem" 4096
-openssl req -config $intermediateConfig -key "$intermediateCAPath/private/intermediate.key.pem" -new -sha256 -out "$intermediateCAPath/csr/intermediate.csr.pem" -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Intermediate CA"
+if (-not $intermediateCAExists -or $forceRegenerate) {
+    Write-Host "`n--- Generating Intermediate CA ---"
+    openssl genrsa -out "$intermediateCAPath/private/intermediate.key.pem" 4096
+    openssl req -config $intermediateConfig -key "$intermediateCAPath/private/intermediate.key.pem" -new -sha256 -out "$intermediateCAPath/csr/intermediate.csr.pem" -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Intermediate CA"
 
-echo "y" | openssl ca -config $rootConfig -extensions v3_intermediate_ca -days 3650 -notext -md sha256 -in "$intermediateCAPath/csr/intermediate.csr.pem" -out "$intermediateCAPath/certs/intermediate.cert.pem" -batch
+    echo "y" | openssl ca -config $rootConfig -extensions v3_intermediate_ca -days 3650 -notext -md sha256 -in "$intermediateCAPath/csr/intermediate.csr.pem" -out "$intermediateCAPath/certs/intermediate.cert.pem" -batch
+} else {
+    Write-Host "`n--- Skipping Intermediate CA generation (already exists) ---"
+}
 
 # ---------------------------
 # Generate localhost cert
@@ -133,19 +164,78 @@ Get-Content "$intermediateCAPath/certs/localhost.cert.pem", "$intermediateCAPath
 # System-wide certificate trust setup
 # ---------------------------
 if (-not $skipTrust) {
+    Write-Host "`n--- Checking Root CA trust status ---"
+    
     if ($platformIsWindows) {
-        Write-Host "`n--- Installing Root CA on Windows ---"
-        Import-Certificate -FilePath "$rootCAPath/certs/ca.cert.pem" -CertStoreLocation "Cert:\\LocalMachine\\Root"
+        # Check if cert is already trusted
+        $certThumbprint = (Get-PfxCertificate "$rootCAPath/certs/ca.cert.pem").Thumbprint
+        $existingCert = Get-ChildItem -Path "Cert:\LocalMachine\Root" | Where-Object { $_.Thumbprint -eq $certThumbprint }
+        
+        if ($existingCert) {
+            Write-Host "Root CA is already trusted in Windows Trusted Root store"
+        } else {
+            Write-Host "Installing Root CA in Windows Trusted Root store..."
+            Import-Certificate -FilePath "$rootCAPath/certs/ca.cert.pem" -CertStoreLocation "Cert:\\LocalMachine\\Root"
+            Write-Host "Root CA installed in Windows Trusted Root store"
+        }
     } elseif ($platformIsMacOS) {
-        Write-Host "`n--- Installing Root CA system-wide on macOS ---"
-        security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$rootCAPath/certs/ca.cert.pem"
-    } else {
-        Write-Host "`n--- Installing Root CA system-wide on Linux ---"
-        sudo cp "$rootCAPath/certs/ca.cert.pem" /usr/local/share/ca-certificates/
-        sudo update-ca-certificates
+        # Get the fingerprint of the current Root CA
+        $currentFingerprint = (openssl x509 -in "$rootCAPath/certs/ca.cert.pem" -noout -fingerprint -sha1 2>$null) -replace ".*=", "" -replace ":", ""
+        
+        # Check if this exact cert is already trusted
+        $verifyResult = & security verify-cert -c "$rootCAPath/certs/ca.cert.pem" 2>&1
+        $isAlreadyTrusted = $LASTEXITCODE -eq 0
+        
+        if ($isAlreadyTrusted) {
+            Write-Host "Root CA is already trusted in macOS System keychain (fingerprint: $currentFingerprint)"
+        } else {
+            Write-Host "Root CA not trusted or not found. Installing..."
+            
+            # Remove any existing Root CA certificates with DIFFERENT fingerprints to avoid duplicates
+            Write-Host "Checking for old Root CA certificates..."
+            $existingCerts = & security find-certificate -c "Root CA" -a -Z /Library/Keychains/System.keychain 2>&1
+            if ($existingCerts -match "SHA-1 hash:") {
+                $hashes = $existingCerts | Select-String "SHA-1 hash:" | ForEach-Object { ($_ -split ": ")[1].Trim() }
+                foreach ($hash in $hashes) {
+                    if ($hash -and $hash -ne $currentFingerprint) {
+                        Write-Host "Removing old Root CA certificate: $hash"
+                        & security delete-certificate -Z $hash /Library/Keychains/System.keychain 2>&1 | Out-Null
+                    }
+                }
+            }
+            
+            # Add and trust the certificate for SSL - must run as root
+            # -d: use admin trust domain (system-wide)
+            # -r trustRoot: mark as trusted root CA  
+            # -p ssl: explicitly trust for SSL/TLS (required for browsers like Edge/Chrome)
+            # -k: target the System keychain
+            & security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain "$rootCAPath/certs/ca.cert.pem"
+            Write-Host "Root CA installed and trusted for SSL in macOS System keychain"
+        }
+    } elseif ($platformIsLinux) {
+        # Check if cert is already installed
+        $targetPath = "/usr/local/share/ca-certificates/dev-root-ca.crt"
+        if (Test-Path $targetPath) {
+            $existingHash = (openssl x509 -in $targetPath -noout -fingerprint -sha1 2>$null) -replace ".*=", ""
+            $currentHash = (openssl x509 -in "$rootCAPath/certs/ca.cert.pem" -noout -fingerprint -sha1 2>$null) -replace ".*=", ""
+            
+            if ($existingHash -eq $currentHash) {
+                Write-Host "Root CA is already installed in Linux trusted certificates"
+            } else {
+                Write-Host "Updating Root CA in Linux trusted certificates..."
+                cp "$rootCAPath/certs/ca.cert.pem" $targetPath
+                update-ca-certificates
+                Write-Host "Root CA updated in Linux trusted certificates"
+            }
+        } else {
+            Write-Host "Installing Root CA in Linux trusted certificates..."
+            cp "$rootCAPath/certs/ca.cert.pem" $targetPath
+            update-ca-certificates
+            Write-Host "Root CA installed in Linux trusted certificates"
+        }
     }
 } else {
-    Write-Host "Skipping certificate trust installation due to SKIP_CERT_TRUST=true."
+    Write-Host "`nSkipping certificate trust installation due to SKIP_CERT_TRUST=true"
 }
 
-Write-Host "`nCertificate generation completed."
+Write-Host "`nCertificate generation completed"

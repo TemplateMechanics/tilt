@@ -1,0 +1,193 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firestore-emulator
+  namespace: gcp-emulators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: firestore-emulator
+  template:
+    metadata:
+      labels:
+        app: firestore-emulator
+    spec:
+      containers:
+      - name: firestore
+        image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+        command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080"]
+        ports:
+        - containerPort: 8080
+          name: firestore
+        env:
+        - name: FIRESTORE_PROJECT_ID
+          value: "test-project"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: firestore-emulator
+  namespace: gcp-emulators
+spec:
+  selector:
+    app: firestore-emulator
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: firestore
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pubsub-emulator
+  namespace: gcp-emulators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pubsub-emulator
+  template:
+    metadata:
+      labels:
+        app: pubsub-emulator
+    spec:
+      containers:
+      - name: pubsub
+        image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+        command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port=0.0.0.0:8085"]
+        ports:
+        - containerPort: 8085
+          name: pubsub
+        env:
+        - name: PUBSUB_PROJECT_ID
+          value: "test-project"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pubsub-emulator
+  namespace: gcp-emulators
+spec:
+  selector:
+    app: pubsub-emulator
+  ports:
+  - port: 8085
+    targetPort: 8085
+    name: pubsub
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bigtable-emulator
+  namespace: gcp-emulators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bigtable-emulator
+  template:
+    metadata:
+      labels:
+        app: bigtable-emulator
+    spec:
+      containers:
+      - name: bigtable
+        image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+        command: ["gcloud", "beta", "emulators", "bigtable", "start", "--host-port=0.0.0.0:8086"]
+        ports:
+        - containerPort: 8086
+          name: bigtable
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bigtable-emulator
+  namespace: gcp-emulators
+spec:
+  selector:
+    app: bigtable-emulator
+  ports:
+  - port: 8086
+    targetPort: 8086
+    name: bigtable
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spanner-emulator
+  namespace: gcp-emulators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spanner-emulator
+  template:
+    metadata:
+      labels:
+        app: spanner-emulator
+    spec:
+      containers:
+      - name: spanner
+        image: gcr.io/cloud-spanner-emulator/emulator:latest
+        ports:
+        - containerPort: 9010
+          name: grpc
+        - containerPort: 9020
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spanner-emulator
+  namespace: gcp-emulators
+spec:
+  selector:
+    app: spanner-emulator
+  ports:
+  - port: 9010
+    targetPort: 9010
+    name: grpc
+  - port: 9020
+    targetPort: 9020
+    name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datastore-emulator
+  namespace: gcp-emulators
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datastore-emulator
+  template:
+    metadata:
+      labels:
+        app: datastore-emulator
+    spec:
+      containers:
+      - name: datastore
+        image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+        command: ["gcloud", "beta", "emulators", "datastore", "start", "--project=test-project", "--host-port=0.0.0.0:8081", "--no-store-on-disk", "--consistency=1.0"]
+        ports:
+        - containerPort: 8081
+          name: datastore
+        env:
+        - name: DATASTORE_PROJECT_ID
+          value: "test-project"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datastore-emulator
+  namespace: gcp-emulators
+spec:
+  selector:
+    app: datastore-emulator
+  ports:
+  - port: 8081
+    targetPort: 8081
+    name: datastore

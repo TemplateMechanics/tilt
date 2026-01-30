@@ -1,0 +1,83 @@
+---
+apiVersion: devplatform.systechs.io/v1alpha1
+kind: DevApplication
+metadata:
+  name: langfuse
+spec:
+  name: langfuse
+  domain: langfuse.localhost
+  chart:
+    name: langfuse
+    version: ">=0.1.0"
+    repository: langfuse
+    values:
+      # Langfuse configuration
+      langfuse:
+        # Salt for hashing - use value subkey
+        salt:
+          value: "changeme-random-salt-value-here-32ch"
+        # Encryption key (64 hex chars)
+        encryptionKey:
+          value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        # Feature flags
+        features:
+          telemetryEnabled: false
+          signUpDisabled: false
+        # NextAuth configuration
+        nextauth:
+          url: "https://langfuse.localhost"
+          secret:
+            value: "changeme-random-secret-min-32-chars!!"
+      # PostgreSQL dependency (embedded)
+      postgresql:
+        enabled: true
+        auth:
+          username: langfuse
+          password: langfuse
+          database: langfuse
+        primary:
+          persistence:
+            enabled: true
+            size: 8Gi
+      # ClickHouse dependency (required by newer Langfuse versions)
+      clickhouse:
+        enabled: true
+        auth:
+          username: langfuse
+          password: langfuse
+        # Single node for dev environment (reduce resource usage)
+        shards: 1
+        replicaCount: 1
+        zookeeper:
+          replicaCount: 1
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+      # Redis configuration
+      redis:
+        enabled: true
+        auth:
+          enabled: false  # Disable auth for dev simplicity
+      # Service configuration
+      service:
+        type: ClusterIP
+        port: 3000
+      # Disable built-in ingress (Crossplane creates IngressRoute)
+      ingress:
+        enabled: false
+      # Resources
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+  ingress:
+    enabled: true
+    serviceName: langfuse-web
+    servicePort: 3000

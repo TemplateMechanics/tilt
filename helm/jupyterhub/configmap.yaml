@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyterhub-config
+  namespace: jupyterhub
+data:
+  jupyterhub_config.py: |
+    c.JupyterHub.authenticator_class = 'dummy'
+    c.DummyAuthenticator.password = "jupyter"
+    c.Authenticator.admin_users = {'admin'}
+    c.JupyterHub.spawner_class = 'kubespawner.KubeSpawner'
+    c.KubeSpawner.image = 'jupyter/minimal-notebook:latest'
+    c.KubeSpawner.start_timeout = 300
+    c.KubeSpawner.http_timeout = 300
+    c.KubeSpawner.storage_pvc_ensure = False
+    c.KubeSpawner.service_account = 'jupyterhub'

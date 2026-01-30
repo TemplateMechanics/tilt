@@ -1,0 +1,27 @@
+---
+apiVersion: devplatform.systechs.io/v1alpha1
+kind: DevApplication
+metadata:
+  name: localstack
+spec:
+  name: localstack
+  domain: localstack.localhost
+  chart:
+    name: localstack
+    version: ">=0.6.0"
+    repository: localstack
+    values:
+      # Service configuration
+      service:
+        type: ClusterIP
+      # Persistence for local state
+      persistence:
+        enabled: true
+        size: 10Gi
+      # Enable commonly used services
+      startServices: "s3,sqs,sns,dynamodb,lambda,iam,secretsmanager"
+      # Debug mode for development (bool not string)
+      debug: true
+  ingress:
+    enabled: true
+    servicePort: 4566

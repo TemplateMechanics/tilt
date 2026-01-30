@@ -1,0 +1,60 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: falco
+  namespace: falco
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: falco
+      version: "7.0.1"
+      sourceRef:
+        kind: HelmRepository
+        name: falcosecurity
+        namespace: flux-system
+  values:
+    customRules:
+      custom-rules.yaml: |
+        - rule: Drop and execute new binary in container
+          desc: >
+            (Overwridden to filter out azure ama-logs container)
+          condition: >
+            spawned_process
+            and container
+            and proc.is_exe_upper_layer=true 
+            and not container.image.repository in (known_drop_and_execute_containers)
+            and not known_drop_and_execute_activities
+            and container.name != "ama-logs"
+            and container.name != "ama-logs-prometheus"
+            and not proc.exe icontains "chromedriver"
+          output: Executing binary not part of base image | proc_exe=%proc.exe proc_sname=%proc.sname gparent=%proc.aname[2] proc_exe_ino_ctime=%proc.exe_ino.ctime proc_exe_ino_mtime=%proc.exe_ino.mtime proc_exe_ino_ctime_duration_proc_start=%proc.exe_ino.ctime_duration_proc_start proc_cwd=%proc.cwd container_start_ts=%container.start_ts evt_type=%evt.type user=%user.name user_uid=%user.uid user_loginuid=%user.loginuid process=%proc.name proc_exepath=%proc.exepath parent=%proc.pname command=%proc.cmdline terminal=%proc.tty exe_flags=%evt.arg.flags
+          priority: CRITICAL
+          tags: [maturity_stable, container, process, mitre_persistence, TA0003, PCI_DSS_11.5.1]
+        
+        - rule: Contact K8S API Server From Container
+          desc: >
+            (Overwridden to filter out azure ama-logs container)
+          condition: >
+            evt.type=connect 
+            and (fd.typechar=4 or fd.typechar=6) 
+            and container 
+            and k8s_api_server 
+            and not k8s_containers 
+            and not user_known_contact_k8s_api_server_activities
+            and k8s.ns.name != "flux-system"
+          output: Unexpected connection to K8s API Server from container | connection=%fd.name lport=%fd.lport rport=%fd.rport fd_type=%fd.type fd_proto=%fd.l4proto evt_type=%evt.type user=%user.name user_uid=%user.uid user_loginuid=%user.loginuid process=%proc.name proc_exepath=%proc.exepath parent=%proc.pname command=%proc.cmdline terminal=%proc.tty
+          priority: NOTICE
+          tags: [maturity_stable, container, network, k8s, mitre_discovery, T1565]
+        
+    # falcosidekick:
+    #   enabled: true
+    #   config:
+    #     slack:
+    #       webhookurl: "https://hooks.slack.com/services/CHANGE/ME/PLEASE"
+    #       channel: "#falco-alerts"
+    #       minimumpriority: warning
+
+      
+
+
