@@ -1,0 +1,34 @@
+# PVCs for macOS Virtual Machine
+# These provide persistent storage for the macOS installation and user data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: macos-system-disk
+  namespace: macos
+  labels:
+    app: macos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # Use hostpath for local development
+  storageClassName: hostpath
+  resources:
+    requests:
+      # macOS Ventura needs ~75GB minimum
+      storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: macos-data-disk
+  namespace: macos
+  labels:
+    app: macos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hostpath
+  resources:
+    requests:
+      storage: 50Gi

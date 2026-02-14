@@ -1,0 +1,17 @@
+{%- if values.deploymentType == 'crossplane-app' %}
+apiVersion: devplatform.local/v1alpha1
+kind: DevApplication
+metadata:
+  name: ${{ values.name }}
+  namespace: crossplane-system
+spec:
+  appName: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  {%- if values.helmChart %}
+  helm:
+    chart: ${{ values.helmChart }}
+    version: "${{ values.helmVersion }}"
+    values: |
+      # Add your Helm values here
+  {%- endif %}
+{%- endif %}

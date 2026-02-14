@@ -16,7 +16,8 @@ spec:
       serviceAccountName: jupyterhub
       containers:
       - name: jupyterhub
-        image: jupyterhub/k8s-hub:3.3.7
+        image: quay.io/jupyterhub/jupyterhub:5.2
+        command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
         ports:
         - containerPort: 8000
           name: http

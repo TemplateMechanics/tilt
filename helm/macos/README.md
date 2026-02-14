@@ -1,52 +1,194 @@
-# Docker-OSX on Kubernetes - EXPERIMENTAL
+# macOS on Kubernetes - EXPERIMENTAL
 
 ⚠️ **WARNING: This is experimental and has significant limitations!**
 
+## Two Approaches
+
+This setup supports two different approaches to running macOS:
+
+### 1. KubeVirt (Recommended)
+Uses KubeVirt to run a proper macOS VM in Kubernetes.
+
+**Files:**
+- `virtualmachine.yaml` - KubeVirt VirtualMachine resource
+- `pvc-kubevirt.yaml` - Persistent storage for VM disks
+
+**Pros:**
+- Proper VM with hardware virtualization
+- Better macOS compatibility
+- Full KVM acceleration
+- Can run Xcode, full development environment
+
+**Cons:**
+- Requires KubeVirt installation
+- Requires Linux host with KVM
+- More setup complexity
+
+### 2. Docker-OSX (Legacy/Alternative)
+Uses sickcodes/docker-osx container directly.
+
+**Files:**
+- `statefulset.yaml` - StatefulSet running Docker-OSX container
+- `pvc.yaml` - Storage for container approach
+
+**Pros:**
+- Simpler setup
+- Single container deployment
+
+**Cons:**
+- Requires privileged containers
+- Requires hostNetwork
+- Still needs KVM support
+
 ## Prerequisites
 
+### Hardware Requirements
 1. **KVM Support Required**
    - Linux host with KVM enabled
    - Check: `ls /dev/kvm` should exist
    - Enable: `sudo modprobe kvm_intel` (or `kvm_amd`)
 
-2. **Privileged Containers**
-   - Security risk - only use in isolated/dev environments
-   - Requires cluster admin permissions
-
-3. **Resources**
+2. **Resources**
    - Minimum: 4 CPU cores, 8GB RAM
    - Recommended: 8 CPU cores, 16GB RAM
    - Storage: 100GB+ for macOS installation
 
-4. **Legal Compliance**
-   - Apple's EULA requires macOS on Apple hardware
-   - Use only for educational/testing purposes
-   - Consider legal implications for your use case
+### Platform Support
 
-## Configuration
+| Platform | KubeVirt | Docker-OSX |
+|----------|----------|------------|
+| Linux bare metal | ✅ | ✅ |
+| Linux VM (nested virt) | ✅ | ✅ |
+| Docker Desktop (Mac) | ❌ | ❌ |
+| Docker Desktop (Win) | ❌ | ❌ |
+| Minikube (Linux) | ✅ | ✅ |
+| Kind (Linux) | ✅ | ⚠️ |
 
-Edit `statefulset.yaml` to customize:
+### Legal Compliance
+- Apple's EULA requires macOS on Apple hardware
+- Use only for educational/testing purposes
+- Consider legal implications for your use case
 
-- **macOS Version**: Change `image: sickcodes/docker-osx:ventura`
-  - Options: `ventura`, `monterey`, `big-sur`, `catalina`, `auto`
-  
-- **Resources**: Adjust CPU/RAM in resources section
-  
-- **Credentials**: Change default password (alpine)
+## Installation
 
-- **Node Selection**: Uncomment `nodeSelector` to pin to specific node with KVM
+### With KubeVirt (Recommended)
 
-## Deployment
+1. First, install KubeVirt:
+   ```bash
+   # Enable kubevirt in your Tiltfile CONFIG
+   # Deploy: tilt up kubevirt
+   ```
 
-1. Ensure KVM is available on target node
-2. Uncomment in Tiltfile: `k8s_kustomize("./helm/macos/", "macos", generate_link=True)`
-3. Run: `tilt up`
+2. Prepare a macOS disk image:
+   ```bash
+   # Option A: Use OSX-KVM to create an image
+   # https://github.com/kholia/OSX-KVM
+   
+   # Option B: Convert existing macOS installation
+   # qemu-img convert -O qcow2 input.vmdk macos.qcow2
+   ```
+
+3. Upload the disk image to the PVC (requires virtctl):
+   ```bash
+   virtctl image-upload pvc macos-system-disk \
+     --namespace macos \
+     --image-path=/path/to/macos.qcow2 \
+     --insecure
+   ```
+
+4. Deploy the VM:
+   ```bash
+   kubectl apply -f helm/macos/virtualmachine.yaml
+   ```
+
+### With Docker-OSX (Legacy)
+
+1. Edit `kustomization.yaml` to use the statefulset approach
+2. Ensure your node has KVM support
+3. Deploy: `tilt up macos`
 
 ## Access
 
-- **Web VNC**: http://macos.localhost (port 5800)
-- **VNC Client**: Connect to `macos.localhost:5900`
-- **SSH**: `ssh user@macos.localhost -p 10022` (password: alpine)
+### VNC Access
+- **URL**: https://macos.localhost (via ingress)
+- **Direct**: `virtctl vnc macos-vm -n macos`
+- **Port**: 5900
+
+### SSH Access (after setup)
+```bash
+# Via virtctl
+virtctl ssh user@macos-vm -n macos
+
+# Direct (if exposed)
+ssh user@macos.localhost -p 10022
+```
+
+### Console Access
+```bash
+virtctl console macos-vm -n macos
+```
+
+## Configuration
+
+### KubeVirt VM Settings
+
+Edit `virtualmachine.yaml` to customize:
+
+- **CPU**: Adjust `spec.template.spec.domain.cpu.cores`
+- **Memory**: Adjust `spec.template.spec.domain.memory.guest`
+- **Disk Size**: Adjust PVC sizes in `pvc-kubevirt.yaml`
+
+### macOS Version
+
+You'll need to prepare a disk image for your desired macOS version:
+- Ventura (13.x) - Recommended
+- Monterey (12.x)
+- Big Sur (11.x)
+- Catalina (10.15.x)
+
+## Troubleshooting
+
+### VM Won't Start
+
+1. Check KubeVirt is installed:
+   ```bash
+   kubectl get kubevirt -n kubevirt
+   ```
+
+2. Check virt-handler has KVM access:
+   ```bash
+   kubectl logs -n kubevirt -l kubevirt.io=virt-handler
+   ```
+
+3. Check VMI status:
+   ```bash
+   kubectl get vmi -n macos
+   kubectl describe vmi macos-vm -n macos
+   ```
+
+### No KVM Support
+
+If you see "KVM not available" errors, KubeVirt is running in emulation mode:
+- VMs will be very slow
+- Check `useEmulation: true` in KubeVirt CR
+- For production, ensure KVM is available
+
+### Disk Image Issues
+
+```bash
+# Check disk image format
+qemu-img info /path/to/macos.qcow2
+
+# Convert if needed
+qemu-img convert -O raw input.qcow2 output.raw
+```
+
+## Resources
+
+- [KubeVirt Documentation](https://kubevirt.io/user-guide/)
+- [OSX-KVM](https://github.com/kholia/OSX-KVM)
+- [Docker-OSX](https://github.com/sickcodes/docker-osx)
+- [virtctl Reference](https://kubevirt.io/user-guide/operations/virtctl_client_tool/)
 
 ## First Boot
 

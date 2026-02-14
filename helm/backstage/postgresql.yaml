@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bstage-db
+  namespace: backstage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bstage-db
+  template:
+    metadata:
+      labels:
+        app: bstage-db
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "bstage_user"
+            - name: POSTGRES_PASSWORD
+              value: "bstage-dev-password"
+            - name: POSTGRES_DB
+              value: "backstage_db"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bstage-db
+  namespace: backstage
+spec:
+  selector:
+    app: bstage-db
+  ports:
+    - port: 5432
+      targetPort: 5432

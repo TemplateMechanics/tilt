@@ -8,9 +8,7 @@ data:
     c.JupyterHub.authenticator_class = 'dummy'
     c.DummyAuthenticator.password = "jupyter"
     c.Authenticator.admin_users = {'admin'}
-    c.JupyterHub.spawner_class = 'kubespawner.KubeSpawner'
-    c.KubeSpawner.image = 'jupyter/minimal-notebook:latest'
-    c.KubeSpawner.start_timeout = 300
-    c.KubeSpawner.http_timeout = 300
-    c.KubeSpawner.storage_pvc_ensure = False
-    c.KubeSpawner.service_account = 'jupyterhub'
+    # Use simple spawner for dev (not KubeSpawner)
+    c.JupyterHub.spawner_class = 'simple'
+    c.JupyterHub.ip = '0.0.0.0'
+    c.JupyterHub.port = 8000
