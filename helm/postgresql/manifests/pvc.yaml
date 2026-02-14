@@ -5,7 +5,7 @@ metadata:
   name: postgres-data
   namespace: postgres
 spec:
-  storageClassName: local-path
+  storageClassName: hostpath
   accessModes:
     - ReadWriteOnce
   resources:

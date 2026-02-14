@@ -40,19 +40,48 @@ Docker-eyeOS by sickcodes runs **actual iOS and iPadOS** in containers, not just
 - ❌ App Store deployment
 - ❌ Physical device features (camera, GPS, etc.)
 
+## Two Approaches
+
+### 1. KubeVirt (Recommended)
+Uses KubeVirt to run iOS as a proper VM in Kubernetes.
+
+**Files:**
+- `virtualmachine.yaml` - KubeVirt VirtualMachine resource
+- `pvc-kubevirt.yaml` - Persistent storage for VM disk
+
+**Requirements:**
+- KubeVirt installed (see `helm/kubevirt/`)
+- Linux host with KVM support
+- iOS IPSW firmware image
+
+### 2. Docker-eyeOS (Legacy)
+Uses sickcodes/docker-eyeos container directly.
+
+**Files:**
+- `statefulset.yaml` - StatefulSet running Docker-eyeOS
+- `pvc.yaml` - Storage for container approach
+
 ## Prerequisites
 
-Same as macOS setup:
+### Hardware Requirements
 - Linux host with KVM (`/dev/kvm`)
-- Privileged container support
 - 4+ CPU cores, 4-8GB RAM
 - 64GB storage
+
+### Platform Support
+
+| Platform | Works |
+|----------|-------|
+| Linux bare metal | ✅ |
+| Linux VM (nested virt) | ✅ |
+| Docker Desktop (Mac) | ❌ |
+| Docker Desktop (Win) | ❌ |
 
 ## Configuration
 
 ### Device Models Available
 
-Edit `statefulset.yaml` to choose device:
+Edit `statefulset.yaml` (legacy) to choose device:
 
 **iPhones:**
 ```yaml

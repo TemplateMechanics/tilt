@@ -1,0 +1,19 @@
+{%- if values.deploymentType == 'raw-manifests' and values.port %}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: ${{ values.name }}
+    app.kubernetes.io/name: ${{ values.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: ${{ values.port }}
+      targetPort: ${{ values.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app: ${{ values.name }}
+{%- endif %}

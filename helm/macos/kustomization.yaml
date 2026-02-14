@@ -1,8 +1,22 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
+# Choose your approach:
+# Option 1: KubeVirt VM (recommended - requires kubevirt installed)
+# Option 2: Docker-OSX container (legacy - requires privileged containers)
+
 resources:
   - namespace.yaml
-  - pvc.yaml
-  - statefulset.yaml
-  - service.yaml
+  
+  # === Option 1: KubeVirt VM (recommended) ===
+  - pvc-kubevirt.yaml
+  - virtualmachine.yaml
+  
+  # === Option 2: Docker-OSX Container (legacy) ===
+  # Uncomment these and comment out the KubeVirt resources above
+  # - pvc.yaml
+  # - statefulset.yaml
+  # - service.yaml
+  
+  # Ingress (works with both approaches)
   - ingress.yaml

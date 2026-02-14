@@ -20,11 +20,11 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_USER
-          value: "keycloak"
+          value: "kc_user"
         - name: POSTGRES_PASSWORD
-          value: "keycloak"
+          value: "kc-dev-password"
         - name: POSTGRES_DB
-          value: "keycloak"
+          value: "kc_db"
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data

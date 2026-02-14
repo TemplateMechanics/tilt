@@ -22,15 +22,15 @@ CONFIG = {
     # ==========================================================================
     "crossplane_apps": {
         # CI/CD
-        "harbor": True,       # Container registry (supports: projects, repos)
-        "jenkins": True,      # CI/CD automation (supports: jobs, credentials)
+        "harbor": False,      # Container registry ✅ tested
+        "jenkins": False,     # CI/CD automation ✅ tested
         
         # AI/ML
-        "langfuse": True,     # LLM observability
-        "qdrant": True,       # Vector database
+        "langfuse": False,    # LLM observability ✅ tested
+        "qdrant": False,      # Vector database ✅ tested
         
         # Cloud Emulators
-        "localstack": True,   # AWS services emulator
+        "localstack": False,  # AWS services emulator ✅ tested
     },
     
     # ==========================================================================
@@ -39,18 +39,18 @@ CONFIG = {
     # ==========================================================================
     "flux_apps": {
         # AI/ML
-        "ollama": False,          # Local LLM runner (uses ollama chart)
+        "ollama": False,          # Local LLM runner ✅ tested
         
         # Security & Policy
-        "kyverno": True,         # Kubernetes policy engine
-        "falco": False,           # Runtime security monitoring
+        "kyverno": False,         # Kubernetes policy engine ✅ tested
+        "falco": False,           # Runtime security monitoring ✅ tested
         "policy-reporter": False, # Kyverno policy reports (requires kyverno)
         "1pass": False,           # 1Password Connect (requires secrets)
         
         # Infrastructure
-        "keda": False,            # Event-driven autoscaling
-        "velero": False,          # Backup and disaster recovery
-        "cert-manager": False,    # Certificate management
+        "keda": False,            # Event-driven autoscaling ✅ tested
+        "velero": False,          # Backup and DR (needs full CRD install)
+        "cert-manager": False,    # Certificate management ✅ tested
     },
     
     # ==========================================================================
@@ -58,34 +58,105 @@ CONFIG = {
     # Best for: Simple deployments, custom configs, avoiding Helm complexity
     # ==========================================================================
     "raw_apps": {
+        # Developer Portal
+        "backstage": False,       # Backstage Developer Portal (control plane UI) ✅ tested
+        
         # Databases (official images)
-        "mongodb": False,         # MongoDB document database (mongo:8.0)
-        "postgresql": False,      # PostgreSQL database (postgres:17)
-        "redis": False,           # Redis cache (redis:8-alpine)
-        "rabbitmq": False,        # RabbitMQ broker (rabbitmq:4-management)
-        "mssql": False,           # Microsoft SQL Server (local chart)
+        "mongodb": False,         # MongoDB document database (mongo:8.0) ✅ tested
+        "postgresql": False,      # PostgreSQL database (postgres:17) ✅ tested
+        "redis": False,           # Redis cache (redis:8-alpine) ✅ tested
+        "rabbitmq": False,        # RabbitMQ broker (rabbitmq:4-management) ✅ tested
+        "mssql": True,            # Microsoft SQL Server (local Helm chart)
         
         # Identity & Workflow (official images)
-        "keycloak": False,        # Identity management (quay.io/keycloak)
-        "airflow": False,         # Workflow orchestration (apache/airflow)
-        "jupyterhub": False,      # Jupyter notebooks (jupyterhub/k8s-hub)
+        "keycloak": False,        # Identity management (quay.io/keycloak) ✅ tested
+        "airflow": False,         # Workflow orchestration (apache/airflow) ✅ tested
+        "jupyterhub": False,      # Jupyter notebooks (jupyterhub/k8s-hub) ✅ tested
         
         # Demo Apps
-        "wordpress": False,       # WordPress blog (wordpress:6.4)
+        "wordpress": False,       # WordPress blog (wordpress:6.4) ✅ tested
         
         # Cloud Emulators
-        "mailhog": False,         # Email testing SMTP server
-        "azurite": False,         # Azure Storage emulator
-        "gcp-emulators": False,   # GCP emulators (Firestore, PubSub, etc.)
+        "mailhog": False,         # Email testing SMTP server ✅ tested
+        "azurite": False,         # Azure Storage emulator ✅ tested
+        "gcp-emulators": False,   # GCP emulators ✅ tested
         
         # Infrastructure
         "azure": False,           # Azure storage classes and PVCs
+        "kubevirt": False,        # KubeVirt VM operator (requires Linux with KVM) ⚠️ Won't work on Mac
         
-        # Experimental (require KVM, privileged containers)
-        "macos": False,           # Docker-OSX macOS VM
-        "eyeos": False,           # iOS testing environment
+        # Experimental (require KubeVirt + KVM)
+        "macos": False,           # macOS VM via KubeVirt (requires kubevirt)
+        "eyeos": False,           # iOS VM via KubeVirt (requires kubevirt)
     },
 }
+
+###############################################################################
+# AUTO-CLEANUP: Delete resources for disabled apps
+###############################################################################
+
+# Build list of disabled app namespaces to clean up
+disabled_namespaces = []
+
+# Crossplane apps (namespace = app name)
+for app, enabled in CONFIG["crossplane_apps"].items():
+    if not enabled:
+        disabled_namespaces.append(app)
+
+# Flux apps (check namespace map)
+FLUX_NS_MAP = {
+    "policy-reporter": "policy-reporter",
+    "1pass": "1password-system",
+    "cert-manager": "cert-manager",
+}
+for app, enabled in CONFIG["flux_apps"].items():
+    if not enabled:
+        ns = FLUX_NS_MAP.get(app, app)
+        disabled_namespaces.append(ns)
+
+# Raw apps (check namespace map)
+RAW_NS_MAP = {
+    "backstage": "backstage",
+    "gcp-emulators": "gcp-emulators",
+    "mailhog": "mailhog", 
+    "azurite": "azurite",
+    "kubevirt": "kubevirt",
+    "macos": "macos",
+    "eyeos": "eyeos",
+    "mongodb": "mongodb",
+    "postgresql": "postgresql",
+    "redis": "redis",
+    "rabbitmq": "rabbitmq",
+    "mssql": "mssql",
+    "keycloak": "keycloak",
+    "airflow": "airflow",
+    "jupyterhub": "jupyterhub",
+    "wordpress": "wordpress",
+}
+for app, enabled in CONFIG["raw_apps"].items():
+    if not enabled:
+        ns = RAW_NS_MAP.get(app)
+        if ns:
+            disabled_namespaces.append(ns)
+
+# Create cleanup resource that runs once at startup
+if disabled_namespaces:
+    # Build cleanup command
+    cleanup_cmd = "for ns in {}; do kubectl delete namespace $ns --ignore-not-found --wait=false 2>/dev/null || true; done".format(" ".join(disabled_namespaces))
+    
+    # Add Kyverno-specific cleanup (webhooks, CRDs) if kyverno is disabled
+    if not CONFIG["flux_apps"].get("kyverno"):
+        cleanup_cmd += " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
+        cleanup_cmd += " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
+    
+    cleanup_cmd += " && echo '✓ Cleanup complete'"
+    
+    local_resource(
+        "cleanup-disabled-apps",
+        cmd=cleanup_cmd,
+        labels=["Infrastructure"],
+        auto_init=True,
+    )
 
 ###############################################################################
 # HELPER FUNCTIONS
@@ -412,7 +483,7 @@ for app, enabled in CONFIG["flux_apps"].items():
             )
         else:
             local_resource(
-                app,
+                "{}-status".format(app),
                 cmd="kubectl get pods -n {} | head -5".format(ns),
                 labels=[label],
                 links=["https://{}.localhost".format(app)],
@@ -425,40 +496,127 @@ for app, enabled in CONFIG["flux_apps"].items():
 
 # Namespace mappings for raw apps
 RAW_NAMESPACE_MAP = {
+    "backstage": "backstage",
     "gcp-emulators": "gcp-emulators",
     "mailhog": "mailhog",
     "azurite": "azurite",
     "azure": None,  # Cluster-scoped resources, no namespace
+    "kubevirt": "kubevirt",
     "macos": "macos",
     "eyeos": "eyeos",
+    "postgresql": "postgres",
+    "mongodb": "mongodb",
+    "redis": "redis",
+    "rabbitmq": "rabbitmq",
+    "keycloak": "keycloak",
+    "airflow": "airflow",
+    "jupyterhub": "jupyterhub",
+    "wordpress": "wordpress",
 }
 
 # Label mappings for raw apps
 RAW_LABEL_MAP = {
+    "backstage": "Developer-Portal",
     "mailhog": "Dev-Tools",
     "azurite": "Dev-Tools",
     "gcp-emulators": "Dev-Tools",
     "azure": "Infrastructure",
+    "kubevirt": "Infrastructure",
     "macos": "Experimental",
     "eyeos": "Experimental",
 }
 
+# Workload names in each raw app (for setting dependencies)
+RAW_WORKLOADS = {
+    "backstage": ["backstage", "bstage-db"],
+    "gcp-emulators": ["firestore-emulator", "pubsub-emulator", "bigtable-emulator"],
+    "mailhog": ["mailhog"],
+    "azurite": ["azurite"],
+    "kubevirt": [],  # Installed via local_resource, not kustomize
+    "macos": ["macos-vm"],  # KubeVirt VirtualMachine
+    "eyeos": ["ios-vm"],    # KubeVirt VirtualMachine
+    "postgresql": ["postgres"],
+    "keycloak": ["keycloak", "keycloak-postgresql"],
+    "airflow": ["airflow-webserver", "airflow-scheduler", "airflow-postgresql", "airflow-redis"],
+    "jupyterhub": ["jupyterhub"],
+    "wordpress": ["wordpress", "mysql"],
+}
+
+# Apps with web UIs accessible via ingress
+RAW_APPS_WITH_UI = ["backstage", "mailhog", "macos", "eyeos", "rabbitmq", "keycloak", "airflow", "jupyterhub", "wordpress"]
+
+# Custom URL mappings (app -> subdomain, defaults to app name)
+RAW_APP_URLS = {
+    "keycloak": "auth",
+}
+
+###############################################################################
+# MSSQL (Local Helm Chart)
+###############################################################################
+if CONFIG["raw_apps"].get("mssql"):
+    # Create namespace first
+    local_resource(
+        "mssql-ns",
+        cmd="kubectl create namespace mssql --dry-run=client -o yaml | kubectl apply -f -",
+        labels=["Databases"],
+    )
+    
+    # Deploy MSSQL using local helm chart
+    local_resource(
+        "mssql",
+        cmd="helm upgrade --install mssql ./helm/mssql -n mssql --wait --timeout=5m && kubectl get pods -n mssql",
+        labels=["Databases"],
+        resource_deps=["mssql-ns"],
+        links=["https://mssql.localhost"],
+    )
+
 for app, enabled in CONFIG["raw_apps"].items():
     if enabled:
+        # Skip MSSQL - handled separately as a Helm chart above
+        if app == "mssql":
+            continue
+            
         ns = RAW_NAMESPACE_MAP.get(app, app)
         label = RAW_LABEL_MAP.get(app, "Dev-Tools")
         
+        # First, create namespace via local_resource to ensure it exists before workloads
         if ns:
-            k8s_namespace(ns)
+            local_resource(
+                "{}-ns".format(app),
+                cmd="kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -".format(ns),
+                labels=[label],
+            )
         
+        # Apply kustomize manifests
         k8s_yaml(kustomize("./helm/{}/".format(app)), allow_duplicates=True)
         
-        local_resource(
-            app,
-            cmd="kubectl get pods -n {} | head -5".format(ns) if ns else "echo 'Cluster-scoped resources'",
-            labels=[label],
-            links=["https://{}.localhost".format(app)] if app in ["mailhog", "macos", "eyeos"] else []
-        )
+        # Special handling for KubeVirt - install operator and CR sequentially
+        if app == "kubevirt":
+            # Install the KubeVirt operator from official release
+            local_resource(
+                "kubevirt-operator",
+                cmd="kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/kubevirt-operator.yaml",
+                labels=[label],
+                resource_deps=["kubevirt-ns"],
+            )
+            # Apply CR after operator is ready
+            local_resource(
+                "kubevirt-cr",
+                cmd="kubectl wait --for=condition=Available deployment/virt-operator -n kubevirt --timeout=180s && kubectl apply -f ./helm/kubevirt/kubevirt-cr.yaml",
+                labels=[label],
+                resource_deps=["kubevirt-operator"],
+            )
+        
+        # Set workload dependencies on namespace
+        workloads = RAW_WORKLOADS.get(app, [app])
+        for workload in workloads:
+            url_subdomain = RAW_APP_URLS.get(app, app)
+            k8s_resource(
+                workload,
+                labels=[label],
+                resource_deps=["{}-ns".format(app)] if ns else [],
+                links=["https://{}.localhost".format(url_subdomain)] if app in RAW_APPS_WITH_UI else []
+            )
 
 ###############################################################################
 # HARBOR RESOURCES (Example: Sub-resources via Crossplane)

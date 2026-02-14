@@ -1,0 +1,10 @@
+{%- if values.deploymentType == 'helm-release' and values.helmRepoUrl %}
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: ${{ values.helmRepo | default(values.name) }}
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: ${{ values.helmRepoUrl }}
+{%- endif %}

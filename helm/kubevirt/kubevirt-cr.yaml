@@ -1,0 +1,55 @@
+# KubeVirt Custom Resource
+# This CR tells the KubeVirt operator to install all KubeVirt components
+# The operator watches for this CR and deploys virt-api, virt-controller, virt-handler
+---
+apiVersion: kubevirt.io/v1
+kind: KubeVirt
+metadata:
+  name: kubevirt
+  namespace: kubevirt
+spec:
+  # Certificate rotation configuration
+  certificateRotateStrategy: {}
+  
+  # Custom configuration
+  configuration:
+    # Developer configuration for local/dev environments
+    developerConfiguration:
+      # Allow emulation for environments without full KVM support
+      # This makes it work (slowly) even without /dev/kvm
+      useEmulation: true
+      featureGates:
+        - LiveMigration
+        - Snapshot
+        - HotplugVolumes
+        - ExpandDisks
+        - Sidecar
+        - GPU
+        - HostDevices
+    
+    # Network configuration
+    network:
+      # Use pod networking by default
+      defaultNetworkInterface: masquerade
+    
+    # Permissions for VMs
+    permittedHostDevices:
+      # Allow PCI passthrough (for GPUs etc.)
+      pciHostDevices: []
+  
+  # Number of infra replicas (reduce for local dev)
+  infra:
+    replicas: 1
+  
+  # Workload configuration
+  workloads:
+    # Node placement - uncomment to restrict to specific nodes
+    # nodePlacement:
+    #   nodeSelector:
+    #     kubevirt.io/schedulable: "true"
+  
+  # Image pull policy
+  imagePullPolicy: IfNotPresent
+  
+  # Use a specific version tag (matches operator)
+  imageTag: v1.3.1

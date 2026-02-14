@@ -5,7 +5,7 @@ metadata:
   name: mongodb-data
   namespace: mongodb
 spec:
-  storageClassName: local-path
+  storageClassName: hostpath
   accessModes:
     - ReadWriteOnce
   resources:

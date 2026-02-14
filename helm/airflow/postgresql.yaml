@@ -20,11 +20,11 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_USER
-          value: "airflow"
+          value: "af_user"
         - name: POSTGRES_PASSWORD
-          value: "airflow"
+          value: "af_pass"
         - name: POSTGRES_DB
-          value: "airflow"
+          value: "af_db"
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
