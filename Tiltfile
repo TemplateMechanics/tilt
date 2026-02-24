@@ -271,8 +271,12 @@ local_resource(
     "flux-install",
     cmd="""
         flux check --pre && flux install || echo 'Flux already installed'
-        echo "Waiting for Flux source-controller to be ready..."
+        echo "Waiting for all Flux controllers to be ready..."
         kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/helm-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/kustomize-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
+        echo "✓ All Flux controllers ready"
     """,
     labels=["Infrastructure"]
 )
@@ -352,17 +356,6 @@ k8s_yaml(kustomize("./helm/crossplane/"), allow_duplicates=True)
 local_resource(
     "crossplane-core-ready",
     cmd="""
-        echo "Waiting for HelmRelease CRD to be available..."
-        for i in $(seq 1 60); do
-            if kubectl get helmreleases.v2beta2.helm.toolkit.fluxcd.io -A 2>&1 | grep -qv 'error:'; then
-                echo "✓ HelmRelease v2beta2 API is ready"; break
-            fi
-            if [ "$i" -eq 60 ]; then
-                echo "Timeout waiting for HelmRelease CRD"; exit 1
-            fi
-            echo "  Attempt $i/60 — waiting for helm.toolkit.fluxcd.io/v2beta2..."; sleep 3
-        done
-
         echo "Applying Crossplane manifests..."
         kubectl apply -k ./helm/crossplane/
         
