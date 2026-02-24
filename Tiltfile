@@ -352,25 +352,43 @@ k8s_yaml(kustomize("./helm/crossplane/"), allow_duplicates=True)
 local_resource(
     "crossplane-core-ready",
     cmd="""
+        echo "Waiting for HelmRelease CRD to be available..."
+        for i in $(seq 1 60); do
+            if kubectl get helmreleases.v2beta2.helm.toolkit.fluxcd.io -A 2>&1 | grep -qv 'error:'; then
+                echo "✓ HelmRelease v2beta2 API is ready"; break
+            fi
+            if [ "$i" -eq 60 ]; then
+                echo "Timeout waiting for HelmRelease CRD"; exit 1
+            fi
+            echo "  Attempt $i/60 — waiting for helm.toolkit.fluxcd.io/v2beta2..."; sleep 3
+        done
+
         echo "Applying Crossplane manifests..."
-        kubectl apply -k ./helm/crossplane/ || true
+        kubectl apply -k ./helm/crossplane/
         
         echo "Waiting for Crossplane to be fully ready..."
         echo "(This can take 3-5 minutes on cold start)"
         
         # Phase 1: Wait for HelmRelease to exist and be ready (up to 5 min)
         echo "Phase 1: Waiting for HelmRelease..."
+        HR_READY="false"
         for i in $(seq 1 150); do
             if kubectl get helmrelease crossplane -n crossplane-system >/dev/null 2>&1; then
                 HR_STATUS=$(kubectl get helmrelease crossplane -n crossplane-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
                 if [ "$HR_STATUS" = "True" ]; then
-                    echo "✓ HelmRelease ready"; break
+                    echo "✓ HelmRelease ready"; HR_READY="true"; break
                 fi
-                echo "  Attempt $i/150 (status: ${HR_STATUS:-pending})..."; sleep 2
+                HR_MSG=$(kubectl get helmrelease crossplane -n crossplane-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
+                echo "  Attempt $i/150 (status: ${HR_STATUS:-pending}, msg: ${HR_MSG:-n/a})..."; sleep 2
             else
                 echo "  Attempt $i/150 (waiting for HelmRelease)..."; sleep 2
             fi
         done
+        if [ "$HR_READY" != "true" ]; then
+            echo "Timeout: HelmRelease never became Ready"
+            kubectl get helmrelease -n crossplane-system -o yaml 2>/dev/null | tail -30
+            exit 1
+        fi
         
         # Phase 2: Wait for pods and webhooks (up to 3 min)
         echo "Phase 2: Waiting for pods and webhooks..."
@@ -382,7 +400,10 @@ local_resource(
             fi
             echo "  Attempt $i/90 (pod: $CP_READY, webhook: ${WEBHOOK_EP:-none})..."; sleep 2
         done
-        echo "Timeout waiting for Crossplane"; exit 1
+        echo "Timeout waiting for Crossplane pods"
+        kubectl get pods -n crossplane-system 2>/dev/null
+        kubectl describe pods -n crossplane-system -l app=crossplane 2>/dev/null | tail -20
+        exit 1
     """,
     labels=["Platform"],
     resource_deps=["helm-repositories"]
