@@ -300,32 +300,32 @@ watch_file("./helm/traefik.yaml")
 local_resource(
     "helm-repositories",
     cmd="""
-        echo "Waiting for Flux CRDs to be registered..."
-        for i in $(seq 1 30); do
-            if kubectl api-resources --api-group=source.toolkit.fluxcd.io 2>/dev/null | grep -q helmrepositories; then
-                echo "✓ HelmRepository CRD is available"
+        echo "Waiting for Flux HelmRepository v1 API to be available..."
+        for i in $(seq 1 60); do
+            if kubectl get helmrepositories.v1.source.toolkit.fluxcd.io -n flux-system 2>&1 | grep -qv 'error:'; then
+                echo "✓ HelmRepository v1 API is ready"
                 break
             fi
-            if [ "$i" -eq 30 ]; then
-                echo "Timeout waiting for Flux CRDs"; exit 1
+            if [ "$i" -eq 60 ]; then
+                echo "Timeout waiting for HelmRepository v1 API"; exit 1
             fi
-            echo "  Attempt $i/30 — waiting for source.toolkit.fluxcd.io CRDs..."; sleep 2
+            echo "  Attempt $i/60 — waiting for source.toolkit.fluxcd.io/v1 ..."; sleep 3
         done
 
         EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
         echo "Expecting $EXPECTED HelmRepositories..."
 
         echo "Applying HelmRepositories (will retry until all appear)..."
-        for i in $(seq 1 60); do
+        for i in $(seq 1 30); do
             kubectl apply -k ./helm/repositories/ 2>&1 || true
-            sleep 2
+            sleep 3
             COUNT=$(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ')
             if [ "$COUNT" -ge "$EXPECTED" ]; then
                 echo "✓ $COUNT/$EXPECTED HelmRepositories ready"
                 kubectl get helmrepository -n flux-system
                 exit 0
             fi
-            echo "  Attempt $i/60 ($COUNT/$EXPECTED repositories)..."
+            echo "  Attempt $i/30 ($COUNT/$EXPECTED repositories)..."
         done
         echo "Timeout: only $COUNT/$EXPECTED HelmRepositories created"; exit 1
     """,
