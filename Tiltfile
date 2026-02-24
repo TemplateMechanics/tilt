@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {
     "raw_apps": {
         "backstage": {"enabled": False}, "mongodb": {"enabled": False},
         "postgresql": {"enabled": False}, "redis": {"enabled": False},
-        "rabbitmq": {"enabled": False}, "mssql": {"enabled": True},
+        "rabbitmq": {"enabled": False}, "mssql": {"enabled": False},
         "keycloak": {"enabled": False}, "airflow": {"enabled": False},
         "jupyterhub": {"enabled": False}, "wordpress": {"enabled": False},
         "mailhog": {"enabled": False}, "azurite": {"enabled": False},
