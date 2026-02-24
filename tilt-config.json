@@ -113,13 +113,13 @@
       "tested": true
     },
     "mssql": {
-      "enabled": false,
+      "enabled": true,
       "description": "Microsoft SQL Server",
       "category": "Databases",
       "tested": true
     },
     "keycloak": {
-      "enabled": false,
+      "enabled": true,
       "description": "Identity management",
       "category": "Identity & Workflow",
       "tested": true

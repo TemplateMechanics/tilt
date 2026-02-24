@@ -253,10 +253,17 @@ cert_path = "./certificates"
 cert_exists = str(local("test -f {}/intermediateCA/certs/localhost-chain.cert.pem && echo 'yes' || echo 'no'".format(cert_path), quiet=True)).strip()
 
 local_resource(
-    "dev-certificate-install",
-    cmd="cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path) if cert_exists == "yes" else "echo 'Run certificate generation first'",
+    "dev-certificate-generate",
+    cmd="cd {} && SKIP_CERT_TRUST=true bash ./generate-certs.sh".format(cert_path),
     labels=["Infrastructure"],
-    auto_init=(cert_exists == "yes")
+    auto_init=(cert_exists != "yes")
+)
+
+local_resource(
+    "dev-certificate-install",
+    cmd="cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path),
+    labels=["Infrastructure"],
+    resource_deps=["dev-certificate-generate"]
 )
 
 # Flux GitOps
@@ -282,9 +289,10 @@ watch_file("./helm/traefik.yaml")
 # OBSERVABILITY STACK (Always On)
 ###############################################################################
 
-k8s_yaml(kustomize("./helm/repositories/"), allow_duplicates=True)
-
 # Apply and wait for HelmRepositories to be ready
+# NOTE: We do NOT call k8s_yaml(kustomize("./helm/repositories/")) at load time
+# because Flux CRDs (HelmRepository) may not exist yet on a fresh cluster.
+# Instead, helm-repositories applies them at runtime after flux-install completes.
 local_resource(
     "helm-repositories",
     cmd="""
