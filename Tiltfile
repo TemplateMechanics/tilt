@@ -300,16 +300,16 @@ watch_file("./helm/traefik.yaml")
 local_resource(
     "helm-repositories",
     cmd="""
-        echo "Waiting for Flux HelmRepository v1 API to be available..."
+        echo "Waiting for Flux HelmRepository API to be available..."
         for i in $(seq 1 60); do
-            if kubectl get helmrepositories.v1.source.toolkit.fluxcd.io -n flux-system 2>&1 | grep -qv 'error:'; then
-                echo "✓ HelmRepository v1 API is ready"
+            if kubectl get helmrepositories.v1beta2.source.toolkit.fluxcd.io -n flux-system 2>&1 | grep -qv 'error:'; then
+                echo "✓ HelmRepository API is ready"
                 break
             fi
             if [ "$i" -eq 60 ]; then
-                echo "Timeout waiting for HelmRepository v1 API"; exit 1
+                echo "Timeout waiting for HelmRepository API"; exit 1
             fi
-            echo "  Attempt $i/60 — waiting for source.toolkit.fluxcd.io/v1 ..."; sleep 3
+            echo "  Attempt $i/60 — waiting for source.toolkit.fluxcd.io/v1beta2 ..."; sleep 3
         done
 
         EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
