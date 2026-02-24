@@ -14,8 +14,7 @@ data:
 
     backend:
       baseUrl: https://backstage.localhost
-      listen:
-        port: 7000
+      listen: ':7000'
       csp:
         connect-src: ["'self'", 'http:', 'https:']
       cors:
@@ -57,7 +56,7 @@ data:
       locations:
         # Load catalog from locally mounted ConfigMap
         - type: file
-          target: /usr/src/app/catalog/all.yaml
+          target: /app/catalog/all.yaml
           rules:
             - allow: [Component, System, Domain, Group, API, Resource, Location, Template]
 
@@ -77,3 +76,17 @@ data:
     # Tilt integration (custom plugin endpoint)
     tilt:
       baseUrl: http://host.docker.internal:10350
+
+    # Proxy: route config-server requests to in-cluster K8s Service
+    proxy:
+      endpoints:
+        '/tilt-api':
+          target: 'http://host.docker.internal:10350'
+          changeOrigin: true
+          allowedMethods: ['GET', 'POST', 'PATCH', 'PUT', 'OPTIONS']
+          allowedHeaders: ['Content-Type', 'Accept']
+        '/tilt-config':
+          target: 'http://tilt-config-server.tilt-system.svc:10351'
+          changeOrigin: true
+          allowedMethods: ['GET', 'PATCH', 'PUT', 'OPTIONS']
+          allowedHeaders: ['Content-Type', 'Accept']

@@ -16,14 +16,10 @@ spec:
       serviceAccountName: backstage
       containers:
         - name: backstage
-          # Using Roadie's community Backstage image which works out of the box
-          image: roadiehq/community-backstage-image:latest
-          # Override command to include our local config file
+          # Custom Backstage image with Tilt plugin (built by Tilt docker_build)
+          image: backstage-custom
           command: ["node"]
           args:
-            - "--no-opt"
-            - "-r"
-            - "/proc/.reset"
             - "packages/backend"
             - "--config"
             - "app-config.yaml"
@@ -54,10 +50,10 @@ spec:
                   key: POSTGRES_PASSWORD
           volumeMounts:
             - name: config
-              mountPath: /usr/src/app/app-config.local.yaml
+              mountPath: /app/app-config.local.yaml
               subPath: app-config.yaml
             - name: catalog
-              mountPath: /usr/src/app/catalog
+              mountPath: /app/catalog
           readinessProbe:
             httpGet:
               path: /healthcheck

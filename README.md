@@ -1,6 +1,6 @@
 # Tilt Development Environment
 
-A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev/), demonstrating three deployment patterns with 25+ services.
+A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev/), demonstrating three deployment patterns with 25+ services. Includes a [Backstage](https://backstage.io/) developer portal with a custom plugin that serves as a GUI control plane for toggling infrastructure on and off.
 
 ## Quick Start
 
@@ -11,33 +11,78 @@ A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev
 tilt up
 
 # Access services at https://<service>.localhost
+# Access the Tilt dashboard at http://localhost:10350
+# Access the config API at http://tilt-config.localhost/config
 ```
 
 ## Architecture
 
-This workspace demonstrates **three deployment patterns**:
+This workspace demonstrates **three deployment patterns**, with configuration stored in a K8s ConfigMap and a Backstage-powered control plane:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                 TILT                                        │
-│                    (Development Workflow Orchestration)                     │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          BACKSTAGE DEVELOPER PORTAL                         │
+│                         https://backstage.localhost                          │
+│  ┌──────────────────────┐  ┌────────────────────────────────────────────┐   │
+│  │  Service Catalog      │  │  Infrastructure Dashboard                 │   │
+│  │  (catalog entities)   │  │  (toggle services on/off per category)    │   │
+│  └──────────┬───────────┘  └──────────────────┬─────────────────────────┘   │
+│             │                                  │                             │
+│  ┌──────────┴──────────────────────────────────┴─────────────────────────┐  │
+│  │                     Tilt Plugin (TiltClient)                          │  │
+│  │               uses Backstage proxy → in-cluster routing               │  │
+│  └──────────┬──────────────────────────────────┬─────────────────────────┘  │
+└─────────────┼──────────────────────────────────┼────────────────────────────┘
+              │ (browser → host:10350)           │ (proxy → K8s Service)
+     ┌────────▼────────┐              ┌──────────▼──────────┐
+     │  Tilt API        │              │  Config Server Pod   │
+     │  :10350 (host)   │              │  tilt-system ns      │
+     │  (runtime ctrl)  │              │  (K8s API backend)   │
+     └─────────────────┘              └──────────┬───────────┘
+                                                 │ reads/writes
+                                        ┌────────▼────────┐
+                                        │  ConfigMap       │
+                                        │  tilt-config     │
+                                        │  (tilt-system)   │
+                                        └────────┬────────┘
+                                                 │ sync loop (host)
+                                        ┌────────▼────────┐
+                                        │ tilt-config.json │
+                                        │  (watch_file)    │
+                                        └────────┬────────┘
+                                                 │ auto-reload
+┌────────────────────────────────────────────────▼────────────────────────────┐
+│                                  TILTFILE                                   │
+│                     (Development Workflow Orchestration)                    │
 │                                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
 │  │   CROSSPLANE    │  │      FLUX       │  │  RAW MANIFESTS  │             │
 │  │  DevApplication │  │   HelmRelease   │  │   (Kustomize)   │             │
 │  │       XRD       │  │                 │  │                 │             │
 │  ├─────────────────┤  ├─────────────────┤  ├─────────────────┤             │
-│  │ harbor          │  │ ollama          │  │ mongodb         │             │
-│  │ jenkins         │  │ kyverno         │  │ postgresql      │             │
-│  │ langfuse        │  │ falco           │  │ redis           │             │
-│  │ qdrant          │  │ keda            │  │ rabbitmq        │             │
-│  │ localstack      │  │ velero          │  │ keycloak        │             │
-│  │                 │  │ cert-manager    │  │ airflow         │             │
-│  │                 │  │ 1pass           │  │ wordpress       │             │
-│  │                 │  │ policy-reporter │  │ mailhog         │             │
+│  │ harbor          │  │ ollama          │  │ backstage       │             │
+│  │ jenkins         │  │ kyverno         │  │ mongodb         │             │
+│  │ langfuse        │  │ falco           │  │ postgresql      │             │
+│  │ qdrant          │  │ keda            │  │ redis           │             │
+│  │ localstack      │  │ velero          │  │ rabbitmq        │             │
+│  │                 │  │ cert-manager    │  │ mssql           │             │
+│  │                 │  │ 1pass           │  │ keycloak        │             │
+│  │                 │  │ policy-reporter │  │ airflow         │             │
+│  │                 │  │                 │  │ wordpress ...   │             │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Data Flow: Toggling a Service via Backstage
+
+1. Developer clicks toggle in Backstage Infrastructure Dashboard
+2. Frontend calls `PATCH /api/proxy/tilt-config/config` through the Backstage backend
+3. Backstage proxy routes to `tilt-config-server.tilt-system.svc:10351` (in-cluster)
+4. Config server writes the change to the `tilt-config` ConfigMap via K8s API
+5. Sync loop on host detects the ConfigMap change (polls every 3s)
+6. Sync loop writes updated config to `tilt-config.json`
+7. Tilt's `watch_file()` detects the change and triggers a reload
+8. Tilt re-evaluates the config and deploys/removes the service
 
 ### Pattern 1: Crossplane DevApplication (XRD)
 
@@ -65,30 +110,47 @@ This workspace demonstrates **three deployment patterns**:
 
 ## Configuration
 
-Edit the `CONFIG` dictionary in `Tiltfile` to enable/disable services:
+Service configuration is stored in `tilt-config.json` at the project root. Each service has metadata used by both the Tiltfile and the Backstage Infrastructure Dashboard:
 
-```python
-CONFIG = {
-    "crossplane_apps": {
-        "harbor": True,      # Container registry
-        "jenkins": True,     # CI/CD automation
-        "langfuse": True,    # LLM observability
-        "qdrant": True,      # Vector database
-        "localstack": True,  # AWS emulator
-    },
-    "flux_apps": {
-        "ollama": False,     # Local LLM
-        "kyverno": False,    # Policy engine
-        # ... more services
-    },
-    "raw_apps": {
-        "mongodb": False,    # mongo:8.0
-        "postgresql": False, # postgres:17
-        "redis": False,      # redis:8-alpine
-        # ... more services
-    },
+```json
+{
+  "crossplane_apps": {
+    "harbor": { "enabled": false, "description": "Container registry", "category": "CI/CD", "tested": true },
+    "jenkins": { "enabled": false, "description": "CI/CD automation", "category": "CI/CD", "tested": true }
+  },
+  "flux_apps": {
+    "ollama": { "enabled": false, "description": "Local LLM runner", "category": "AI/ML", "tested": true }
+  },
+  "raw_apps": {
+    "mssql": { "enabled": true, "description": "Microsoft SQL Server", "category": "Databases", "tested": true },
+    "backstage": { "enabled": false, "description": "Developer Portal", "category": "Developer Portal", "tested": true }
+  }
 }
 ```
+
+You can edit this file directly, or toggle services through:
+- **Backstage UI** — Infrastructure Dashboard at https://backstage.localhost/infra
+- **Config API** — `curl -X PATCH http://tilt-config.localhost/config -H 'Content-Type: application/json' -d '{"raw_apps":{"redis":{"enabled":true}}}'`
+- **Manual edit** — Edit `tilt-config.json`; Tilt auto-reloads via `watch_file()`
+
+Changes made via the Backstage UI or Config API are written to the `tilt-config` ConfigMap in the `tilt-system` namespace. A sync loop on the host polls the ConfigMap every 3 seconds and writes changes back to `tilt-config.json`, which triggers Tilt reload.
+
+### Config Server (K8s-native)
+
+The config server runs as a K8s Deployment in the `tilt-system` namespace. It reads and writes the `tilt-config` ConfigMap via the K8s API using a ServiceAccount with scoped RBAC (only get/update/patch on the `tilt-config` ConfigMap).
+
+**Access paths:**
+- **From Backstage** — Routed via the Backstage proxy plugin (`/api/proxy/tilt-config/...`)
+- **Direct (Traefik)** — `http://tilt-config.localhost/config`
+- **Port-forward** — `kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351`
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/config` | Read full config |
+| `GET` | `/config/{group}` | Read one group (`crossplane_apps`, `flux_apps`, `raw_apps`) |
+| `PATCH` | `/config` | Merge partial updates (toggle individual services) |
+| `PUT` | `/config` | Replace entire config |
+| `GET` | `/health` | Health check |
 
 ## Service Inventory
 
@@ -97,11 +159,11 @@ CONFIG = {
 |---------|-------------|-----|
 | Traefik | Ingress controller | https://traefik.localhost |
 | Prometheus | Metrics & alerting | https://prometheus.localhost |
-| Grafana | Dashboards | https://grafana.localhost |
 | Loki | Log aggregation | - |
 | Tempo | Distributed tracing | - |
 | Crossplane | Infrastructure as Code | - |
 | Flux | GitOps engine | - |
+| Config Server | Tilt config REST API (K8s pod) | http://tilt-config.localhost |
 
 ### Crossplane-Managed Apps
 | Service | Image | Description |
@@ -110,7 +172,7 @@ CONFIG = {
 | Jenkins | jenkins/jenkins | CI/CD with job/credential management |
 | Langfuse | langfuse/langfuse | LLM observability and tracing |
 | Qdrant | qdrant/qdrant | Vector database for AI/ML |
-| Localstack | localstack/localstack | AWS services emulator |
+| LocalStack | localstack/localstack | AWS services emulator |
 
 ### Flux-Managed Apps
 | Service | Chart | Description |
@@ -127,24 +189,63 @@ CONFIG = {
 ### Raw Manifest Apps (Official Images)
 | Service | Image | Description |
 |---------|-------|-------------|
+| Backstage | `roadiehq/community-backstage-image` | Developer portal & infrastructure control plane |
 | MongoDB | `mongo:8.0` | Document database |
 | PostgreSQL | `postgres:17-alpine` | Relational database |
 | Redis | `redis:8-alpine` | In-memory cache |
 | RabbitMQ | `rabbitmq:4-management` | Message broker |
+| MSSQL | `mcr.microsoft.com/mssql/server` | SQL Server (local Helm chart) |
 | Keycloak | `quay.io/keycloak/keycloak:24` | Identity management |
 | Airflow | `apache/airflow:2.9` | Workflow orchestration |
 | JupyterHub | `jupyterhub/k8s-hub:3.3` | Jupyter notebooks |
 | WordPress | `wordpress:6.4` + `mysql:8.0` | Blog/CMS demo |
 | Mailhog | `mailhog/mailhog` | Email testing |
 | Azurite | `mcr.microsoft.com/azure-storage/azurite` | Azure Storage emulator |
-| GCP Emulators | Various | Firestore, PubSub, etc. |
-| MSSQL | `mcr.microsoft.com/mssql/server` | SQL Server |
+| GCP Emulators | Various | Firestore, PubSub, Bigtable |
+| Azure | - | Azure storage classes and PVCs |
+| KubeVirt | - | VM operator (Linux with KVM only) |
+| macOS | - | macOS VM via KubeVirt (experimental) |
+| eyeOS | - | iOS VM via KubeVirt (experimental) |
+
+## Backstage Integration
+
+Backstage acts as a **developer portal and infrastructure control plane**. When enabled (`raw_apps.backstage` in `tilt-config.json`), it provides:
+
+- **Service Catalog** — Every service is registered as a Backstage Component with annotations linking to Tilt resources
+- **Infrastructure Dashboard** — Toggle services on/off from a web UI; changes persist to `tilt-config.json` and trigger a Tilt reload
+- **Scaffolder Templates** — Create new services from a form that generates Kubernetes manifests and Tiltfile entries
+- **Kubernetes Plugin** — View pods, deployments, and logs for catalog components
+
+### Backstage Plugin Architecture
+
+The custom `@internal/backstage-plugin-tilt` plugin provides:
+
+| Component | Mount Point | Description |
+|-----------|-------------|-------------|
+| `TiltPage` | `/tilt` | Table of all Tilt resources with status, labels, and actions |
+| `InfrastructureDashboardPage` | `/infra` | Category-grouped service toggles with live status |
+| `TiltResourceCard` | Entity page | Status card for a single Tilt resource |
+| `EntityTiltContent` | Entity tab | Tilt details for catalog components annotated with `tilt.dev/resource` |
+
+### Connecting Catalog Entries to Tilt
+
+Each component in the Backstage catalog uses annotations to link to Tilt:
+
+```yaml
+annotations:
+  dev.tilt/resource: harbor        # Tilt resource name
+  dev.tilt/namespace: harbor       # Kubernetes namespace
+  dev.tilt/config-key: crossplane_apps.harbor  # Key in tilt-config.json
+```
 
 ## Project Structure
 
 ```
 .
 ├── Tiltfile                    # Main orchestration file
+├── tilt-config.json            # Service config (seed file, synced to ConfigMap)
+├── scripts/
+│   └── config-server.py        # REST API server (deployed as K8s pod)
 ├── apps/                       # Crossplane DevApplication claims
 │   ├── harbor.yaml
 │   ├── jenkins.yaml
@@ -152,11 +253,28 @@ CONFIG = {
 │   ├── qdrant.yaml
 │   ├── localstack.yaml
 │   └── harbor-resources/       # HarborProject claims
+├── backstage/
+│   ├── catalog/
+│   │   └── all.yaml            # Backstage catalog entities (all services)
+│   ├── plugins/
+│   │   └── tilt/               # Custom Backstage Tilt plugin
+│   │       └── src/
+│   │           ├── api.ts      # TiltClient — Tilt API + Config Server API
+│   │           ├── plugin.ts   # Plugin registration & extensions
+│   │           └── components/
+│   │               ├── TiltPage.tsx               # Resource table
+│   │               ├── InfrastructureDashboard.tsx # Service toggle UI
+│   │               ├── TiltResourceCard.tsx        # Single resource card
+│   │               └── EntityTiltContent.tsx       # Entity page integration
+│   └── templates/
+│       └── dev-application/    # Scaffolder template for new services
 ├── helm/
+│   ├── tilt-config-server/     # Config server K8s manifests (Deployment, Service, RBAC)
 │   ├── crossplane/             # Crossplane core + providers
 │   │   ├── compositions/       # XRDs and Compositions
 │   │   └── providers/          # Provider configs
 │   ├── repositories/           # Flux HelmRepositories
+│   ├── backstage/              # Backstage K8s manifests
 │   ├── prometheus/             # Observability stack
 │   ├── loki/
 │   ├── tempo/
@@ -175,6 +293,7 @@ CONFIG = {
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
+| kubectl | 1.25+ | https://kubernetes.io/docs/tasks/tools/ |
 
 ## TLS Certificates
 
@@ -193,12 +312,13 @@ This creates a local CA and wildcard certificate for `*.localhost`.
 
 1. Create DevApplication claim in `apps/<service>.yaml`
 2. Optionally create service-specific XRD in `helm/crossplane/compositions/<service>/`
+3. Add an entry to `tilt-config.json` under `crossplane_apps`
 
 ### As a Flux App (external Helm chart)
 
 1. Add HelmRepository to `helm/repositories/<repo>.yaml`
 2. Create `helm/<service>/helm-release.yaml`
-3. Add to `CONFIG["flux_apps"]` in Tiltfile
+3. Add an entry to `tilt-config.json` under `flux_apps`
 
 ### As Raw Manifests
 
@@ -207,7 +327,11 @@ This creates a local CA and wildcard certificate for `*.localhost`.
    - `deployment.yaml` / `statefulset.yaml`
    - `service.yaml`
    - `kustomization.yaml`
-2. Add to `CONFIG["raw_apps"]` in Tiltfile
+2. Add an entry to `tilt-config.json` under `raw_apps`
+
+### Register in Backstage Catalog
+
+Add a Component entry to `backstage/catalog/all.yaml` (and/or `helm/backstage/catalog-configmap.yaml`) with appropriate `dev.tilt/*` annotations.
 
 ## Troubleshooting
 
@@ -228,6 +352,34 @@ kubectl get ingressroute -A
 
 # Check Traefik logs
 kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+```
+
+### Config server not responding
+```bash
+# Check pod status
+kubectl get pods -n tilt-system -l app=tilt-config-server
+
+# Check pod logs
+kubectl logs -n tilt-system -l app=tilt-config-server
+
+# Verify ConfigMap exists
+kubectl get configmap tilt-config -n tilt-system
+
+# Health check via IngressRoute
+curl http://tilt-config.localhost/health
+
+# Direct port-forward access
+kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351
+curl http://localhost:10351/health
+```
+
+### Backstage not loading catalog
+```bash
+# Check Backstage pod logs
+kubectl logs -n backstage -l app=backstage
+
+# Verify catalog ConfigMap is mounted
+kubectl get configmap backstage-catalog -n backstage -o yaml
 ```
 
 ### View Tilt dashboard
