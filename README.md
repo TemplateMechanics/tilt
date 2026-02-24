@@ -388,3 +388,21 @@ Open http://localhost:10350 in your browser
 ## License
 
 MIT
+
+## Production Notes
+
+> **This repository is designed for local development only.** The following items should be addressed before adapting any manifests for production use:
+>
+> - **KubeVirt operator RBAC** (`helm/kubevirt/operator.yaml`): Uses wildcard `*` permissions for convenience. In production, use the [official KubeVirt operator manifest](https://github.com/kubevirt/kubevirt/releases) which defines granular per-resource RBAC, or install via OLM.
+> - **Backstage guest auth** (`helm/backstage/configmap.yaml`): Uses `dangerouslyAllowOutsideDevelopment` for guest access. Replace with a proper auth provider (GitHub, OIDC, etc.) in production.
+> - **Hardcoded credentials**: All services use plaintext dev passwords for convenience. In production, these must be replaced with securely generated secrets managed via a secrets manager (e.g., HashiCorp Vault, AWS Secrets Manager, 1Password Operator) or sealed/external secrets. Affected services:
+>   - `helm/backstage/secrets.yaml` — Postgres password, GitHub token
+>   - `helm/backstage/postgresql.yaml` — Postgres password (`bstage-dev-password`)
+>   - `helm/keycloak/deployment.yaml` / `postgresql.yaml` — Keycloak admin & DB passwords (`kc-dev-password`)
+>   - `helm/mssql/values.yaml` — SA password (`P@ssw0rd`)
+>   - `helm/jenkins/helm-release.yaml` — Admin password (`P@ssw0rd`)
+>   - `helm/harbor/helm-release.yaml` — Harbor admin password (`P@ssw0rd`)
+>   - `helm/mongodb/manifests/secret.yaml` — Root password (`mongo-dev-password`)
+>   - `helm/rabbitmq/manifests/secret.yaml` — RabbitMQ password (`rmq-dev-password`)
+>   - `helm/redis/manifests/secret.yaml` — Redis password (`redis-dev-password`)
+> - **TLS certificates**: Local self-signed CA. Replace with real certificates or cert-manager with a trusted issuer.

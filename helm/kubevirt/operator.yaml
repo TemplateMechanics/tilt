@@ -22,7 +22,12 @@ metadata:
   labels:
     app: kubevirt-operator
 rules:
-  # Full cluster admin for operator to manage KubeVirt components
+  # WARNING: Wildcard permissions - acceptable for local dev clusters only.
+  # The KubeVirt operator requires broad access to manage CRDs, pods, services,
+  # networking, storage, and node-level resources. The upstream operator install
+  # (https://github.com/kubevirt/kubevirt/releases) uses equivalent permissions.
+  # For production, use the official KubeVirt operator manifest which defines
+  # granular per-resource RBAC rules, or install via OLM (Operator Lifecycle Manager).
   - apiGroups: ["*"]
     resources: ["*"]
     verbs: ["*"]
