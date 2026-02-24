@@ -5,91 +5,128 @@
 # 1. Crossplane DevApplication - For services with sub-resource management
 # 2. Tilt + Flux HelmRelease - For standard GitOps Helm deployments
 # 3. Tilt + Raw Manifests - For simple local dev tools
+#
+# Configuration is stored in a K8s ConfigMap (tilt-config in tilt-system),
+# with tilt-config.json as the seed file checked into git. A config-server
+# pod exposes a REST API; Backstage reaches it via its proxy plugin.
+# A sync loop on the host polls the ConfigMap for Backstage-initiated changes
+# and writes them to tilt-config.json, triggering Tilt reload via watch_file().
 ###############################################################################
 
 load("ext://helm_remote", "helm_remote")
 load("ext://namespace", "namespace_yaml")
 
 ###############################################################################
-# CONFIGURATION
+# CONFIGURATION (loaded from tilt-config.json)
 ###############################################################################
 
-# Toggle services on/off (set to True to enable)
-CONFIG = {
-    # ==========================================================================
-    # CROSSPLANE-MANAGED APPS (via DevApplication XRD)
-    # Best for: Services that need sub-resource management (repos, users, jobs)
-    # ==========================================================================
+# Watch the config file so Tilt reloads when Backstage changes it
+watch_file("./tilt-config.json")
+
+# Default config (used if tilt-config.json doesn't exist or is malformed)
+DEFAULT_CONFIG = {
     "crossplane_apps": {
-        # CI/CD
-        "harbor": False,      # Container registry ✅ tested
-        "jenkins": False,     # CI/CD automation ✅ tested
-        
-        # AI/ML
-        "langfuse": False,    # LLM observability ✅ tested
-        "qdrant": False,      # Vector database ✅ tested
-        
-        # Cloud Emulators
-        "localstack": False,  # AWS services emulator ✅ tested
+        "harbor": {"enabled": False}, "jenkins": {"enabled": False},
+        "langfuse": {"enabled": False}, "qdrant": {"enabled": False},
+        "localstack": {"enabled": False},
     },
-    
-    # ==========================================================================
-    # FLUX-MANAGED APPS (via HelmRelease + Kustomize)
-    # Best for: Helm charts from external repos with GitOps reconciliation
-    # ==========================================================================
     "flux_apps": {
-        # AI/ML
-        "ollama": False,          # Local LLM runner ✅ tested
-        
-        # Security & Policy
-        "kyverno": False,         # Kubernetes policy engine ✅ tested
-        "falco": False,           # Runtime security monitoring ✅ tested
-        "policy-reporter": False, # Kyverno policy reports (requires kyverno)
-        "1pass": False,           # 1Password Connect (requires secrets)
-        
-        # Infrastructure
-        "keda": False,            # Event-driven autoscaling ✅ tested
-        "velero": False,          # Backup and DR (needs full CRD install)
-        "cert-manager": False,    # Certificate management ✅ tested
+        "ollama": {"enabled": False}, "kyverno": {"enabled": False},
+        "falco": {"enabled": False}, "policy-reporter": {"enabled": False},
+        "1pass": {"enabled": False}, "keda": {"enabled": False},
+        "velero": {"enabled": False}, "cert-manager": {"enabled": False},
     },
-    
-    # ==========================================================================
-    # RAW MANIFEST APPS (via direct Kustomize - official images)
-    # Best for: Simple deployments, custom configs, avoiding Helm complexity
-    # ==========================================================================
     "raw_apps": {
-        # Developer Portal
-        "backstage": False,       # Backstage Developer Portal (control plane UI) ✅ tested
-        
-        # Databases (official images)
-        "mongodb": False,         # MongoDB document database (mongo:8.0) ✅ tested
-        "postgresql": False,      # PostgreSQL database (postgres:17) ✅ tested
-        "redis": False,           # Redis cache (redis:8-alpine) ✅ tested
-        "rabbitmq": False,        # RabbitMQ broker (rabbitmq:4-management) ✅ tested
-        "mssql": True,            # Microsoft SQL Server (local Helm chart)
-        
-        # Identity & Workflow (official images)
-        "keycloak": False,        # Identity management (quay.io/keycloak) ✅ tested
-        "airflow": False,         # Workflow orchestration (apache/airflow) ✅ tested
-        "jupyterhub": False,      # Jupyter notebooks (jupyterhub/k8s-hub) ✅ tested
-        
-        # Demo Apps
-        "wordpress": False,       # WordPress blog (wordpress:6.4) ✅ tested
-        
-        # Cloud Emulators
-        "mailhog": False,         # Email testing SMTP server ✅ tested
-        "azurite": False,         # Azure Storage emulator ✅ tested
-        "gcp-emulators": False,   # GCP emulators ✅ tested
-        
-        # Infrastructure
-        "azure": False,           # Azure storage classes and PVCs
-        "kubevirt": False,        # KubeVirt VM operator (requires Linux with KVM) ⚠️ Won't work on Mac
-        
-        # Experimental (require KubeVirt + KVM)
-        "macos": False,           # macOS VM via KubeVirt (requires kubevirt)
-        "eyeos": False,           # iOS VM via KubeVirt (requires kubevirt)
+        "backstage": {"enabled": False}, "mongodb": {"enabled": False},
+        "postgresql": {"enabled": False}, "redis": {"enabled": False},
+        "rabbitmq": {"enabled": False}, "mssql": {"enabled": True},
+        "keycloak": {"enabled": False}, "airflow": {"enabled": False},
+        "jupyterhub": {"enabled": False}, "wordpress": {"enabled": False},
+        "mailhog": {"enabled": False}, "azurite": {"enabled": False},
+        "gcp-emulators": {"enabled": False}, "azure": {"enabled": False},
+        "kubevirt": {"enabled": False}, "macos": {"enabled": False},
+        "eyeos": {"enabled": False},
     },
 }
+
+def load_config():
+    """Load config from tilt-config.json, falling back to defaults."""
+    config_raw = read_json("./tilt-config.json", DEFAULT_CONFIG)
+    
+    # Convert rich config format to simple True/False for backward compatibility
+    result = {}
+    for group in ["crossplane_apps", "flux_apps", "raw_apps"]:
+        result[group] = {}
+        group_data = config_raw.get(group, {})
+        for app, app_config in group_data.items():
+            if type(app_config) == "dict":
+                result[group][app] = app_config.get("enabled", False)
+            else:
+                result[group][app] = bool(app_config)
+    return result
+
+CONFIG = load_config()
+
+###############################################################################
+# CONFIG SERVER (K8s-native control plane API)
+#
+# Config is stored in a ConfigMap (tilt-config) in the tilt-system namespace.
+# The config-server pod reads/writes it via the K8s API. Backstage reaches
+# the config-server through its backend proxy plugin (in-cluster routing).
+# A sync loop on the host watches for Backstage-initiated changes and writes
+# them back to tilt-config.json, which triggers Tilt reload via watch_file().
+###############################################################################
+
+# Bootstrap: create namespace, seed ConfigMap from local file, deploy app script
+local_resource(
+    "tilt-config-seed",
+    cmd=" && ".join([
+        "kubectl create namespace tilt-system --dry-run=client -o yaml | kubectl apply -f -",
+        "kubectl create configmap tilt-config -n tilt-system"
+          + " --from-file=config.json=./tilt-config.json"
+          + " --dry-run=client -o yaml | kubectl apply -f -",
+        "kubectl create configmap tilt-config-server-app -n tilt-system"
+          + " --from-file=config-server.py=./scripts/config-server.py"
+          + " --dry-run=client -o yaml | kubectl apply -f -",
+    ]),
+    deps=["./scripts/config-server.py", "./tilt-config.json"],
+    labels=["Platform"],
+    auto_init=True,
+)
+
+# Deploy config server (Deployment + Service + RBAC + IngressRoute)
+k8s_yaml(kustomize("./helm/tilt-config-server/"), allow_duplicates=True)
+k8s_resource(
+    "tilt-config-server",
+    labels=["Platform"],
+    links=["http://tilt-config.localhost/config"],
+    resource_deps=["tilt-config-seed"],
+)
+
+# Sync loop: watches ConfigMap for Backstage-initiated changes and writes
+# them to tilt-config.json so watch_file() triggers a Tilt reload.
+local_resource(
+    "tilt-config-sync",
+    serve_cmd="""
+        echo "Watching ConfigMap tilt-config for Backstage changes..."
+        LAST_HASH=""
+        while true; do
+            DATA=$(kubectl get configmap tilt-config -n tilt-system \
+                -o jsonpath='{.data.config\\.json}' 2>/dev/null || echo "")
+            if [ -n "$DATA" ]; then
+                HASH=$(echo "$DATA" | shasum -a 256 | cut -d' ' -f1)
+                if [ -n "$LAST_HASH" ] && [ "$HASH" != "$LAST_HASH" ]; then
+                    echo "$DATA" > ./tilt-config.json
+                    echo "[$(date +%T)] ConfigMap change detected -> synced to tilt-config.json"
+                fi
+                LAST_HASH="$HASH"
+            fi
+            sleep 3
+        done
+    """,
+    labels=["Platform"],
+    resource_deps=["tilt-config-server"],
+)
 
 ###############################################################################
 # AUTO-CLEANUP: Delete resources for disabled apps
@@ -141,15 +178,23 @@ for app, enabled in CONFIG["raw_apps"].items():
 
 # Create cleanup resource that runs once at startup
 if disabled_namespaces:
-    # Build cleanup command
-    cleanup_cmd = "for ns in {}; do kubectl delete namespace $ns --ignore-not-found --wait=false 2>/dev/null || true; done".format(" ".join(disabled_namespaces))
+    # Build cleanup command — delete namespaces, then force-clear any stuck in Terminating
+    cleanup_cmd = (
+        "for ns in " + " ".join(disabled_namespaces) + "; do"
+        + " kubectl delete namespace $ns --ignore-not-found --wait=false 2>/dev/null || true;"
+        + " done"
+        + " && echo 'Clearing stuck Terminating namespaces...'"
+        + " && for ns in $(kubectl get ns --field-selector status.phase=Terminating -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do"
+        + " echo \"  Force-finalizing $ns\";"
+        + " kubectl get ns \"$ns\" -o json | jq '.spec.finalizers = []' | kubectl replace --raw \"/api/v1/namespaces/$ns/finalize\" -f - >/dev/null 2>&1 || true;"
+        + " done"
+        + " && echo '✓ Cleanup complete'"
+    )
     
     # Add Kyverno-specific cleanup (webhooks, CRDs) if kyverno is disabled
     if not CONFIG["flux_apps"].get("kyverno"):
         cleanup_cmd += " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
         cleanup_cmd += " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
-    
-    cleanup_cmd += " && echo '✓ Cleanup complete'"
     
     local_resource(
         "cleanup-disabled-apps",
@@ -494,6 +539,14 @@ for app, enabled in CONFIG["flux_apps"].items():
 # RAW MANIFEST APPLICATIONS (Pattern 3: Direct Kubernetes Manifests)
 ###############################################################################
 
+# Build custom Backstage image with Tilt plugin when backstage is enabled
+if CONFIG["raw_apps"].get("backstage"):
+    docker_build(
+        'backstage-custom',
+        context='./backstage/app',
+        dockerfile='./backstage/app/Dockerfile',
+    )
+
 # Namespace mappings for raw apps
 RAW_NAMESPACE_MAP = {
     "backstage": "backstage",
@@ -554,10 +607,18 @@ RAW_APP_URLS = {
 # MSSQL (Local Helm Chart)
 ###############################################################################
 if CONFIG["raw_apps"].get("mssql"):
-    # Create namespace first
+    # Create namespace first (handle stuck Terminating state)
     local_resource(
         "mssql-ns",
-        cmd="kubectl create namespace mssql --dry-run=client -o yaml | kubectl apply -f -",
+        cmd="""
+            NS_PHASE=$(kubectl get ns mssql -o jsonpath='{.status.phase}' 2>/dev/null || echo '')
+            if [ "$NS_PHASE" = "Terminating" ]; then
+                echo 'Namespace mssql is Terminating, clearing finalizers...'
+                kubectl get ns mssql -o json | jq '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/mssql/finalize -f - >/dev/null 2>&1 || true
+                for i in $(seq 1 30); do kubectl get ns mssql >/dev/null 2>&1 || break; sleep 1; done
+            fi
+            kubectl create namespace mssql --dry-run=client -o yaml | kubectl apply -f -
+        """,
         labels=["Databases"],
     )
     
@@ -579,11 +640,24 @@ for app, enabled in CONFIG["raw_apps"].items():
         ns = RAW_NAMESPACE_MAP.get(app, app)
         label = RAW_LABEL_MAP.get(app, "Dev-Tools")
         
-        # First, create namespace via local_resource to ensure it exists before workloads
+        # First, create namespace via local_resource to ensure it exists before workloads.
+        # If the namespace is stuck Terminating, force-clear its finalizers and wait.
         if ns:
             local_resource(
                 "{}-ns".format(app),
-                cmd="kubectl create namespace {} --dry-run=client -o yaml | kubectl apply -f -".format(ns),
+                cmd="""
+                    NS_PHASE=$(kubectl get ns {ns} -o jsonpath='{{.status.phase}}' 2>/dev/null || echo '')
+                    if [ "$NS_PHASE" = "Terminating" ]; then
+                        echo 'Namespace {ns} is Terminating, clearing finalizers...'
+                        kubectl get ns {ns} -o json | jq '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/{ns}/finalize -f - >/dev/null 2>&1 || true
+                        echo 'Waiting for namespace to be fully removed...'
+                        for i in $(seq 1 30); do
+                            kubectl get ns {ns} >/dev/null 2>&1 || break
+                            sleep 1
+                        done
+                    fi
+                    kubectl create namespace {ns} --dry-run=client -o yaml | kubectl apply -f -
+                """.format(ns=ns),
                 labels=[label],
             )
         
