@@ -81,7 +81,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
         {/* End global nav */}
         <SidebarDivider />
         <SidebarItem icon={BuildIcon} to="tilt" text="Tilt Resources" />
-        <SidebarItem icon={DashboardIcon} to="infra" text="Infrastructure" />
+        <SidebarItem icon={DashboardIcon} to="infrastructure" text="Infrastructure" />
         <SidebarDivider />
         <SidebarScrollWrapper>
           {/* Items in this group will be scrollable if they run out of space */}

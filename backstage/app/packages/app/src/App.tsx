@@ -99,7 +99,7 @@ const routes = (
     <Route path="/catalog-graph" element={<CatalogGraphPage />} />
     <Route path="/notifications" element={<NotificationsPage />} />
     <Route path="/tilt" element={<TiltPage />} />
-    <Route path="/infra" element={<InfrastructureDashboardPage />} />
+    <Route path="/infrastructure" element={<InfrastructureDashboardPage />} />
   </FlatRoutes>
 );
 
