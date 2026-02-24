@@ -28,9 +28,8 @@ spec:
               mountPath: /data
       volumes:
         - name: data
-          hostPath:
-            path: /Users/dj/code/systechs/tilt/azurite-data
-            type: DirectoryOrCreate
+          persistentVolumeClaim:
+            claimName: azurite-data
 ---
 apiVersion: v1
 kind: Service
