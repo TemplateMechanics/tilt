@@ -269,7 +269,11 @@ local_resource(
 # Flux GitOps
 local_resource(
     "flux-install",
-    cmd="flux check --pre && flux install || echo 'Flux already installed'",
+    cmd="""
+        flux check --pre && flux install || echo 'Flux already installed'
+        echo "Waiting for Flux source-controller to be ready..."
+        kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
+    """,
     labels=["Infrastructure"]
 )
 
@@ -296,20 +300,35 @@ watch_file("./helm/traefik.yaml")
 local_resource(
     "helm-repositories",
     cmd="""
+        echo "Waiting for Flux CRDs to be registered..."
+        for i in $(seq 1 30); do
+            if kubectl api-resources --api-group=source.toolkit.fluxcd.io 2>/dev/null | grep -q helmrepositories; then
+                echo "✓ HelmRepository CRD is available"
+                break
+            fi
+            if [ "$i" -eq 30 ]; then
+                echo "Timeout waiting for Flux CRDs"; exit 1
+            fi
+            echo "  Attempt $i/30 — waiting for source.toolkit.fluxcd.io CRDs..."; sleep 2
+        done
+
         echo "Applying HelmRepositories..."
-        kubectl apply -k ./helm/repositories/ || true
-        
-        echo "Waiting for HelmRepositories to be ready..."
+        kubectl apply -k ./helm/repositories/
+
+        EXPECTED=$(kubectl kustomize ./helm/repositories/ | grep -c 'kind: HelmRepository')
+        echo "Expecting $EXPECTED HelmRepositories..."
+
+        echo "Waiting for HelmRepositories to appear..."
         for i in $(seq 1 60); do
             COUNT=$(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$COUNT" -gt 5 ]; then
-                echo "✓ $COUNT HelmRepositories found"
-                kubectl get helmrepository -n flux-system | head -10
+            if [ "$COUNT" -ge "$EXPECTED" ]; then
+                echo "✓ $COUNT/$EXPECTED HelmRepositories found"
+                kubectl get helmrepository -n flux-system
                 exit 0
             fi
-            echo "  Attempt $i/60 (found: $COUNT repositories)..."; sleep 2
+            echo "  Attempt $i/60 (found: $COUNT/$EXPECTED repositories)..."; sleep 2
         done
-        echo "Timeout waiting for HelmRepositories"; exit 1
+        echo "Timeout waiting for HelmRepositories ($COUNT/$EXPECTED)"; exit 1
     """,
     labels=["Platform"],
     resource_deps=["flux-install"]
