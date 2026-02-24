@@ -312,23 +312,22 @@ local_resource(
             echo "  Attempt $i/30 — waiting for source.toolkit.fluxcd.io CRDs..."; sleep 2
         done
 
-        echo "Applying HelmRepositories..."
-        kubectl apply -k ./helm/repositories/
-
-        EXPECTED=$(kubectl kustomize ./helm/repositories/ | grep -c 'kind: HelmRepository')
+        EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
         echo "Expecting $EXPECTED HelmRepositories..."
 
-        echo "Waiting for HelmRepositories to appear..."
+        echo "Applying HelmRepositories (will retry until all appear)..."
         for i in $(seq 1 60); do
+            kubectl apply -k ./helm/repositories/ 2>&1 || true
+            sleep 2
             COUNT=$(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ')
             if [ "$COUNT" -ge "$EXPECTED" ]; then
-                echo "✓ $COUNT/$EXPECTED HelmRepositories found"
+                echo "✓ $COUNT/$EXPECTED HelmRepositories ready"
                 kubectl get helmrepository -n flux-system
                 exit 0
             fi
-            echo "  Attempt $i/60 (found: $COUNT/$EXPECTED repositories)..."; sleep 2
+            echo "  Attempt $i/60 ($COUNT/$EXPECTED repositories)..."
         done
-        echo "Timeout waiting for HelmRepositories ($COUNT/$EXPECTED)"; exit 1
+        echo "Timeout: only $COUNT/$EXPECTED HelmRepositories created"; exit 1
     """,
     labels=["Platform"],
     resource_deps=["flux-install"]
