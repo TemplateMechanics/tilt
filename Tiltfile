@@ -256,17 +256,13 @@ local_resource(
     "dev-certificate-generate",
     cmd="""
         cd {cert_path}
-        # Fix root-owned CA dirs via macOS GUI sudo prompt (osascript)
+        # Fix root-owned CA dirs via macOS GUI sudo prompt
         for d in rootCA intermediateCA; do
             if [ -d "$d" ]; then
                 TEST_FILE="$d/index.txt"
                 if [ -f "$TEST_FILE" ] && ! [ -w "$TEST_FILE" ]; then
                     echo "$d has root-owned files — requesting admin privileges to fix..."
-                    osascript -e "do shell script \\"chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA\\" with administrator privileges" 2>/dev/null || {{
-                        echo "ERROR: Could not fix permissions. Run manually:"
-                        echo "  sudo chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA"
-                        exit 1
-                    }}
+                    bash ./sudo-helper.sh "chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA"
                     echo "✓ Fixed ownership on CA directories"
                     break
                 fi
@@ -287,20 +283,51 @@ local_resource(
             echo "No root CA cert found — skipping trust"
             exit 0
         fi
+        FULL_CERT_PATH="$(pwd)/$ROOT_CERT"
+        OS_TYPE="$(uname -s)"
 
-        # Check if already trusted
-        if security verify-cert -c "$ROOT_CERT" 2>/dev/null; then
-            echo "✓ Root CA is already trusted"
-            exit 0
-        fi
-
-        echo "Installing Root CA into macOS System keychain..."
-        osascript -e "do shell script \\"security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $(pwd)/$ROOT_CERT\\" with administrator privileges" 2>/dev/null || {{
-            echo "ERROR: Could not trust Root CA. Run manually:"
-            echo "  sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $(pwd)/$ROOT_CERT"
-            exit 1
-        }}
-        echo "✓ Root CA trusted in macOS System keychain"
+        case "$OS_TYPE" in
+            Darwin)
+                if security verify-cert -c "$ROOT_CERT" 2>/dev/null; then
+                    echo "✓ Root CA is already trusted (macOS)"
+                    exit 0
+                fi
+                echo "Installing Root CA into macOS System keychain..."
+                bash ./sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $FULL_CERT_PATH"
+                echo "✓ Root CA trusted in macOS System keychain"
+                ;;
+            Linux)
+                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
+                if [ -f "$TARGET" ]; then
+                    EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null || echo "")
+                    CURRENT=$(openssl x509 -in "$FULL_CERT_PATH" -noout -fingerprint -sha256 2>/dev/null || echo "none")
+                    if [ "$EXISTING" = "$CURRENT" ]; then
+                        echo "✓ Root CA is already trusted (Linux)"
+                        exit 0
+                    fi
+                fi
+                echo "Installing Root CA into Linux trusted certificates..."
+                bash ./sudo-helper.sh "cp $FULL_CERT_PATH $TARGET && update-ca-certificates"
+                echo "✓ Root CA trusted in Linux certificate store"
+                ;;
+            MINGW*|MSYS*|CYGWIN*)
+                if certutil -verify "$FULL_CERT_PATH" 2>/dev/null | grep -q "UNTRUSTED"; then
+                    echo "Installing Root CA into Windows certificate store..."
+                    certutil -addstore -user Root "$FULL_CERT_PATH" || {{
+                        echo "ERROR: Could not trust Root CA. Run in an admin PowerShell:"
+                        echo "  certutil -addstore Root $FULL_CERT_PATH"
+                        exit 1
+                    }}
+                    echo "✓ Root CA trusted in Windows certificate store"
+                else
+                    echo "✓ Root CA is already trusted (Windows)"
+                fi
+                ;;
+            *)
+                echo "Unsupported OS for automatic trust: $OS_TYPE"
+                echo "Manually trust: $FULL_CERT_PATH"
+                ;;
+        esac
     """.format(cert_path=cert_path),
     labels=["Infrastructure"],
     resource_deps=["dev-certificate-generate"]
