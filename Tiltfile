@@ -256,18 +256,19 @@ local_resource(
     "dev-certificate-generate",
     cmd="""
         cd {cert_path}
-        # Check if CA dirs have permission issues (root-owned from a previous run)
+        # Fix root-owned CA dirs via macOS GUI sudo prompt (osascript)
         for d in rootCA intermediateCA; do
             if [ -d "$d" ]; then
                 TEST_FILE="$d/index.txt"
                 if [ -f "$TEST_FILE" ] && ! [ -w "$TEST_FILE" ]; then
-                    echo ""
-                    echo "ERROR: $d contains files not owned by you (likely from a previous root/sudo run)."
-                    echo ""
-                    echo "  Fix with:  sudo rm -rf $(pwd)/rootCA $(pwd)/intermediateCA"
-                    echo ""
-                    echo "  Then re-trigger this resource in Tilt."
-                    exit 1
+                    echo "$d has root-owned files — requesting admin privileges to fix..."
+                    osascript -e "do shell script \\"chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA\\" with administrator privileges" 2>/dev/null || {{
+                        echo "ERROR: Could not fix permissions. Run manually:"
+                        echo "  sudo chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA"
+                        exit 1
+                    }}
+                    echo "✓ Fixed ownership on CA directories"
+                    break
                 fi
             fi
         done
@@ -278,10 +279,38 @@ local_resource(
 )
 
 local_resource(
+    "dev-certificate-trust",
+    cmd="""
+        cd {cert_path}
+        ROOT_CERT="rootCA/certs/ca.cert.pem"
+        if [ ! -f "$ROOT_CERT" ]; then
+            echo "No root CA cert found — skipping trust"
+            exit 0
+        fi
+
+        # Check if already trusted
+        if security verify-cert -c "$ROOT_CERT" 2>/dev/null; then
+            echo "✓ Root CA is already trusted"
+            exit 0
+        fi
+
+        echo "Installing Root CA into macOS System keychain..."
+        osascript -e "do shell script \\"security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $(pwd)/$ROOT_CERT\\" with administrator privileges" 2>/dev/null || {{
+            echo "ERROR: Could not trust Root CA. Run manually:"
+            echo "  sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $(pwd)/$ROOT_CERT"
+            exit 1
+        }}
+        echo "✓ Root CA trusted in macOS System keychain"
+    """.format(cert_path=cert_path),
+    labels=["Infrastructure"],
+    resource_deps=["dev-certificate-generate"]
+)
+
+local_resource(
     "dev-certificate-install",
     cmd="cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path),
     labels=["Infrastructure"],
-    resource_deps=["dev-certificate-generate"]
+    resource_deps=["dev-certificate-trust"]
 )
 
 # Flux GitOps
