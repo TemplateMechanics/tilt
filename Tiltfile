@@ -277,6 +277,27 @@ local_resource(
         kubectl -n flux-system wait --for=condition=available deployment/kustomize-controller --timeout=120s
         kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
         echo "✓ All Flux controllers ready"
+
+        # Detect available Flux API versions and patch YAMLs to match
+        echo "Detecting Flux API versions..."
+        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | sort -rV | head -1)
+        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | sort -rV | head -1)
+        echo "  HelmRelease API: $HR_API"
+        echo "  HelmRepository API: $SR_API"
+
+        if [ -n "$HR_API" ]; then
+            echo "Patching HelmRelease YAMLs to use $HR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'helm.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|helm.toolkit.fluxcd.io/[a-z0-9]*|$HR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        if [ -n "$SR_API" ]; then
+            echo "Patching HelmRepository YAMLs to use $SR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'source.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|source.toolkit.fluxcd.io/[a-z0-9]*|$SR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        echo "✓ Flux API versions aligned"
     """,
     labels=["Infrastructure"]
 )
@@ -304,18 +325,6 @@ watch_file("./helm/traefik.yaml")
 local_resource(
     "helm-repositories",
     cmd="""
-        echo "Waiting for Flux HelmRepository API to be available..."
-        for i in $(seq 1 60); do
-            if kubectl get helmrepositories.v1beta2.source.toolkit.fluxcd.io -n flux-system 2>&1 | grep -qv 'error:'; then
-                echo "✓ HelmRepository API is ready"
-                break
-            fi
-            if [ "$i" -eq 60 ]; then
-                echo "Timeout waiting for HelmRepository API"; exit 1
-            fi
-            echo "  Attempt $i/60 — waiting for source.toolkit.fluxcd.io/v1beta2 ..."; sleep 3
-        done
-
         EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
         echo "Expecting $EXPECTED HelmRepositories..."
 
@@ -357,15 +366,11 @@ local_resource(
     "crossplane-core-ready",
     cmd="""
         echo "Applying Crossplane manifests..."
-        if ! kubectl apply -k ./helm/crossplane/ 2>&1; then
-            echo "ERROR: kubectl apply failed. Retrying individual resources..."
-            kubectl apply -f ./helm/crossplane/namespace.yaml 2>&1
-            kubectl apply -f ./helm/crossplane/helm-repo.yaml 2>&1 || true
-            kubectl apply -f ./helm/crossplane/helm-release.yaml 2>&1
-        fi
+        kubectl apply -k ./helm/crossplane/ 2>&1
         
-        echo "Verifying HelmRelease was created..."
-        kubectl get helmrelease -A 2>&1 || echo "WARNING: No HelmRelease CRD found"
+        echo "Verifying resources..."
+        kubectl get helmrelease -A 2>&1
+        kubectl get helmrepository -n flux-system 2>&1 | head -5
         
         echo "Waiting for Crossplane to be fully ready..."
         echo "(This can take 3-5 minutes on cold start)"
