@@ -256,10 +256,19 @@ local_resource(
     "dev-certificate-generate",
     cmd="""
         cd {cert_path}
-        # Fix ownership on CA dirs unconditionally (may be owned by root from a previous run)
+        # Check if CA dirs have permission issues (root-owned from a previous run)
         for d in rootCA intermediateCA; do
             if [ -d "$d" ]; then
-                sudo chown -R $(whoami) "$d" 2>/dev/null || true
+                TEST_FILE="$d/index.txt"
+                if [ -f "$TEST_FILE" ] && ! [ -w "$TEST_FILE" ]; then
+                    echo ""
+                    echo "ERROR: $d contains files not owned by you (likely from a previous root/sudo run)."
+                    echo ""
+                    echo "  Fix with:  sudo rm -rf $(pwd)/rootCA $(pwd)/intermediateCA"
+                    echo ""
+                    echo "  Then re-trigger this resource in Tilt."
+                    exit 1
+                fi
             fi
         done
         SKIP_CERT_TRUST=true bash ./generate-certs.sh
