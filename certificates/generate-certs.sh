@@ -38,11 +38,15 @@ create_directories() {
     local path="$1"
     # Fix permissions on entire tree first (may be owned by root from a previous run)
     if [[ -d "$path" ]]; then
-        if ! chmod -R u+rwX "$path" 2>/dev/null; then
-            echo "WARNING: Cannot fix permissions on $path (likely owned by root)"
-            echo "  Removing with sudo and regenerating..."
-            sudo rm -rf "$path"
+        chmod -R u+rwX "$path" 2>/dev/null || true
+        # Verify we can actually write — chmod silently fails on root-owned files
+        if ! touch "$path/.write_test" 2>/dev/null; then
+            echo "ERROR: $path is not writable (likely owned by root)."
+            echo "  Please run: sudo rm -rf $(cd "$SCRIPT_DIR" && pwd)/rootCA $(cd "$SCRIPT_DIR" && pwd)/intermediateCA"
+            echo "  Then re-trigger this resource."
+            exit 1
         fi
+        rm -f "$path/.write_test"
     fi
     mkdir -p "$path"/{certs,crl,csr,newcerts,private}
     chmod 700 "$path/private"

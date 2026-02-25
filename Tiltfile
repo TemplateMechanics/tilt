@@ -254,7 +254,18 @@ cert_exists = str(local("test -f {}/intermediateCA/certs/localhost-chain.cert.pe
 
 local_resource(
     "dev-certificate-generate",
-    cmd="cd {} && SKIP_CERT_TRUST=true bash ./generate-certs.sh".format(cert_path),
+    cmd="""
+        cd {cert_path}
+        # If CA dirs exist but are not writable (owned by root from a previous run), remove them
+        for d in rootCA intermediateCA; do
+            if [ -d "$d" ] && ! touch "$d/.tilt_write_test" 2>/dev/null; then
+                echo "Removing root-owned $d (requires sudo)..."
+                sudo rm -rf "$d"
+            fi
+            rm -f "$d/.tilt_write_test" 2>/dev/null || true
+        done
+        SKIP_CERT_TRUST=true bash ./generate-certs.sh
+    """.format(cert_path=cert_path),
     labels=["Infrastructure"],
     auto_init=(cert_exists != "yes")
 )
