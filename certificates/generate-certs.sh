@@ -169,6 +169,10 @@ openssl req -new \
     -config "$SERVER_CONFIG" \
     -extensions req_ext
 
+# Reset the intermediate CA index so OpenSSL doesn't reject duplicate subjects
+: > "$INTERMEDIATE_CA_PATH/index.txt"
+rm -f "$INTERMEDIATE_CA_PATH/index.txt.attr" "$INTERMEDIATE_CA_PATH/index.txt.old" "$INTERMEDIATE_CA_PATH/index.txt.attr.old"
+
 echo "y" | openssl ca -config "$SERVER_CONFIG" \
     -extensions req_ext \
     -days 825 -notext -md sha256 \
