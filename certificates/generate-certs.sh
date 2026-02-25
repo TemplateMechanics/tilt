@@ -127,8 +127,40 @@ echo ""
 echo "--- Generating localhost certificate ---"
 
 # Ensure existing CA keys are readable (they may have restrictive perms from a previous run)
-chmod 600 "$ROOT_CA_PATH/private/"*.pem 2>/dev/null || true
-chmod 600 "$INTERMEDIATE_CA_PATH/private/"*.pem 2>/dev/null || true
+# Fix directory permissions first, then file permissions
+chmod 755 "$ROOT_CA_PATH/private" "$INTERMEDIATE_CA_PATH/private" 2>/dev/null || true
+chmod 644 "$ROOT_CA_PATH/private/"*.pem 2>/dev/null || true
+chmod 644 "$INTERMEDIATE_CA_PATH/private/"*.pem 2>/dev/null || true
+# Verify the intermediate key is actually readable
+if [[ -f "$INTERMEDIATE_CA_PATH/private/intermediate.key.pem" ]] && ! head -1 "$INTERMEDIATE_CA_PATH/private/intermediate.key.pem" &>/dev/null; then
+    echo "WARNING: Cannot read intermediate key — regenerating CA chain..."
+    FORCE_REGEN="true"
+    cleanup_cert "$ROOT_CA_PATH" "ca.key.pem" "ca.cert.pem"
+    cleanup_cert "$INTERMEDIATE_CA_PATH" "intermediate.key.pem" "intermediate.cert.pem"
+    # Re-run the CA generation steps
+    echo "--- Regenerating Root CA ---"
+    openssl genrsa -out "$ROOT_CA_PATH/private/ca.key.pem" 4096
+    openssl req -config "$ROOT_CONFIG" \
+        -key "$ROOT_CA_PATH/private/ca.key.pem" \
+        -new -x509 -days 7300 -sha256 \
+        -extensions v3_ca \
+        -out "$ROOT_CA_PATH/certs/ca.cert.pem" \
+        -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Root CA"
+
+    echo "--- Regenerating Intermediate CA ---"
+    openssl genrsa -out "$INTERMEDIATE_CA_PATH/private/intermediate.key.pem" 4096
+    openssl req -config "$INTERMEDIATE_CONFIG" \
+        -key "$INTERMEDIATE_CA_PATH/private/intermediate.key.pem" \
+        -new -sha256 \
+        -out "$INTERMEDIATE_CA_PATH/csr/intermediate.csr.pem" \
+        -subj "/C=US/ST=State/L=City/O=Company/OU=Department/CN=Intermediate CA"
+    echo "y" | openssl ca -config "$ROOT_CONFIG" \
+        -extensions v3_intermediate_ca \
+        -days 3650 -notext -md sha256 \
+        -in "$INTERMEDIATE_CA_PATH/csr/intermediate.csr.pem" \
+        -out "$INTERMEDIATE_CA_PATH/certs/intermediate.cert.pem" \
+        -batch
+fi
 
 openssl genrsa -out "$INTERMEDIATE_CA_PATH/private/localhost.key.pem" 4096
 openssl req -new \
