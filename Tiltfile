@@ -357,7 +357,15 @@ local_resource(
     "crossplane-core-ready",
     cmd="""
         echo "Applying Crossplane manifests..."
-        kubectl apply -k ./helm/crossplane/
+        if ! kubectl apply -k ./helm/crossplane/ 2>&1; then
+            echo "ERROR: kubectl apply failed. Retrying individual resources..."
+            kubectl apply -f ./helm/crossplane/namespace.yaml 2>&1
+            kubectl apply -f ./helm/crossplane/helm-repo.yaml 2>&1 || true
+            kubectl apply -f ./helm/crossplane/helm-release.yaml 2>&1
+        fi
+        
+        echo "Verifying HelmRelease was created..."
+        kubectl get helmrelease -A 2>&1 || echo "WARNING: No HelmRelease CRD found"
         
         echo "Waiting for Crossplane to be fully ready..."
         echo "(This can take 3-5 minutes on cold start)"
