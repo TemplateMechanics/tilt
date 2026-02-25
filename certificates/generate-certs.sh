@@ -125,6 +125,11 @@ fi
 # ---------------------------
 echo ""
 echo "--- Generating localhost certificate ---"
+
+# Ensure existing CA keys are readable (they may have restrictive perms from a previous run)
+chmod 600 "$ROOT_CA_PATH/private/"*.pem 2>/dev/null || true
+chmod 600 "$INTERMEDIATE_CA_PATH/private/"*.pem 2>/dev/null || true
+
 openssl genrsa -out "$INTERMEDIATE_CA_PATH/private/localhost.key.pem" 4096
 openssl req -new \
     -key "$INTERMEDIATE_CA_PATH/private/localhost.key.pem" \
