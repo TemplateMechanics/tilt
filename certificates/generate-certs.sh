@@ -36,6 +36,10 @@ done
 # ---------------------------
 create_directories() {
     local path="$1"
+    # Fix permissions on entire tree first (may be owned by root from a previous run)
+    if [[ -d "$path" ]]; then
+        chmod -R u+rwX "$path" 2>/dev/null || true
+    fi
     mkdir -p "$path"/{certs,crl,csr,newcerts,private}
     chmod 700 "$path/private"
     [[ -f "$path/index.txt" ]] || touch "$path/index.txt"
