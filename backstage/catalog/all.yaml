@@ -1,14 +1,5 @@
 ---
 apiVersion: backstage.io/v1alpha1
-kind: System
-metadata:
-  name: dev-environment
-  description: Local Kubernetes development environment managed by Tilt
-spec:
-  owner: platform-team
-  domain: infrastructure
----
-apiVersion: backstage.io/v1alpha1
 kind: Domain
 metadata:
   name: infrastructure

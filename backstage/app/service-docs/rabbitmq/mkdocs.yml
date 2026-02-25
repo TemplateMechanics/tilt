@@ -1,0 +1,5 @@
+site_name: RabbitMQ
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md

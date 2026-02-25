@@ -59,6 +59,16 @@ data:
           target: /app/catalog/all.yaml
           rules:
             - allow: [Component, System, Domain, Group, API, Resource, Location, Template]
+        # TechDocs entity co-located with mkdocs.yml
+        - type: file
+          target: /app/platform-docs/catalog-info.yaml
+          rules:
+            - allow: [System]
+        # Per-service TechDocs with Component entities
+        - type: file
+          target: /app/service-docs/catalog.yaml
+          rules:
+            - allow: [Component]
 
     # Kubernetes plugin config - connects to local cluster
     kubernetes:
