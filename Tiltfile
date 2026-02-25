@@ -256,14 +256,10 @@ local_resource(
     "dev-certificate-generate",
     cmd="""
         cd {cert_path}
-        # If any files in CA dirs are not writable (owned by root from a previous run), nuke them
+        # Fix ownership on CA dirs unconditionally (may be owned by root from a previous run)
         for d in rootCA intermediateCA; do
             if [ -d "$d" ]; then
-                BAD=$(find "$d" ! -writable 2>/dev/null | head -1)
-                if [ -n "$BAD" ]; then
-                    echo "Found non-writable files in $d (e.g. $BAD) — removing with sudo..."
-                    sudo rm -rf "$d"
-                fi
+                sudo chown -R $(whoami) "$d" 2>/dev/null || true
             fi
         done
         SKIP_CERT_TRUST=true bash ./generate-certs.sh
