@@ -42,7 +42,8 @@ ENV PYTHON=/usr/bin/python3
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -y --no-install-recommends python3 g++ build-essential libsqlite3-dev && \
+    apt-get install -y --no-install-recommends python3 python3-pip g++ build-essential libsqlite3-dev && \
+    python3 -m pip install --no-cache-dir --break-system-packages mkdocs-techdocs-core && \
     rm -rf /var/lib/apt/lists/*
 
 USER node
@@ -71,5 +72,9 @@ RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
 # Copy app-config files
 COPY --chown=node:node app-config*.yaml ./
+
+# Copy TechDocs sources and catalog entity for local builder
+COPY --chown=node:node platform-docs/ ./platform-docs/
+COPY --chown=node:node service-docs/ ./service-docs/
 
 CMD ["node", "packages/backend", "--config", "app-config.yaml"]

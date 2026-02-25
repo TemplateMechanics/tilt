@@ -1,0 +1,5 @@
+site_name: Velero
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md
