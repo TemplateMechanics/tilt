@@ -1,6 +1,6 @@
 ---
-# Grant cluster-admin to ALL Crossplane provider ServiceAccounts
-# This uses a label selector approach - provider SAs are created dynamically with hashes
+# Grant cluster-admin to specific Crossplane controller ServiceAccounts
+# Named SAs are bound directly; a group-based fallback below covers dynamically-created provider SAs
 # Note: In production, use more restrictive RBAC
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

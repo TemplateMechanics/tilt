@@ -4,7 +4,7 @@ resources:
   - namespace.yaml
 {%- if values.deploymentType == 'crossplane-app' %}
   - crossplane-app.yaml
-{%- elif values.deploymentType == 'flux-helm' %}
+{%- elif values.deploymentType == 'helm-release' %}
   - helm-release.yaml
   - helm-repo.yaml
 {%- else %}

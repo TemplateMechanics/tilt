@@ -6,7 +6,7 @@
 
 | Property | Value |
 |----------|-------|
-| **Namespace** | `1password-system` |
+| **Namespace** | `1password` |
 | **Type** | Secrets Management |
 | **Default** | Disabled |
 | **Config Key** | `flux_apps.1pass` |

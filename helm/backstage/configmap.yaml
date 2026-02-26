@@ -65,11 +65,11 @@ data:
           target: /app/platform-docs/catalog-info.yaml
           rules:
             - allow: [System]
-        # Per-service TechDocs with Component entities
+        # Per-service TechDocs with Component and API entities
         - type: file
           target: /app/service-docs/catalog.yaml
           rules:
-            - allow: [Component]
+            - allow: [Component, API]
 
     # Kubernetes plugin config - connects to local cluster
     kubernetes:

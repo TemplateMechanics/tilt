@@ -1268,3 +1268,280 @@ spec:
   lifecycle: production
   owner: platform-team
   system: dev-environment
+
+# =============================================================================
+# API DEFINITIONS
+# =============================================================================
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: traefik-api
+  description: Traefik ingress controller HTTP routing and dashboard API
+  tags:
+    - rest
+    - ingress
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Traefik API
+      version: "2.0"
+    paths:
+      /api/overview:
+        get:
+          summary: Get Traefik overview
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: prometheus-api
+  description: Prometheus query and metrics API
+  tags:
+    - rest
+    - metrics
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: observability-stack
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Prometheus API
+      version: "1.0"
+    paths:
+      /api/v1/query:
+        get:
+          summary: Execute PromQL query
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: airflow-api
+  description: Apache Airflow REST API for DAG management
+  tags:
+    - rest
+    - workflow
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: airflow-system
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Airflow API
+      version: "2.0"
+    paths:
+      /api/v1/dags:
+        get:
+          summary: List DAGs
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: harbor-api
+  description: Harbor container registry API
+  tags:
+    - rest
+    - registry
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: harbor-system
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Harbor API
+      version: "2.0"
+    paths:
+      /api/v2.0/projects:
+        get:
+          summary: List projects
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: keycloak-api
+  description: Keycloak identity and access management API
+  tags:
+    - rest
+    - identity
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: keycloak-system
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Keycloak Admin API
+      version: "1.0"
+    paths:
+      /admin/realms:
+        get:
+          summary: List realms
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ollama-api
+  description: Ollama LLM inference API
+  tags:
+    - rest
+    - ai
+spec:
+  type: openapi
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Ollama API
+      version: "1.0"
+    paths:
+      /api/generate:
+        post:
+          summary: Generate completion
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: qdrant-api
+  description: Qdrant vector search engine API
+  tags:
+    - rest
+    - vector-database
+spec:
+  type: openapi
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Qdrant API
+      version: "1.0"
+    paths:
+      /collections:
+        get:
+          summary: List collections
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: langfuse-api
+  description: Langfuse LLM observability and tracing API
+  tags:
+    - rest
+    - ai
+spec:
+  type: openapi
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Langfuse API
+      version: "1.0"
+    paths:
+      /api/public/traces:
+        get:
+          summary: List traces
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: otlp-api
+  description: OpenTelemetry Protocol (OTLP) for telemetry data ingestion
+  tags:
+    - grpc
+    - telemetry
+spec:
+  type: grpc
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    syntax = "proto3";
+    package opentelemetry.proto.collector.trace.v1;
+    service TraceService {
+      rpc Export(ExportTraceServiceRequest) returns (ExportTraceServiceResponse);
+    }
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: nats-api
+  description: NATS cloud-native messaging protocol
+  tags:
+    - async
+    - messaging
+spec:
+  type: async
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    asyncapi: "2.6.0"
+    info:
+      title: NATS Messaging
+      version: "1.0"
+    channels:
+      default:
+        publish:
+          summary: Publish message to NATS subject
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: dapr-api
+  description: Dapr distributed application runtime sidecar API
+  tags:
+    - rest
+    - microservices
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Dapr API
+      version: "1.0"
+    paths:
+      /v1.0/invoke/{appId}/method/{methodName}:
+        post:
+          summary: Invoke service method
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: argo-api
+  description: Argo Workflows API for workflow management
+  tags:
+    - rest
+    - workflow
+spec:
+  type: openapi
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  definition: |
+    openapi: "3.0.0"
+    info:
+      title: Argo Workflows API
+      version: "3.0"
+    paths:
+      /api/v1/workflows/{namespace}:
+        get:
+          summary: List workflows
