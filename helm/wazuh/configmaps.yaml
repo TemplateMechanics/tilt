@@ -32,10 +32,13 @@ data:
         archives:
           enabled: false
 
-    setup.template.json.enabled: true
-    setup.template.json.path: /etc/filebeat/wazuh-template.json
-    setup.template.json.name: wazuh
-    setup.template.overwrite: true
+    setup.template.json.enabled: false
+    setup.template.name: "wazuh"
+    setup.template.pattern: "wazuh-alerts-*"
+    setup.template.overwrite: false
+    setup.template.settings:
+      index.number_of_shards: 1
+      index.number_of_replicas: 0
     setup.ilm.enabled: false
 
     output.elasticsearch:
@@ -125,10 +128,119 @@ data:
         <location>/var/ossec/logs/active-responses.log</location>
       </localfile>
 
-      <!-- Wazuh API -->
-      <api>
-        <https>no</https>
-      </api>
+      <!-- =============================== -->
+      <!-- Cluster API monitoring (wodles)  -->
+      <!-- =============================== -->
+
+      <!-- Kubernetes API Server health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>k8s-api-health</tag>
+        <command>curl -sk --connect-timeout 10 --max-time 20 https://kubernetes.default.svc/healthz -o /dev/null -w '{"api":"kubernetes","status_code":%{http_code},"url":"https://kubernetes.default.svc/healthz"}' 2>/dev/null || echo '{"api":"kubernetes","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Traefik Ingress Controller health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>traefik-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://traefik.traefik.svc:80/ -o /dev/null -w '{"api":"traefik","status_code":%{http_code},"url":"http://traefik.traefik.svc:80"}' 2>/dev/null || echo '{"api":"traefik","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Prometheus health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>prometheus-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090/-/healthy -o /dev/null -w '{"api":"prometheus","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"prometheus","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Grafana health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>grafana-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://prometheus-grafana.monitoring.svc:80/api/health -o /dev/null -w '{"api":"grafana","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"grafana","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Backstage health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>backstage-health</tag>
+        <command>curl -sk --connect-timeout 10 --max-time 20 https://backstage.backstage.svc:7000/ -o /dev/null -w '{"api":"backstage","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"backstage","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Loki health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>loki-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://loki.logging.svc:3100/ready -o /dev/null -w '{"api":"loki","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"loki","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Tempo (tracing) health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>tempo-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://tempo.tracing.svc:3200/ready -o /dev/null -w '{"api":"tempo","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"tempo","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Alertmanager — check for active firing alerts -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>alertmanager-alerts</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 'http://prometheus-kube-prometheus-alertmanager.monitoring.svc:9093/api/v2/alerts?active=true' 2>/dev/null | python3 -c "import sys,json; alerts=json.load(sys.stdin); print(json.dumps({'api':'alertmanager','active_alerts':len(alerts),'alerts':[{'name':a.get('labels',{}).get('alertname',''),'severity':a.get('labels',{}).get('severity','')} for a in alerts[:10]]}))" 2>/dev/null || echo '{"api":"alertmanager","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Flux source-controller — check for failed sources -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>flux-sources</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://source-controller.flux-system.svc:80/metrics 2>/dev/null | grep -c 'gotk_reconcile_condition.*status="False"' | xargs -I{} echo '{"api":"flux","failed_reconciliations":{}}' 2>/dev/null || echo '{"api":"flux","error":"connection_failed"}'</command>
+        <interval>10m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- MSSQL health check -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>mssql-health</tag>
+        <command>bash -c '(echo > /dev/tcp/mssql-mssql-latest.mssql.svc/1433) 2>/dev/null &amp;&amp; echo "{\"api\":\"mssql\",\"port_open\":true}" || echo "{\"api\":\"mssql\",\"port_open\":false}"'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
 
       <!-- Indexer connection -->
       <indexer>
@@ -151,9 +263,6 @@ data:
     server.host: "0.0.0.0"
     server.port: 5601
     opensearch.hosts: ["http://wazuh-indexer:9200"]
-    opensearch.requestHeadersAllowlist: ["securitytenant", "Authorization"]
-    opensearch_security.multitenancy.enabled: false
-    opensearch_security.readonly_mode.roles: ["kibana_read_only"]
     server.ssl.enabled: false
     opensearch.ssl.verificationMode: none
 
