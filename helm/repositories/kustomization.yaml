@@ -20,6 +20,7 @@ resources:
   - kyverno.yaml
   - policy-reporter.yaml
   - falco.yaml
+  - aquasecurity.yaml
   - velero.yaml
   - 1password.yaml
   

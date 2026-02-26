@@ -100,3 +100,6 @@ DNS.30 = kubevirt.localhost
 DNS.31 = api.localhost
 DNS.32 = client.localhost
 DNS.33 = ghost.localhost
+
+# ─── SIEM / Security ─────────────────────────────────────────────────
+DNS.34 = wazuh.localhost

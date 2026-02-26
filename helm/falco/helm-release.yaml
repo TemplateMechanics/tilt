@@ -47,13 +47,25 @@ spec:
           priority: NOTICE
           tags: [maturity_stable, container, network, k8s, mitre_discovery, T1565]
         
-    # falcosidekick:
-    #   enabled: true
-    #   config:
-    #     slack:
-    #       webhookurl: "https://hooks.slack.com/services/CHANGE/ME/PLEASE"
-    #       channel: "#falco-alerts"
-    #       minimumpriority: warning
+    falcosidekick:
+      enabled: true
+      replicaCount: 1
+      config:
+        prometheus:
+          extralabels: "source:falco"
+      webui:
+        enabled: false
+      serviceMonitor:
+        enabled: false
+      prometheusRules:
+        enabled: false
+    metrics:
+      enabled: true
+      service:
+        create: true
+        port: 8082
+        labels: {}
+        annotations: {}
 
       
 

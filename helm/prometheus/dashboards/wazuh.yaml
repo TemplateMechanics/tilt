@@ -1,0 +1,439 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-wazuh
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Services"
+data:
+  wazuh.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": "-- Grafana --",
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [
+        {
+          "title": "Wazuh Dashboard",
+          "url": "https://wazuh.localhost",
+          "icon": "external link",
+          "type": "link",
+          "targetBlank": true
+        }
+      ],
+      "panels": [
+        {
+          "title": "Wazuh Component Health",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "collapsed": false
+        },
+        {
+          "title": "Indexer Status",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "kube_statefulset_status_replicas_ready{namespace=\"wazuh\", statefulset=\"wazuh-indexer\"}",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false,
+              "legendFormat": "ready"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [
+                { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } },
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Manager Status",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "targets": [
+            {
+              "expr": "kube_statefulset_status_replicas_ready{namespace=\"wazuh\", statefulset=\"wazuh-manager\"}",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [
+                { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } },
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Dashboard Status",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_available{namespace=\"wazuh\", deployment=\"wazuh-dashboard\"}",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [
+                { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } },
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Pod Restarts (Total)",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"wazuh\"})",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3 },
+                  { "color": "red", "value": 10 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Total CPU Usage",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"wazuh\", container!=\"\", container!=\"POD\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 2 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Total Memory Usage",
+          "type": "stat",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"wazuh\", container!=\"\", container!=\"POD\"})",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "instant": true, "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 2147483648 },
+                  { "color": "red", "value": 3221225472 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background"
+          }
+        },
+        {
+          "title": "Resource Usage",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+          "collapsed": false
+        },
+        {
+          "title": "CPU Usage by Container",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"wazuh\", container!=\"\", container!=\"POD\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}}",
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "percentunit",
+              "custom": {
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Memory Usage by Container",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "targets": [
+            {
+              "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"wazuh\", container!=\"\", container!=\"POD\"})",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}}",
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "bytes",
+              "custom": {
+                "fillOpacity": 20,
+                "lineWidth": 2,
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Network I/O by Pod",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"wazuh\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}} ← in",
+              "range": true
+            },
+            {
+              "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"wazuh\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}} → out",
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "Bps",
+              "custom": {
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Disk I/O by Pod",
+          "type": "timeseries",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+          "targets": [
+            {
+              "expr": "sum by (pod) (rate(container_fs_reads_bytes_total{namespace=\"wazuh\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}} reads",
+              "range": true
+            },
+            {
+              "expr": "sum by (pod) (rate(container_fs_writes_bytes_total{namespace=\"wazuh\"}[5m]))",
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "legendFormat": "{{pod}} writes",
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "Bps",
+              "custom": {
+                "fillOpacity": 15,
+                "lineWidth": 2,
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "title": "Logs",
+          "type": "row",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+          "collapsed": false
+        },
+        {
+          "title": "Wazuh Manager Logs",
+          "type": "logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 23 },
+          "targets": [
+            {
+              "expr": "{namespace=\"wazuh\"}",
+              "datasource": { "type": "loki", "uid": "loki" },
+              "refId": "A"
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": false,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": [
+        "wazuh",
+        "siem",
+        "security"
+      ],
+      "templating": {
+        "list": [
+          {
+            "current": {
+              "selected": false,
+              "text": "Prometheus",
+              "value": "prometheus"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_PROMETHEUS",
+            "query": "prometheus",
+            "type": "datasource"
+          },
+          {
+            "current": {
+              "selected": false,
+              "text": "Loki",
+              "value": "loki"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "name": "DS_LOKI",
+            "query": "loki",
+            "type": "datasource"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Wazuh SIEM",
+      "uid": "wazuh-dashboard",
+      "version": 1
+    }

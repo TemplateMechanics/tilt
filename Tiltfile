@@ -35,6 +35,7 @@ DEFAULT_CONFIG = {
         "falco": {"enabled": False}, "policy-reporter": {"enabled": False},
         "1pass": {"enabled": False}, "keda": {"enabled": False},
         "velero": {"enabled": False}, "cert-manager": {"enabled": False},
+        "trivy": {"enabled": False},
     },
     "raw_apps": {
         "backstage": {"enabled": False}, "mongodb": {"enabled": False},
@@ -45,7 +46,7 @@ DEFAULT_CONFIG = {
         "mailhog": {"enabled": False}, "azurite": {"enabled": False},
         "gcp-emulators": {"enabled": False}, "azure": {"enabled": False},
         "kubevirt": {"enabled": False}, "macos": {"enabled": False},
-        "eyeos": {"enabled": False},
+        "eyeos": {"enabled": False}, "wazuh": {"enabled": False},
     },
 }
 
@@ -175,6 +176,7 @@ FLUX_NS_MAP = {
     "policy-reporter": "policy-reporter",
     "1pass": "1password-system",
     "cert-manager": "cert-manager",
+    "trivy": "trivy-system",
 }
 for app, enabled in CONFIG["flux_apps"].items():
     if not enabled:
@@ -199,6 +201,7 @@ RAW_NS_MAP = {
     "airflow": "airflow",
     "jupyterhub": "jupyterhub",
     "wordpress": "wordpress",
+    "wazuh": "wazuh",
 }
 for app, enabled in CONFIG["raw_apps"].items():
     if not enabled:
@@ -654,6 +657,7 @@ if enabled_crossplane:
 FLUX_NAMESPACE_MAP = {
     "policy-reporter": "policy-reporter",
     "1pass": "1password-system",
+    "trivy": "trivy-system",
 }
 
 # Label mappings for categorization in Tilt UI
@@ -662,6 +666,7 @@ FLUX_LABEL_MAP = {
     "keycloak": "Security",
     "kyverno": "Security",
     "falco": "Security",
+    "trivy": "Security",
     "policy-reporter": "Security",
     "1pass": "Security",
     "airflow": "Data",
@@ -752,6 +757,7 @@ RAW_NAMESPACE_MAP = {
     "airflow": "airflow",
     "jupyterhub": "jupyterhub",
     "wordpress": "wordpress",
+    "wazuh": "wazuh",
 }
 
 # Label mappings for raw apps
@@ -764,6 +770,7 @@ RAW_LABEL_MAP = {
     "kubevirt": "Infrastructure",
     "macos": "Experimental",
     "eyeos": "Experimental",
+    "wazuh": "Security",
 }
 
 # Workload names in each raw app (for setting dependencies)
@@ -780,10 +787,11 @@ RAW_WORKLOADS = {
     "airflow": ["airflow-webserver", "airflow-scheduler", "airflow-postgresql", "airflow-redis"],
     "jupyterhub": ["jupyterhub"],
     "wordpress": ["wordpress", "mysql"],
+    "wazuh": ["wazuh-indexer", "wazuh-manager", "wazuh-dashboard", "wazuh-filebeat"],
 }
 
 # Apps with web UIs accessible via ingress
-RAW_APPS_WITH_UI = ["backstage", "mailhog", "macos", "eyeos", "rabbitmq", "keycloak", "airflow", "jupyterhub", "wordpress"]
+RAW_APPS_WITH_UI = ["backstage", "mailhog", "macos", "eyeos", "rabbitmq", "keycloak", "airflow", "jupyterhub", "wordpress", "wazuh"]
 
 # Custom URL mappings (app -> subdomain, defaults to app name)
 RAW_APP_URLS = {

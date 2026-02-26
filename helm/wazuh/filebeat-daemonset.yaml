@@ -1,0 +1,187 @@
+---
+# Filebeat DaemonSet — collects K8s pod logs and ships to Wazuh Indexer for SIEM
+# Runs alongside existing Promtail → Loki pipeline (does not replace it)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-filebeat-daemonset-config
+  namespace: wazuh
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+      # General K8s container logs
+      - type: container
+        paths:
+          - /var/log/containers/*.log
+        exclude_files:
+          # Exclude Falco/Trivy — collected by dedicated inputs below
+          - '/var/log/containers/falco-.*\.log'
+          - '/var/log/containers/trivy-.*\.log'
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Falco runtime security events (JSON output)
+      - type: container
+        paths:
+          - /var/log/containers/falco-falco-*.log
+          - /var/log/containers/falco-falcosidekick-*.log
+        fields:
+          security.source: falco
+          security.type: runtime
+        fields_under_root: true
+        json.keys_under_root: true
+        json.add_error_key: true
+        json.message_key: output
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Trivy vulnerability scanner reports
+      - type: container
+        paths:
+          - /var/log/containers/trivy-operator-*.log
+          - /var/log/containers/scan-vulnerabilityreport-*.log
+        fields:
+          security.source: trivy
+          security.type: vulnerability-scan
+        fields_under_root: true
+        json.keys_under_root: true
+        json.add_error_key: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+    # Enrich with K8s metadata
+    processors:
+      - add_cloud_metadata: ~
+      - add_host_metadata: ~
+      - rename:
+          fields:
+            - from: "kubernetes.namespace"
+              to: "kubernetes.namespace_name"
+          ignore_missing: true
+
+    # Output directly to Wazuh Indexer (OpenSearch)
+    output.elasticsearch:
+      hosts: ["http://wazuh-indexer.wazuh.svc.cluster.local:9200"]
+      indices:
+        - index: "filebeat-falco-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "falco"
+        - index: "filebeat-trivy-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "trivy"
+        - index: "filebeat-kubernetes-%{+yyyy.MM.dd}"
+      pipeline: ""
+
+    setup.ilm.enabled: false
+    setup.template.name: "filebeat"
+    setup.template.pattern: "filebeat-*"
+    setup.template.settings:
+      index.number_of_shards: 1
+      index.number_of_replicas: 0
+
+    logging.level: warning
+    logging.to_files: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: wazuh-filebeat
+  namespace: wazuh
+  labels:
+    app: wazuh-filebeat
+spec:
+  selector:
+    matchLabels:
+      app: wazuh-filebeat
+  template:
+    metadata:
+      labels:
+        app: wazuh-filebeat
+    spec:
+      serviceAccountName: wazuh-filebeat
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat-oss:7.10.2
+          args: ["-c", "/etc/filebeat/filebeat.yml", "-e"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            runAsUser: 0
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/filebeat/filebeat.yml
+              subPath: filebeat.yml
+              readOnly: true
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: containerlog
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: filebeat-data
+              mountPath: /usr/share/filebeat/data
+      volumes:
+        - name: config
+          configMap:
+            name: wazuh-filebeat-daemonset-config
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: containerlog
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: filebeat-data
+          hostPath:
+            path: /var/lib/filebeat-wazuh-data
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wazuh-filebeat
+  namespace: wazuh
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wazuh-filebeat
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wazuh-filebeat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wazuh-filebeat
+subjects:
+  - kind: ServiceAccount
+    name: wazuh-filebeat
+    namespace: wazuh

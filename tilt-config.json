@@ -79,6 +79,12 @@
       "description": "Certificate management",
       "category": "Infrastructure",
       "tested": true
+    },
+    "trivy": {
+      "enabled": false,
+      "description": "Kubernetes vulnerability scanner",
+      "category": "Security & Policy",
+      "tested": true
     }
   },
   "raw_apps": {

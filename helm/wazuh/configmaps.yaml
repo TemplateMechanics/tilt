@@ -1,0 +1,167 @@
+---
+# Wazuh Indexer (OpenSearch) configuration — security disabled for dev
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-indexer-config
+  namespace: wazuh
+data:
+  opensearch.yml: |
+    network.host: "0.0.0.0"
+    node.name: "wazuh-indexer"
+    cluster.name: "wazuh-cluster"
+    discovery.type: single-node
+    compatibility.override_main_response_version: true
+    plugins.security.disabled: true
+    path.data: /var/lib/wazuh-indexer
+    path.logs: /var/log/wazuh-indexer
+
+---
+# Filebeat config inside the Wazuh Manager — ships alerts to the indexer
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-filebeat-config
+  namespace: wazuh
+data:
+  filebeat.yml: |
+    filebeat.modules:
+      - module: wazuh
+        alerts:
+          enabled: true
+        archives:
+          enabled: false
+
+    setup.template.json.enabled: true
+    setup.template.json.path: /etc/filebeat/wazuh-template.json
+    setup.template.json.name: wazuh
+    setup.template.overwrite: true
+    setup.ilm.enabled: false
+
+    output.elasticsearch:
+      hosts: ["http://wazuh-indexer:9200"]
+
+    logging.level: info
+    logging.to_files: true
+    logging.files:
+      path: /var/log/filebeat
+      name: filebeat
+      keepfiles: 7
+      permissions: 0644
+
+---
+# Wazuh Manager ossec.conf — minimal dev config with syslog listener
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-manager-config
+  namespace: wazuh
+data:
+  ossec.conf: |
+    <ossec_config>
+      <global>
+        <jsonout_output>yes</jsonout_output>
+        <alerts_log>yes</alerts_log>
+        <logall>no</logall>
+        <logall_json>no</logall_json>
+        <email_notification>no</email_notification>
+        <smtp_server>localhost</smtp_server>
+        <email_from>wazuh@localhost</email_from>
+        <email_to>admin@localhost</email_to>
+      </global>
+
+      <alerts>
+        <log_alert_level>3</log_alert_level>
+        <email_alert_level>12</email_alert_level>
+      </alerts>
+
+      <!-- Syslog listener — accepts forwarded logs from Loki/Promtail/rsyslog -->
+      <remote>
+        <connection>syslog</connection>
+        <port>514</port>
+        <protocol>udp</protocol>
+        <allowed-ips>0.0.0.0/0</allowed-ips>
+      </remote>
+
+      <!-- Secure agent connection -->
+      <remote>
+        <connection>secure</connection>
+        <port>1514</port>
+        <protocol>tcp</protocol>
+      </remote>
+
+      <!-- Vulnerability detection -->
+      <vulnerability-detection>
+        <enabled>yes</enabled>
+        <index-status>yes</index-status>
+        <feed-update-interval>60m</feed-update-interval>
+      </vulnerability-detection>
+
+      <!-- File integrity monitoring -->
+      <syscheck>
+        <disabled>no</disabled>
+        <frequency>43200</frequency>
+        <scan_on_start>yes</scan_on_start>
+        <directories>/etc,/usr/bin,/usr/sbin</directories>
+        <directories>/bin,/sbin,/boot</directories>
+      </syscheck>
+
+      <!-- Rootcheck -->
+      <rootcheck>
+        <disabled>no</disabled>
+        <check_files>yes</check_files>
+        <check_trojans>yes</check_trojans>
+        <check_dev>yes</check_dev>
+        <check_sys>yes</check_sys>
+        <check_pids>yes</check_pids>
+        <check_ports>yes</check_ports>
+        <check_if>yes</check_if>
+        <frequency>43200</frequency>
+      </rootcheck>
+
+      <!-- Log analysis (local) -->
+      <localfile>
+        <log_format>syslog</log_format>
+        <location>/var/ossec/logs/active-responses.log</location>
+      </localfile>
+
+      <!-- Wazuh API -->
+      <api>
+        <https>no</https>
+      </api>
+
+      <!-- Indexer connection -->
+      <indexer>
+        <enabled>yes</enabled>
+        <hosts>
+          <host>http://wazuh-indexer:9200</host>
+        </hosts>
+      </indexer>
+    </ossec_config>
+
+---
+# Wazuh Dashboard config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-dashboard-config
+  namespace: wazuh
+data:
+  opensearch_dashboards.yml: |
+    server.host: "0.0.0.0"
+    server.port: 5601
+    opensearch.hosts: ["http://wazuh-indexer:9200"]
+    opensearch.requestHeadersAllowlist: ["securitytenant", "Authorization"]
+    opensearch_security.multitenancy.enabled: false
+    opensearch_security.readonly_mode.roles: ["kibana_read_only"]
+    server.ssl.enabled: false
+    opensearch.ssl.verificationMode: none
+
+  wazuh.yml: |
+    hosts:
+      - default:
+          url: http://wazuh-manager
+          port: 55000
+          username: wazuh-wui
+          password: MyS3cr3tP4ssw0rd!
+          run_as: false
