@@ -268,15 +268,16 @@ if not CONFIG["raw_apps"].get("azure"):
     )
 
 # 3f. Orphaned PV cleanup — PVs bound to deleted namespaces can get stuck
-#     in Terminating with finalizers that will never resolve.
+#     in Terminating with finalizers that will never resolve. We must also
+#     clear the claimRef to break the PVC bind, otherwise the delete hangs.
 if disabled_namespaces:
     cleanup_parts.append(
         "echo 'Cleaning up orphaned PVs...'"
         + " && for ns in " + " ".join(disabled_namespaces) + "; do"
         + " for pv in $(kubectl get pv -o json 2>/dev/null | jq -r '.items[] | select(.spec.claimRef.namespace==\"'\"$ns\"'\") | .metadata.name'); do"
-        + " echo \"  Removing finalizers from PV $pv\";"
-        + " kubectl patch pv \"$pv\" -p '{\"metadata\":{\"finalizers\":null}}' 2>/dev/null || true;"
-        + " kubectl delete pv \"$pv\" --ignore-not-found 2>/dev/null || true;"
+        + " echo \"  Force-cleaning PV $pv (ns=$ns)\";"
+        + " kubectl patch pv \"$pv\" --type=merge -p '{\"metadata\":{\"finalizers\":null},\"spec\":{\"claimRef\":null}}' 2>/dev/null || true;"
+        + " kubectl delete pv \"$pv\" --ignore-not-found --wait=false 2>/dev/null || true;"
         + " done; done"
     )
 
