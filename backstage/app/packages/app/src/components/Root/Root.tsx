@@ -6,6 +6,8 @@ import LibraryBooks from '@material-ui/icons/LibraryBooks';
 import CreateComponentIcon from '@material-ui/icons/AddCircleOutline';
 import BuildIcon from '@material-ui/icons/Build';
 import DashboardIcon from '@material-ui/icons/Dashboard';
+import TrackChangesIcon from '@material-ui/icons/TrackChanges';
+import CategoryIcon from '@material-ui/icons/Category';
 import LogoFull from './LogoFull';
 import LogoIcon from './LogoIcon';
 import {
@@ -82,6 +84,9 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
         <SidebarDivider />
         <SidebarItem icon={BuildIcon} to="tilt" text="Tilt Resources" />
         <SidebarItem icon={DashboardIcon} to="infrastructure" text="Infrastructure" />
+        <SidebarItem icon={TrackChangesIcon} to="tech-radar" text="Tech Radar" />
+        <SidebarDivider />
+        <SidebarItem icon={CategoryIcon} to="catalog-unprocessed-entities" text="Unprocessed" />
         <SidebarDivider />
         <SidebarScrollWrapper>
           {/* Items in this group will be scrollable if they run out of space */}

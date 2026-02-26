@@ -69,7 +69,10 @@ This workspace demonstrates **three deployment patterns**, with configuration st
 │  │                 │  │ 1pass           │  │ keycloak        │             │
 │  │                 │  │ policy-reporter │  │ airflow         │             │
 │  │                 │  │ trivy           │  │ wazuh           │             │
-│  │                 │  │                 │  │ wordpress ...   │             │
+│  │                 │  │ otel-collector  │  │ knative         │             │
+│  │                 │  │ nats / dapr     │  │ wordpress ...   │             │
+│  │                 │  │ argo-workflows  │  │                 │             │
+│  │                 │  │ opencost/thanos │  │                 │             │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -187,6 +190,12 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 | Cert-Manager | jetstack/cert-manager | Certificate management |
 | 1Password | 1password/connect | Secrets management |
 | Policy-Reporter | policy-reporter | Kyverno policy reports |
+| OpenTelemetry Collector | open-telemetry/opentelemetry-collector | Unified telemetry pipeline (traces, metrics, logs) |
+| NATS | nats/nats | Cloud-native messaging (pub/sub, JetStream) |
+| Dapr | dapr/dapr | Distributed application runtime (sidecars) |
+| Argo Workflows | argo/argo-workflows | Kubernetes-native workflow engine |
+| OpenCost | opencost/opencost | Kubernetes cost monitoring |
+| Thanos | bitnami/thanos | Long-term Prometheus storage |
 
 ### Raw Manifest Apps (Official Images)
 | Service | Image | Description |
@@ -209,6 +218,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 | KubeVirt | - | VM operator (Linux with KVM only) |
 | macOS | - | macOS VM via KubeVirt (experimental) |
 | eyeOS | - | iOS VM via KubeVirt (experimental) |
+| Knative | `gcr.io/knative-releases/operator:v1.16.0` | Serverless workloads (scale-to-zero) |
 
 ## Backstage Integration
 

@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: opencost
+  namespace: opencost
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`opencost.localhost`)
+      kind: Rule
+      services:
+        - name: opencost
+          port: 9090
+  tls: {}

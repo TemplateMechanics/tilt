@@ -12,6 +12,7 @@ metadata:
     dev.tilt/resource: traefik
     dev.tilt/namespace: traefik
     dev.tilt/enabled: "true"
+    grafana/dashboard-selector: "title == 'Traefik'"
   tags:
     - ingress
     - networking
@@ -37,6 +38,7 @@ metadata:
     dev.tilt/resource: cert-manager
     dev.tilt/namespace: cert-manager
     dev.tilt/config-key: flux_apps.cert-manager
+    grafana/dashboard-selector: "title == 'cert-manager'"
   tags:
     - certificates
     - security
@@ -57,6 +59,7 @@ metadata:
     dev.tilt/resource: crossplane
     dev.tilt/namespace: crossplane-system
     dev.tilt/enabled: "true"
+    grafana/dashboard-selector: "title == 'Crossplane'"
   tags:
     - infrastructure
     - control-plane
@@ -106,6 +109,26 @@ spec:
   lifecycle: production
   owner: platform-team
   system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: keda
+  description: Kubernetes event-driven autoscaling
+  annotations:
+    backstage.io/techdocs-ref: dir:./keda/
+    dev.tilt/resource: keda
+    dev.tilt/namespace: keda
+    dev.tilt/config-key: flux_apps.keda
+  tags:
+    - autoscaling
+    - infrastructure
+    - event-driven
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
 
 # =============================================================================
 # SECURITY & COMPLIANCE COMPONENTS
@@ -122,6 +145,7 @@ metadata:
     dev.tilt/resource: wazuh
     dev.tilt/namespace: wazuh
     dev.tilt/config-key: raw_apps.wazuh
+    grafana/dashboard-selector: "title == 'Wazuh SIEM'"
   tags:
     - siem
     - security
@@ -196,6 +220,7 @@ metadata:
     dev.tilt/resource: falco
     dev.tilt/namespace: falco
     dev.tilt/config-key: flux_apps.falco
+    grafana/dashboard-selector: "title == 'Falco Runtime Security'"
   tags:
     - security
     - runtime-security
@@ -216,10 +241,54 @@ metadata:
     dev.tilt/resource: trivy
     dev.tilt/namespace: trivy-system
     dev.tilt/config-key: flux_apps.trivy
+    grafana/dashboard-selector: "title == 'Trivy Vulnerability Scanner'"
   tags:
     - security
     - vulnerability-scanning
     - compliance
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: policy-reporter
+  description: Kubernetes policy report viewer for Kyverno results
+  annotations:
+    backstage.io/techdocs-ref: dir:./policy-reporter/
+    dev.tilt/resource: policy-reporter
+    dev.tilt/namespace: policy-reporter
+    dev.tilt/config-key: flux_apps.policy-reporter
+  tags:
+    - policy
+    - security
+    - kyverno
+  links:
+    - url: https://policy-reporter.localhost
+      title: Policy Reporter UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: 1pass
+  description: 1Password Connect secrets management for Kubernetes
+  annotations:
+    backstage.io/techdocs-ref: dir:./1pass/
+    dev.tilt/resource: 1pass
+    dev.tilt/namespace: 1password-system
+    dev.tilt/config-key: flux_apps.1pass
+  tags:
+    - secrets
+    - security
+    - 1password
 spec:
   type: service
   lifecycle: production
@@ -240,6 +309,7 @@ metadata:
     dev.tilt/resource: prometheus
     dev.tilt/namespace: monitoring
     dev.tilt/enabled: "true"
+    grafana/dashboard-selector: "title == 'Prometheus'"
   tags:
     - monitoring
     - metrics
@@ -265,6 +335,7 @@ metadata:
     dev.tilt/resource: loki
     dev.tilt/namespace: logging
     dev.tilt/enabled: "true"
+    grafana/dashboard-selector: "title == 'Loki'"
   tags:
     - logging
     - observability
@@ -285,6 +356,7 @@ metadata:
     dev.tilt/resource: tempo
     dev.tilt/namespace: tracing
     dev.tilt/enabled: "true"
+    grafana/dashboard-selector: "title == 'Tempo'"
   tags:
     - tracing
     - observability
@@ -403,6 +475,7 @@ metadata:
     dev.tilt/resource: harbor
     dev.tilt/namespace: harbor
     dev.tilt/config-key: crossplane_apps.harbor
+    grafana/dashboard-selector: "title == 'Harbor'"
   tags:
     - registry
     - containers
@@ -520,6 +593,7 @@ metadata:
     dev.tilt/resource: qdrant
     dev.tilt/namespace: qdrant
     dev.tilt/config-key: crossplane_apps.qdrant
+    grafana/dashboard-selector: "title == 'Qdrant'"
   tags:
     - ai
     - vector-database
@@ -586,6 +660,176 @@ spec:
   system: dev-environment
 
 # =============================================================================
+# CNCF PROJECTS
+# =============================================================================
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: otel-collector
+  description: OpenTelemetry Collector, unified telemetry pipeline
+  annotations:
+    backstage.io/techdocs-ref: dir:./otel-collector/
+    dev.tilt/resource: otel-collector
+    dev.tilt/namespace: opentelemetry
+    dev.tilt/config-key: flux_apps.otel-collector
+    grafana/dashboard-selector: "title == 'OpenTelemetry Collector'"
+  tags:
+    - telemetry
+    - observability
+    - opentelemetry
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  providesApis:
+    - otlp-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: nats
+  description: Cloud-native messaging system
+  annotations:
+    backstage.io/techdocs-ref: dir:./nats/
+    dev.tilt/resource: nats
+    dev.tilt/namespace: nats
+    dev.tilt/config-key: flux_apps.nats
+    grafana/dashboard-selector: "title == 'NATS'"
+  tags:
+    - messaging
+    - cloud-native
+    - streaming
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  providesApis:
+    - nats-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: dapr
+  description: Distributed application runtime
+  annotations:
+    backstage.io/techdocs-ref: dir:./dapr/
+    dev.tilt/resource: dapr
+    dev.tilt/namespace: dapr-system
+    dev.tilt/config-key: flux_apps.dapr
+    grafana/dashboard-selector: "title == 'Dapr'"
+  tags:
+    - microservices
+    - infrastructure
+    - distributed
+  links:
+    - url: https://dapr.localhost
+      title: Dapr Dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  providesApis:
+    - dapr-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: argo-workflows
+  description: Kubernetes-native workflow engine
+  annotations:
+    backstage.io/techdocs-ref: dir:./argo-workflows/
+    dev.tilt/resource: argo-workflows
+    dev.tilt/namespace: argo
+    dev.tilt/config-key: flux_apps.argo-workflows
+    grafana/dashboard-selector: "title == 'Argo Workflows'"
+  tags:
+    - ci-cd
+    - workflow
+    - automation
+  links:
+    - url: https://argo.localhost
+      title: Argo Workflows UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+  providesApis:
+    - argo-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: opencost
+  description: Kubernetes cost monitoring
+  annotations:
+    backstage.io/techdocs-ref: dir:./opencost/
+    dev.tilt/resource: opencost
+    dev.tilt/namespace: opencost
+    dev.tilt/config-key: flux_apps.opencost
+    grafana/dashboard-selector: "title == 'OpenCost'"
+  tags:
+    - cost-monitoring
+    - observability
+    - finops
+  links:
+    - url: https://opencost.localhost
+      title: OpenCost UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: thanos
+  description: Long-term Prometheus storage
+  annotations:
+    backstage.io/techdocs-ref: dir:./thanos/
+    dev.tilt/resource: thanos
+    dev.tilt/namespace: thanos
+    dev.tilt/config-key: flux_apps.thanos
+    grafana/dashboard-selector: "title == 'Thanos'"
+  tags:
+    - monitoring
+    - metrics
+    - observability
+  links:
+    - url: https://thanos.localhost
+      title: Thanos Query UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: knative
+  description: Serverless workloads on Kubernetes, Knative Serving + Eventing
+  annotations:
+    backstage.io/techdocs-ref: dir:./knative/
+    dev.tilt/resource: knative
+    dev.tilt/namespace: knative-serving
+    dev.tilt/config-key: raw_apps.knative
+  tags:
+    - serverless
+    - infrastructure
+    - cloud-native
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+
+# =============================================================================
 # CI/CD COMPONENTS
 # =============================================================================
 ---
@@ -613,6 +857,32 @@ spec:
   system: dev-environment
   dependsOn:
     - resource:jenkins-storage
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: argocd
+  title: Argo CD
+  description: GitOps continuous delivery for Kubernetes
+  annotations:
+    backstage.io/techdocs-ref: dir:./argocd/
+    dev.tilt/resource: argocd
+    dev.tilt/namespace: argocd
+    dev.tilt/config-key: flux_apps.argocd
+    grafana/dashboard-selector: "title == 'Argo CD'"
+    argocd/app-name: argocd
+  tags:
+    - ci-cd
+    - gitops
+    - deployment
+  links:
+    - url: https://argocd.localhost
+      title: Argo CD UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
 
 # =============================================================================
 # DEVELOPER TOOLS
@@ -778,6 +1048,119 @@ spec:
   owner: platform-team
   system: dev-environment
   subcomponentOf: gcp-emulators
+
+# =============================================================================
+# DEMO & EXPERIMENTAL
+# =============================================================================
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wordpress
+  title: WordPress
+  description: WordPress blog and CMS platform demo
+  annotations:
+    backstage.io/techdocs-ref: dir:./wordpress/
+    dev.tilt/resource: wordpress
+    dev.tilt/namespace: wordpress
+    dev.tilt/config-key: raw_apps.wordpress
+  tags:
+    - cms
+    - blog
+    - demo
+  links:
+    - url: https://wordpress.localhost
+      title: WordPress Site
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  dependsOn:
+    - resource:wordpress-mysql
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: azure
+  description: Azure storage classes and PVCs for local development
+  annotations:
+    backstage.io/techdocs-ref: dir:./azure/
+    dev.tilt/resource: azure
+    dev.tilt/config-key: raw_apps.azure
+  tags:
+    - azure
+    - storage
+    - infrastructure
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: kubevirt
+  description: KubeVirt VM operator for running VMs on Kubernetes
+  annotations:
+    backstage.io/techdocs-ref: dir:./kubevirt/
+    dev.tilt/resource: kubevirt
+    dev.tilt/namespace: kubevirt
+    dev.tilt/config-key: raw_apps.kubevirt
+  tags:
+    - virtualization
+    - infrastructure
+    - vms
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: macos
+  description: macOS virtual machine via KubeVirt (experimental)
+  annotations:
+    backstage.io/techdocs-ref: dir:./macos/
+    dev.tilt/resource: macos
+    dev.tilt/namespace: macos
+    dev.tilt/config-key: raw_apps.macos
+  tags:
+    - virtualization
+    - macos
+    - experimental
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  dependsOn:
+    - component:kubevirt
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: eyeos
+  description: iOS virtual machine via KubeVirt (experimental)
+  annotations:
+    backstage.io/techdocs-ref: dir:./eyeos/
+    dev.tilt/resource: eyeos
+    dev.tilt/namespace: eyeos
+    dev.tilt/config-key: raw_apps.eyeos
+  tags:
+    - virtualization
+    - ios
+    - experimental
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+  dependsOn:
+    - component:kubevirt
 
 # =============================================================================
 # STANDALONE DATABASES

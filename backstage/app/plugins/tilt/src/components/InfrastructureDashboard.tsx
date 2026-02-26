@@ -48,6 +48,8 @@ import SportsEsportsIcon from '@material-ui/icons/SportsEsports';
 import SettingsIcon from '@material-ui/icons/Settings';
 import DashboardIcon from '@material-ui/icons/Dashboard';
 import VpnKeyIcon from '@material-ui/icons/VpnKey';
+import TimelineIcon from '@material-ui/icons/Timeline';
+import ForumIcon from '@material-ui/icons/Forum';
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -168,6 +170,8 @@ const categoryIcon: Record<string, React.ReactElement> = {
   'Identity & Workflow': <VpnKeyIcon />,
   'AI/ML': <MemoryIcon />,
   'CI/CD': <BuildIcon />,
+  'Observability': <TimelineIcon />,
+  'Messaging': <ForumIcon />,
   'Cloud Emulators': <CloudIcon />,
   'Dev Tools': <EmailIcon />,
   'Demo Apps': <SportsEsportsIcon />,

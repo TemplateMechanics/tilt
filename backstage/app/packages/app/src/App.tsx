@@ -1,4 +1,4 @@
-import { Navigate, Route } from 'react-router-dom';
+import { Route } from 'react-router-dom';
 import { apiDocsPlugin, ApiExplorerPage } from '@backstage/plugin-api-docs';
 import {
   CatalogEntityPage,
@@ -30,6 +30,7 @@ import {
   OAuthRequestDialog,
   SignInPage,
 } from '@backstage/core-components';
+import { Grid } from '@material-ui/core';
 import { createApp } from '@backstage/app-defaults';
 import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
 import { CatalogGraphPage } from '@backstage/plugin-catalog-graph';
@@ -38,6 +39,11 @@ import { catalogEntityCreatePermission } from '@backstage/plugin-catalog-common/
 import { NotificationsPage } from '@backstage/plugin-notifications';
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { TiltPage, InfrastructureDashboardPage } from '@internal/backstage-plugin-tilt';
+import { TechRadarPage } from '@backstage/plugin-tech-radar';
+import { CatalogUnprocessedEntitiesPage } from '@backstage/plugin-catalog-unprocessed-entities';
+import { HomepageCompositionRoot } from '@backstage/plugin-home';
+import { HomePageStarredEntities, HomePageToolkit } from '@backstage/plugin-home';
+import { SearchContextProvider, SearchBar } from '@backstage/plugin-search-react';
 
 const app = createApp({
   apis,
@@ -65,7 +71,31 @@ const app = createApp({
 
 const routes = (
   <FlatRoutes>
-    <Route path="/" element={<Navigate to="catalog" />} />
+    <Route path="/" element={<HomepageCompositionRoot />}>
+      <SearchContextProvider>
+        <Grid container spacing={3} justifyContent="center">
+          <Grid item xs={12} md={8}>
+            <SearchBar placeholder="Search" />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <HomePageStarredEntities />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <HomePageToolkit
+              title="Quick Links"
+              tools={[
+                { url: '/catalog', label: 'Catalog', icon: <></> },
+                { url: '/docs', label: 'TechDocs', icon: <></> },
+                { url: '/create', label: 'Scaffolder', icon: <></> },
+                { url: '/tilt', label: 'Tilt', icon: <></> },
+                { url: '/infrastructure', label: 'Infrastructure', icon: <></> },
+                { url: '/tech-radar', label: 'Tech Radar', icon: <></> },
+              ]}
+            />
+          </Grid>
+        </Grid>
+      </SearchContextProvider>
+    </Route>
     <Route path="/catalog" element={<CatalogIndexPage />} />
     <Route
       path="/catalog/:namespace/:kind/:name"
@@ -100,6 +130,8 @@ const routes = (
     <Route path="/notifications" element={<NotificationsPage />} />
     <Route path="/tilt" element={<TiltPage />} />
     <Route path="/infrastructure" element={<InfrastructureDashboardPage />} />
+    <Route path="/tech-radar" element={<TechRadarPage width={1500} height={800} />} />
+    <Route path="/catalog-unprocessed-entities" element={<CatalogUnprocessedEntitiesPage />} />
   </FlatRoutes>
 );
 

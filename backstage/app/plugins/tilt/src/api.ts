@@ -299,9 +299,9 @@ export class TiltClient implements TiltApiInterface {
 
     // Sort categories in a sensible order
     const categoryOrder = [
-      'Infrastructure', 'Developer Portal', 'Security & Policy', 'Databases',
-      'Identity & Workflow', 'AI/ML', 'CI/CD', 'Cloud Emulators',
-      'Dev Tools', 'Demo Apps', 'Experimental',
+      'Infrastructure', 'Developer Portal', 'Security & Policy', 'Observability',
+      'Databases', 'Identity & Workflow', 'AI/ML', 'CI/CD', 'Messaging',
+      'Cloud Emulators', 'Dev Tools', 'Demo Apps', 'Experimental',
     ];
 
     return categoryOrder

@@ -8,3 +8,7 @@ resources:
   - traefik.yaml
   - falco.yaml
   - trivy.yaml
+  - nats.yaml
+  - dapr.yaml
+  - argo-workflows.yaml
+  - otel-collector.yaml

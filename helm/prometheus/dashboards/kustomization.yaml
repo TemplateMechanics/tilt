@@ -15,3 +15,10 @@ resources:
   - wazuh.yaml
   - falco.yaml
   - trivy.yaml
+  - otel-collector.yaml
+  - nats.yaml
+  - dapr.yaml
+  - argo-workflows.yaml
+  - opencost.yaml
+  - thanos.yaml
+  - knative.yaml

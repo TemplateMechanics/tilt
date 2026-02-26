@@ -58,6 +58,27 @@ import {
   isKubernetesAvailable,
 } from '@backstage/plugin-kubernetes';
 
+import {
+  EntityGithubActionsContent,
+  isGithubActionsAvailable,
+} from '@backstage-community/plugin-github-actions';
+
+import {
+  EntityGrafanaDashboardsCard,
+  EntityGrafanaAlertsCard,
+  isDashboardSelectorAvailable,
+  isAlertSelectorAvailable,
+} from '@backstage-community/plugin-grafana';
+
+import {
+  EntityArgoCDOverviewCard,
+  isArgocdAvailable,
+} from '@roadiehq/backstage-plugin-argo-cd';
+
+import {
+  EntityTodoContent,
+} from '@backstage-community/plugin-todo';
+
 const techdocsContent = (
   <EntityTechdocsContent>
     <TechDocsAddons>
@@ -67,16 +88,10 @@ const techdocsContent = (
 );
 
 const cicdContent = (
-  // This is an example of how you can implement your company's logic in entity page.
-  // You can for example enforce that all components of type 'service' should use GitHubActions
   <EntitySwitch>
-    {/*
-      Here you can add support for different CI/CD services, for example
-      using @backstage-community/plugin-github-actions as follows:
-      <EntitySwitch.Case if={isGithubActionsAvailable}>
-        <EntityGithubActionsContent />
-      </EntitySwitch.Case>
-     */}
+    <EntitySwitch.Case if={isGithubActionsAvailable}>
+      <EntityGithubActionsContent />
+    </EntitySwitch.Case>
     <EntitySwitch.Case>
       <EmptyState
         title="No CI/CD available for this entity"
@@ -134,6 +149,14 @@ const overviewContent = (
       <EntityCatalogGraphCard variant="gridItem" height={400} />
     </Grid>
 
+    <EntitySwitch>
+      <EntitySwitch.Case if={isArgocdAvailable}>
+        <Grid item md={12}>
+          <EntityArgoCDOverviewCard />
+        </Grid>
+      </EntitySwitch.Case>
+    </EntitySwitch>
+
     <Grid item md={4} xs={12}>
       <EntityLinksCard />
     </Grid>
@@ -185,6 +208,25 @@ const serviceEntityPage = (
 
     <EntityLayout.Route path="/docs" title="Docs">
       {techdocsContent}
+    </EntityLayout.Route>
+
+    <EntityLayout.Route path="/grafana" title="Grafana" if={(entity) => Boolean(isDashboardSelectorAvailable(entity))}>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <EntityGrafanaDashboardsCard />
+        </Grid>
+        <EntitySwitch>
+          <EntitySwitch.Case if={(e) => Boolean(isAlertSelectorAvailable(e))}>
+            <Grid item xs={12}>
+              <EntityGrafanaAlertsCard />
+            </Grid>
+          </EntitySwitch.Case>
+        </EntitySwitch>
+      </Grid>
+    </EntityLayout.Route>
+
+    <EntityLayout.Route path="/todo" title="TODOs">
+      <EntityTodoContent />
     </EntityLayout.Route>
   </EntityLayout>
 );
