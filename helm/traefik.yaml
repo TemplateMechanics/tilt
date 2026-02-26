@@ -403,11 +403,11 @@ metrics:
     # -- Entry point used to expose metrics.
     entryPoint: metrics
     ## Enable metrics on entry points. Default: true
-    addEntryPointsLabels:  # @schema type:[boolean, null]
+    addEntryPointsLabels: true  # @schema type:[boolean, null]
     ## Enable metrics on routers. Default: false
-    addRoutersLabels:  # @schema type:[boolean, null]
+    addRoutersLabels: true  # @schema type:[boolean, null]
     ## Enable metrics on services. Default: true
-    addServicesLabels:  # @schema type:[boolean, null]
+    addServicesLabels: true  # @schema type:[boolean, null]
     ## Buckets for latency metrics. Default="0.1,0.3,1.2,5.0"
     buckets: ""
     ## When manualRouting is true, it disables the default internal router in
@@ -415,13 +415,16 @@ metrics:
     manualRouting: false
     service:
       # -- Create a dedicated metrics service to use with ServiceMonitor
-      enabled: false
+      enabled: true
       labels: {}
       annotations: {}
     # -- When set to true, it won't check if Prometheus Operator CRDs are deployed
-    disableAPICheck:  # @schema type:[boolean, null]
+    disableAPICheck: true  # @schema type:[boolean, null]
     serviceMonitor:
       # -- Enable optional CR for Prometheus Operator. See EXAMPLES.md for more details.
+      # NOTE: Disabled here because helm_remote runs helm-template at Tilt
+      # load time, before Prometheus Operator CRDs exist.  A standalone
+      # ServiceMonitor is created in helm/prometheus/servicemonitors/ instead.
       enabled: false
       metricRelabelings: []
       relabelings: []
