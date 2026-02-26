@@ -273,11 +273,15 @@ export class TiltClient implements TiltApiInterface {
         // For multi-workload services (e.g. wazuh -> wazuh-dashboard, wazuh-indexer),
         // find all resources prefixed with the service name and derive aggregate status
         if (!tiltResource && appConfig.enabled) {
-          const prefixedResources = resources.filter(r => r.name.startsWith(`${name}-`));
+          const prefixedResources = resources.filter(r =>
+            r.name.startsWith(`${name}-`) && !r.name.endsWith('-ns'),
+          );
+          // Only consider resources that have a runtime status (skip local_resources without one)
+          const runnableResources = prefixedResources.filter(r => r.runtimeStatus && r.runtimeStatus !== 'not_applicable');
           if (prefixedResources.length > 0) {
-            const hasError = prefixedResources.some(r => r.runtimeStatus === 'error' || r.updateStatus === 'error');
-            const allOk = prefixedResources.every(r => r.runtimeStatus === 'ok');
-            const anyOk = prefixedResources.some(r => r.runtimeStatus === 'ok');
+            const hasError = runnableResources.some(r => r.runtimeStatus === 'error' || r.updateStatus === 'error');
+            const allOk = runnableResources.length > 0 && runnableResources.every(r => r.runtimeStatus === 'ok');
+            const anyOk = runnableResources.some(r => r.runtimeStatus === 'ok');
             // Collect unique links from all workloads
             const allLinks = prefixedResources.flatMap(r => r.endpointLinks || []);
             const uniqueLinks = allLinks.filter((link, i, arr) => arr.findIndex(l => l.url === link.url) === i);
