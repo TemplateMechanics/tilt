@@ -68,6 +68,7 @@ This workspace demonstrates **three deployment patterns**, with configuration st
 │  │                 │  │ cert-manager    │  │ mssql           │             │
 │  │                 │  │ 1pass           │  │ keycloak        │             │
 │  │                 │  │ policy-reporter │  │ airflow         │             │
+│  │                 │  │ trivy           │  │ wazuh           │             │
 │  │                 │  │                 │  │ wordpress ...   │             │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -179,7 +180,8 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 |---------|-------|-------------|
 | Ollama | ollama/ollama | Local LLM runner |
 | Kyverno | kyverno/kyverno | Kubernetes policy engine |
-| Falco | falcosecurity/falco | Runtime security |
+| Falco | falcosecurity/falco | Runtime security (with falcosidekick metrics) |
+| Trivy Operator | aquasecurity/trivy-operator | Kubernetes vulnerability & compliance scanning |
 | KEDA | kedacore/keda | Event-driven autoscaling |
 | Velero | vmware-tanzu/velero | Backup & disaster recovery |
 | Cert-Manager | jetstack/cert-manager | Certificate management |
@@ -198,6 +200,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 | Keycloak | `quay.io/keycloak/keycloak:24` | Identity management |
 | Airflow | `apache/airflow:2.9` | Workflow orchestration |
 | JupyterHub | `jupyterhub/k8s-hub:3.3` | Jupyter notebooks |
+| Wazuh | `wazuh/wazuh-indexer:4.9.0` + `wazuh-manager` + `wazuh-dashboard` | SIEM platform (threat detection, log analysis) |
 | WordPress | `wordpress:6.4` + `mysql:8.0` | Blog/CMS demo |
 | Mailhog | `mailhog/mailhog` | Email testing |
 | Azurite | `mcr.microsoft.com/azure-storage/azurite` | Azure Storage emulator |

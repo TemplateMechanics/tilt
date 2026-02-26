@@ -523,3 +523,60 @@ spec:
   lifecycle: production
   owner: platform-team
   system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wazuh
+  description: Open source SIEM platform for threat detection and compliance
+  annotations:
+    dev.tilt/resource: wazuh
+    dev.tilt/namespace: wazuh
+  tags:
+    - siem
+    - security
+    - threat-detection
+  links:
+    - url: https://wazuh.localhost
+      title: Wazuh Dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: falco
+  description: Cloud-native runtime security and threat detection
+  annotations:
+    dev.tilt/resource: falco
+    dev.tilt/namespace: falco
+  tags:
+    - security
+    - runtime-security
+    - threat-detection
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: trivy
+  description: Kubernetes vulnerability scanner and compliance checker
+  annotations:
+    dev.tilt/resource: trivy
+    dev.tilt/namespace: trivy-system
+  tags:
+    - security
+    - vulnerability-scanning
+    - compliance
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment

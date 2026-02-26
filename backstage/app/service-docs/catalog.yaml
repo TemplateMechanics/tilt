@@ -108,6 +108,125 @@ spec:
   system: dev-environment
 
 # =============================================================================
+# SECURITY & COMPLIANCE COMPONENTS
+# =============================================================================
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wazuh
+  title: Wazuh SIEM
+  description: Open source SIEM platform for threat detection, log analysis, and compliance
+  annotations:
+    backstage.io/techdocs-ref: dir:./wazuh/
+    dev.tilt/resource: wazuh
+    dev.tilt/namespace: wazuh
+    dev.tilt/config-key: raw_apps.wazuh
+  tags:
+    - siem
+    - security
+    - threat-detection
+    - log-analysis
+  links:
+    - url: https://wazuh.localhost
+      title: Wazuh Dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: wazuh-system
+  dependsOn:
+    - resource:wazuh-opensearch
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wazuh-indexer
+  description: Wazuh Indexer (OpenSearch) for security event storage
+  tags:
+    - wazuh
+    - opensearch
+    - storage
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: wazuh-system
+  subcomponentOf: wazuh
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wazuh-manager
+  description: Wazuh Manager for agent management and event processing
+  tags:
+    - wazuh
+    - manager
+    - siem
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: wazuh-system
+  subcomponentOf: wazuh
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wazuh-dashboard
+  description: Wazuh Dashboard (OpenSearch Dashboards) for visualization
+  tags:
+    - wazuh
+    - dashboard
+    - visualization
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: wazuh-system
+  subcomponentOf: wazuh
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: falco
+  description: Cloud-native runtime security and threat detection
+  annotations:
+    backstage.io/techdocs-ref: dir:./falco/
+    dev.tilt/resource: falco
+    dev.tilt/namespace: falco
+    dev.tilt/config-key: flux_apps.falco
+  tags:
+    - security
+    - runtime-security
+    - threat-detection
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: trivy
+  description: Kubernetes vulnerability scanner and compliance checker
+  annotations:
+    backstage.io/techdocs-ref: dir:./trivy/
+    dev.tilt/resource: trivy
+    dev.tilt/namespace: trivy-system
+    dev.tilt/config-key: flux_apps.trivy
+  tags:
+    - security
+    - vulnerability-scanning
+    - compliance
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+
+# =============================================================================
 # OBSERVABILITY STACK COMPONENTS
 # =============================================================================
 ---
