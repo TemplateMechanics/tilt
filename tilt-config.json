@@ -233,7 +233,7 @@
       "tested": false
     },
     "wazuh": {
-      "enabled": true,
+      "enabled": false,
       "description": "Security monitoring and SIEM",
       "category": "Security & Policy",
       "tested": true
