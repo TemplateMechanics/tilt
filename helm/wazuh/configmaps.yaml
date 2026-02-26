@@ -270,7 +270,7 @@ data:
   wazuh.yml: |
     hosts:
       - default:
-          url: http://wazuh-manager
+          url: https://wazuh-manager
           port: 55000
           username: wazuh-wui
           password: MyS3cr3tP4ssw0rd!
