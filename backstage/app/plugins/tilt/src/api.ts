@@ -267,8 +267,29 @@ export class TiltClient implements TiltApiInterface {
     for (const group of ['crossplane_apps', 'flux_apps', 'raw_apps'] as AppGroup[]) {
       const groupConfig = config[group] || {};
       for (const [name, appConfig] of Object.entries(groupConfig)) {
-        // Try to find matching Tilt resource
-        const tiltResource = resourceMap.get(name) || resourceMap.get(`${name}-app`) || resourceMap.get(`${name}-status`);
+        // Try to find matching Tilt resource by exact name or common suffixes
+        let tiltResource = resourceMap.get(name) || resourceMap.get(`${name}-app`) || resourceMap.get(`${name}-status`);
+
+        // For multi-workload services (e.g. wazuh -> wazuh-dashboard, wazuh-indexer),
+        // find all resources prefixed with the service name and derive aggregate status
+        if (!tiltResource && appConfig.enabled) {
+          const prefixedResources = resources.filter(r => r.name.startsWith(`${name}-`));
+          if (prefixedResources.length > 0) {
+            const hasError = prefixedResources.some(r => r.runtimeStatus === 'error' || r.updateStatus === 'error');
+            const allOk = prefixedResources.every(r => r.runtimeStatus === 'ok');
+            const anyOk = prefixedResources.some(r => r.runtimeStatus === 'ok');
+            // Collect unique links from all workloads
+            const allLinks = prefixedResources.flatMap(r => r.endpointLinks || []);
+            const uniqueLinks = allLinks.filter((link, i, arr) => arr.findIndex(l => l.url === link.url) === i);
+            tiltResource = {
+              name,
+              runtimeStatus: hasError ? 'error' : allOk ? 'ok' : anyOk ? 'pending' : prefixedResources[0]?.runtimeStatus,
+              updateStatus: hasError ? 'error' : prefixedResources[0]?.updateStatus,
+              endpointLinks: uniqueLinks.length > 0 ? uniqueLinks : undefined,
+            } as TiltResource;
+          }
+        }
+
         services.push({
           name,
           group,
