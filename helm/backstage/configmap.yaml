@@ -23,6 +23,7 @@ data:
         credentials: true
       database:
         client: pg
+        pluginDivisionMode: schema
         connection:
           host: ${POSTGRES_HOST}
           port: ${POSTGRES_PORT}
@@ -100,3 +101,22 @@ data:
           changeOrigin: true
           allowedMethods: ['GET', 'PATCH', 'PUT', 'OPTIONS']
           allowedHeaders: ['Content-Type', 'Accept']
+        '/grafana/api':
+          target: 'http://prometheus-grafana.monitoring.svc:80'
+          headers:
+            Authorization: 'Basic YWRtaW46YWRtaW4='
+          changeOrigin: true
+
+    # Grafana integration
+    grafana:
+      domain: https://grafana.localhost
+      unifiedAlerting: true
+
+    # Argo CD integration
+    argocd:
+      baseUrl: https://argocd.localhost
+      appLocatorMethods:
+        - type: 'config'
+          instances:
+            - name: main
+              url: https://argocd.localhost

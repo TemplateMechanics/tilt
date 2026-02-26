@@ -1,0 +1,98 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: opentelemetry-collector
+  namespace: opentelemetry
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: opentelemetry-collector
+      version: "0.98.0"
+      sourceRef:
+        kind: HelmRepository
+        name: open-telemetry
+        namespace: flux-system
+  values:
+    mode: deployment
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    ports:
+      otlp:
+        enabled: true
+        containerPort: 4317
+        servicePort: 4317
+        protocol: TCP
+      otlp-http:
+        enabled: true
+        containerPort: 4318
+        servicePort: 4318
+        protocol: TCP
+      prometheus:
+        enabled: true
+        containerPort: 8889
+        servicePort: 8889
+        protocol: TCP
+      metrics:
+        enabled: true
+        containerPort: 8888
+        servicePort: 8888
+        protocol: TCP
+    config:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+      processors:
+        batch:
+          timeout: 5s
+          send_batch_size: 1024
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 400
+          spike_limit_mib: 100
+      exporters:
+        # Forward traces to Tempo
+        otlp/tempo:
+          endpoint: tempo.tracing.svc.cluster.local:4317
+          tls:
+            insecure: true
+        # Forward metrics to Prometheus (via remote write)
+        prometheusremotewrite:
+          endpoint: http://prometheus-server.monitoring.svc.cluster.local:9090/api/v1/write
+        # Forward logs to Loki
+        loki:
+          endpoint: http://loki.logging.svc.cluster.local:3100/loki/api/v1/push
+        # Debug logging
+        debug:
+          verbosity: basic
+      service:
+        telemetry:
+          metrics:
+            address: 0.0.0.0:8888
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [otlp/tempo]
+          metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [prometheusremotewrite]
+          logs:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [loki]
+    serviceMonitor:
+      enabled: true
+      metricsEndpoints:
+        - port: metrics

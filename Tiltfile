@@ -35,7 +35,11 @@ DEFAULT_CONFIG = {
         "falco": {"enabled": False}, "policy-reporter": {"enabled": False},
         "1pass": {"enabled": False}, "keda": {"enabled": False},
         "velero": {"enabled": False}, "cert-manager": {"enabled": False},
-        "trivy": {"enabled": False},
+        "trivy": {"enabled": False}, "otel-collector": {"enabled": False},
+        "nats": {"enabled": False}, "dapr": {"enabled": False},
+        "argo-workflows": {"enabled": False}, "argocd": {"enabled": False},
+        "opencost": {"enabled": False},
+        "thanos": {"enabled": False},
     },
     "raw_apps": {
         "backstage": {"enabled": False}, "mongodb": {"enabled": False},
@@ -47,6 +51,7 @@ DEFAULT_CONFIG = {
         "gcp-emulators": {"enabled": False}, "azure": {"enabled": False},
         "kubevirt": {"enabled": False}, "macos": {"enabled": False},
         "eyeos": {"enabled": False}, "wazuh": {"enabled": False},
+        "knative": {"enabled": False},
     },
 }
 
@@ -177,6 +182,10 @@ FLUX_NS_MAP = {
     "1pass": "1password-system",
     "cert-manager": "cert-manager",
     "trivy": "trivy-system",
+    "otel-collector": "opentelemetry",
+    "dapr": "dapr-system",
+    "argo-workflows": "argo",
+    "argocd": "argocd",
 }
 for app, enabled in CONFIG["flux_apps"].items():
     if not enabled:
@@ -202,6 +211,7 @@ RAW_NS_MAP = {
     "jupyterhub": "jupyterhub",
     "wordpress": "wordpress",
     "wazuh": "wazuh",
+    "knative": "knative-serving",
 }
 for app, enabled in CONFIG["raw_apps"].items():
     if not enabled:
@@ -658,6 +668,10 @@ FLUX_NAMESPACE_MAP = {
     "policy-reporter": "policy-reporter",
     "1pass": "1password-system",
     "trivy": "trivy-system",
+    "otel-collector": "opentelemetry",
+    "dapr": "dapr-system",
+    "argo-workflows": "argo",
+    "argocd": "argocd",
 }
 
 # Label mappings for categorization in Tilt UI
@@ -674,6 +688,13 @@ FLUX_LABEL_MAP = {
     "keda": "Infrastructure",
     "velero": "Infrastructure",
     "wordpress": "Demo",
+    "otel-collector": "Observability",
+    "nats": "Messaging",
+    "dapr": "Infrastructure",
+    "argo-workflows": "CI-CD",
+    "argocd": "CI-CD",
+    "opencost": "Observability",
+    "thanos": "Observability",
 }
 
 for app, enabled in CONFIG["flux_apps"].items():
@@ -771,6 +792,7 @@ RAW_LABEL_MAP = {
     "macos": "Experimental",
     "eyeos": "Experimental",
     "wazuh": "Security",
+    "knative": "Infrastructure",
 }
 
 # Workload names in each raw app (for setting dependencies)
@@ -788,6 +810,7 @@ RAW_WORKLOADS = {
     "jupyterhub": ["jupyterhub"],
     "wordpress": ["wordpress", "mysql"],
     "wazuh": ["wazuh-indexer", "wazuh-manager", "wazuh-dashboard", "wazuh-filebeat"],
+    "knative": ["knative-operator"],
 }
 
 # Apps with web UIs accessible via ingress

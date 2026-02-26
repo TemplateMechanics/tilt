@@ -24,6 +24,7 @@ metadata:
   annotations:
     dev.tilt/resource: traefik
     dev.tilt/namespace: traefik
+    grafana/dashboard-selector: "title == 'Traefik'"
   tags:
     - ingress
     - networking
@@ -45,6 +46,7 @@ metadata:
   annotations:
     dev.tilt/resource: cert-manager
     dev.tilt/namespace: cert-manager
+    grafana/dashboard-selector: "title == 'cert-manager'"
   tags:
     - certificates
     - security
@@ -63,6 +65,7 @@ metadata:
   annotations:
     dev.tilt/resource: crossplane
     dev.tilt/namespace: crossplane-system
+    grafana/dashboard-selector: "title == 'Crossplane'"
   tags:
     - infrastructure
     - control-plane
@@ -289,6 +292,7 @@ metadata:
   annotations:
     dev.tilt/resource: qdrant
     dev.tilt/namespace: qdrant
+    grafana/dashboard-selector: "title == 'Qdrant'"
   tags:
     - ai
     - vector-database
@@ -352,6 +356,7 @@ metadata:
   annotations:
     dev.tilt/resource: harbor
     dev.tilt/namespace: harbor
+    grafana/dashboard-selector: "title == 'Harbor'"
   tags:
     - registry
     - containers
@@ -436,6 +441,7 @@ metadata:
   annotations:
     dev.tilt/resource: prometheus
     dev.tilt/namespace: prometheus
+    grafana/dashboard-selector: "title == 'Prometheus'"
   tags:
     - monitoring
     - metrics
@@ -457,6 +463,7 @@ metadata:
   annotations:
     dev.tilt/resource: loki
     dev.tilt/namespace: loki
+    grafana/dashboard-selector: "title == 'Loki'"
   tags:
     - logging
     - observability
@@ -475,6 +482,7 @@ metadata:
   annotations:
     dev.tilt/resource: tempo
     dev.tilt/namespace: tempo
+    grafana/dashboard-selector: "title == 'Tempo'"
   tags:
     - tracing
     - observability
@@ -532,6 +540,7 @@ metadata:
   annotations:
     dev.tilt/resource: wazuh
     dev.tilt/namespace: wazuh
+    grafana/dashboard-selector: "title == 'Wazuh SIEM'"
   tags:
     - siem
     - security
@@ -553,6 +562,7 @@ metadata:
   annotations:
     dev.tilt/resource: falco
     dev.tilt/namespace: falco
+    grafana/dashboard-selector: "title == 'Falco Runtime Security'"
   tags:
     - security
     - runtime-security
@@ -571,6 +581,7 @@ metadata:
   annotations:
     dev.tilt/resource: trivy
     dev.tilt/namespace: trivy-system
+    grafana/dashboard-selector: "title == 'Trivy Vulnerability Scanner'"
   tags:
     - security
     - vulnerability-scanning
@@ -578,5 +589,300 @@ metadata:
 spec:
   type: service
   lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: otel-collector
+  description: OpenTelemetry Collector, unified telemetry pipeline
+  annotations:
+    dev.tilt/resource: otel-collector
+    dev.tilt/namespace: opentelemetry
+    grafana/dashboard-selector: "title == 'OpenTelemetry Collector'"
+  tags:
+    - telemetry
+    - observability
+    - opentelemetry
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: nats
+  description: Cloud-native messaging system
+  annotations:
+    dev.tilt/resource: nats
+    dev.tilt/namespace: nats
+    grafana/dashboard-selector: "title == 'NATS'"
+  tags:
+    - messaging
+    - cloud-native
+    - streaming
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: dapr
+  description: Distributed application runtime
+  annotations:
+    dev.tilt/resource: dapr
+    dev.tilt/namespace: dapr-system
+    grafana/dashboard-selector: "title == 'Dapr'"
+  tags:
+    - microservices
+    - infrastructure
+    - distributed
+  links:
+    - url: https://dapr.localhost
+      title: Dapr Dashboard
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: argo-workflows
+  description: Kubernetes-native workflow engine
+  annotations:
+    dev.tilt/resource: argo-workflows
+    dev.tilt/namespace: argo
+    grafana/dashboard-selector: "title == 'Argo Workflows'"
+  tags:
+    - ci-cd
+    - workflow
+    - automation
+  links:
+    - url: https://argo.localhost
+      title: Argo Workflows UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: argocd
+  description: GitOps continuous delivery for Kubernetes
+  annotations:
+    dev.tilt/resource: argocd
+    dev.tilt/namespace: argocd
+    grafana/dashboard-selector: "title == 'Argo CD'"
+    argocd/app-name: argocd
+  tags:
+    - ci-cd
+    - gitops
+    - deployment
+  links:
+    - url: https://argocd.localhost
+      title: Argo CD UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: opencost
+  description: Kubernetes cost monitoring
+  annotations:
+    dev.tilt/resource: opencost
+    dev.tilt/namespace: opencost
+    grafana/dashboard-selector: "title == 'OpenCost'"
+  tags:
+    - cost-monitoring
+    - observability
+    - finops
+  links:
+    - url: https://opencost.localhost
+      title: OpenCost UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: thanos
+  description: Long-term Prometheus storage
+  annotations:
+    dev.tilt/resource: thanos
+    dev.tilt/namespace: thanos
+    grafana/dashboard-selector: "title == 'Thanos'"
+  tags:
+    - monitoring
+    - metrics
+    - observability
+  links:
+    - url: https://thanos.localhost
+      title: Thanos Query UI
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: policy-reporter
+  description: Kubernetes policy report viewer for Kyverno results
+  annotations:
+    dev.tilt/resource: policy-reporter
+    dev.tilt/namespace: policy-reporter
+  tags:
+    - policy
+    - security
+    - kyverno
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: 1pass
+  description: 1Password Connect secrets management for Kubernetes
+  annotations:
+    dev.tilt/resource: 1pass
+    dev.tilt/namespace: 1password-system
+  tags:
+    - secrets
+    - security
+    - 1password
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: keda
+  description: Kubernetes event-driven autoscaling
+  annotations:
+    dev.tilt/resource: keda
+    dev.tilt/namespace: keda
+  tags:
+    - autoscaling
+    - infrastructure
+    - event-driven
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: wordpress
+  description: WordPress blog and CMS platform
+  annotations:
+    dev.tilt/resource: wordpress
+    dev.tilt/namespace: wordpress
+  tags:
+    - cms
+    - blog
+    - demo
+  links:
+    - url: https://wordpress.localhost
+      title: WordPress Site
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: azure
+  description: Azure storage classes and PVCs for local development
+  annotations:
+    dev.tilt/resource: azure
+  tags:
+    - azure
+    - storage
+    - infrastructure
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: kubevirt
+  description: KubeVirt VM operator for running VMs on Kubernetes
+  annotations:
+    dev.tilt/resource: kubevirt
+    dev.tilt/namespace: kubevirt
+  tags:
+    - virtualization
+    - infrastructure
+    - vms
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: macos
+  description: macOS virtual machine via KubeVirt (experimental)
+  annotations:
+    dev.tilt/resource: macos
+    dev.tilt/namespace: macos
+  tags:
+    - virtualization
+    - macos
+    - experimental
+spec:
+  type: service
+  lifecycle: development
+  owner: platform-team
+  system: dev-environment
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: eyeos
+  description: iOS virtual machine via KubeVirt (experimental)
+  annotations:
+    dev.tilt/resource: eyeos
+    dev.tilt/namespace: eyeos
+  tags:
+    - virtualization
+    - ios
+    - experimental
+spec:
+  type: service
+  lifecycle: development
   owner: platform-team
   system: dev-environment

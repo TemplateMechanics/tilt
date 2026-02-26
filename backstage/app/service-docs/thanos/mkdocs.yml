@@ -1,0 +1,5 @@
+site_name: Thanos
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md

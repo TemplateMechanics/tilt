@@ -85,6 +85,48 @@
       "description": "Kubernetes vulnerability scanner",
       "category": "Security & Policy",
       "tested": true
+    },
+    "otel-collector": {
+      "enabled": false,
+      "description": "OpenTelemetry Collector telemetry pipeline",
+      "category": "Observability",
+      "tested": false
+    },
+    "nats": {
+      "enabled": false,
+      "description": "Cloud-native messaging system",
+      "category": "Messaging",
+      "tested": false
+    },
+    "dapr": {
+      "enabled": false,
+      "description": "Distributed application runtime",
+      "category": "Infrastructure",
+      "tested": false
+    },
+    "argo-workflows": {
+      "enabled": false,
+      "description": "Kubernetes-native workflow engine",
+      "category": "CI/CD",
+      "tested": false
+    },
+    "argocd": {
+      "enabled": false,
+      "description": "GitOps continuous delivery for Kubernetes",
+      "category": "CI/CD",
+      "tested": false
+    },
+    "opencost": {
+      "enabled": false,
+      "description": "Kubernetes cost monitoring",
+      "category": "Observability",
+      "tested": false
+    },
+    "thanos": {
+      "enabled": false,
+      "description": "Long-term Prometheus storage",
+      "category": "Observability",
+      "tested": false
     }
   },
   "raw_apps": {
@@ -188,6 +230,18 @@
       "enabled": false,
       "description": "iOS VM via KubeVirt",
       "category": "Experimental",
+      "tested": false
+    },
+    "wazuh": {
+      "enabled": false,
+      "description": "Security monitoring and SIEM",
+      "category": "Security & Policy",
+      "tested": true
+    },
+    "knative": {
+      "enabled": false,
+      "description": "Serverless workloads on Kubernetes",
+      "category": "Infrastructure",
       "tested": false
     }
   }

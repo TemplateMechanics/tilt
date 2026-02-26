@@ -62,3 +62,27 @@ permission:
 # Tilt integration (custom plugin)
 tilt:
   baseUrl: http://localhost:10350
+
+# Grafana integration
+grafana:
+  domain: https://grafana.localhost
+  unifiedAlerting: true
+
+# Argo CD integration
+argocd:
+  baseUrl: https://argocd.localhost
+  appLocatorMethods:
+    - type: 'config'
+      instances:
+        - name: main
+          url: https://argocd.localhost
+
+# Proxy for Grafana API
+proxy:
+  endpoints:
+    '/grafana/api':
+      target: https://grafana.localhost
+      headers:
+        Authorization: 'Bearer ${GRAFANA_TOKEN}'
+      changeOrigin: true
+      secure: false

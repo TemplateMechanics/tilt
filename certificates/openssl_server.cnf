@@ -103,3 +103,10 @@ DNS.33 = ghost.localhost
 
 # ─── SIEM / Security ─────────────────────────────────────────────────
 DNS.34 = wazuh.localhost
+
+# ─── CNCF Projects ──────────────────────────────────────────────────
+DNS.35 = argo.localhost
+DNS.36 = dapr.localhost
+DNS.37 = opencost.localhost
+DNS.38 = thanos.localhost
+DNS.39 = argocd.localhost

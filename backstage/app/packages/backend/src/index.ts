@@ -38,6 +38,9 @@ backend.add(
 // See https://backstage.io/docs/features/software-catalog/configuration#subscribing-to-catalog-errors
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
 
+// unprocessed entities
+backend.add(import('@backstage/plugin-catalog-backend-module-unprocessed'));
+
 // permission plugin
 backend.add(import('@backstage/plugin-permission-backend'));
 // See https://backstage.io/docs/permissions/getting-started for how to create your own permission policy
@@ -62,5 +65,11 @@ backend.add(import('@backstage/plugin-kubernetes-backend'));
 // notifications and signals plugins
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));
+
+// todo plugin
+backend.add(import('@backstage-community/plugin-todo-backend'));
+
+// argo cd plugin
+backend.add(import('@roadiehq/backstage-plugin-argo-cd-backend'));
 
 backend.start();
