@@ -213,11 +213,17 @@ RAW_NS_MAP = {
     "wazuh": "wazuh",
     "knative": "knative-serving",
 }
+# Knative creates additional namespaces beyond its primary one
+RAW_EXTRA_NS_MAP = {
+    "knative": ["knative-operator", "knative-eventing"],
+}
 for app, enabled in CONFIG["raw_apps"].items():
     if not enabled:
         ns = RAW_NS_MAP.get(app)
         if ns:
             disabled_namespaces.append(ns)
+        for extra_ns in RAW_EXTRA_NS_MAP.get(app, []):
+            disabled_namespaces.append(extra_ns)
 
 # ── Phase 3: Build the unified cleanup command ────────────────────────
 cleanup_parts = []
@@ -244,12 +250,15 @@ cleanup_parts.append(
     + " done"
 )
 
-# 3d. Kyverno-specific cleanup (webhooks and ClusterPolicies are cluster-scoped)
+# 3d. Kyverno-specific cleanup (webhooks, ClusterPolicies, CRDs are cluster-scoped)
 if not CONFIG["flux_apps"].get("kyverno"):
     cleanup_parts.append(
         "kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration"
         + " -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
         + " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete clusterrole,clusterrolebinding -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
+        + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep kyverno.io); do"
+        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
     )
 
 # 3e. Azure cluster-scoped resource cleanup (StorageClass, PVs)
@@ -257,6 +266,113 @@ if not CONFIG["raw_apps"].get("azure"):
     cleanup_parts.append(
         "kubectl delete storageclass azure-disk azure-file --ignore-not-found 2>/dev/null || true"
     )
+
+# 3f. Orphaned PV cleanup — PVs bound to deleted namespaces can get stuck
+#     in Terminating with finalizers that will never resolve.
+if disabled_namespaces:
+    cleanup_parts.append(
+        "echo 'Cleaning up orphaned PVs...'"
+        + " && for ns in " + " ".join(disabled_namespaces) + "; do"
+        + " for pv in $(kubectl get pv -o json 2>/dev/null | jq -r '.items[] | select(.spec.claimRef.namespace==\"'\"$ns\"'\") | .metadata.name'); do"
+        + " echo \"  Removing finalizers from PV $pv\";"
+        + " kubectl patch pv \"$pv\" -p '{\"metadata\":{\"finalizers\":null}}' 2>/dev/null || true;"
+        + " kubectl delete pv \"$pv\" --ignore-not-found 2>/dev/null || true;"
+        + " done; done"
+    )
+
+# 3g. Named cluster-scoped resources from raw apps (ClusterRole, CRB, CRDs)
+#     These are NOT deleted when their namespace is removed.
+RAW_CLUSTER_CLEANUP = {
+    "backstage": "kubectl delete clusterrolebinding backstage-cluster-reader --ignore-not-found 2>/dev/null || true",
+    "wazuh": (
+        "kubectl delete clusterrole wazuh-filebeat --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete clusterrolebinding wazuh-filebeat --ignore-not-found 2>/dev/null || true"
+    ),
+    "velero": (
+        "kubectl delete clusterrolebinding velero --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete crd -l component=velero --ignore-not-found 2>/dev/null || true"
+        + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep velero.io); do"
+        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+    ),
+    "knative": (
+        "kubectl delete clusterrole knative-operator --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete clusterrolebinding knative-operator --ignore-not-found 2>/dev/null || true"
+        + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep knative.dev); do"
+        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+    ),
+    "kubevirt": (
+        "kubectl delete -f https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/kubevirt-operator.yaml"
+        + " --ignore-not-found 2>/dev/null || true"
+    ),
+}
+raw_cluster_cmds = []
+for app, enabled in CONFIG["raw_apps"].items():
+    if not enabled and app in RAW_CLUSTER_CLEANUP:
+        raw_cluster_cmds.append(RAW_CLUSTER_CLEANUP[app])
+if raw_cluster_cmds:
+    cleanup_parts.append(
+        "echo 'Cleaning up cluster-scoped resources from raw apps...'"
+        + " && " + " && ".join(raw_cluster_cmds)
+    )
+
+# 3h. Label-based cleanup for Flux HelmRelease apps
+#     Helm charts install ClusterRoles, CRBs, CRDs, and webhooks that survive
+#     namespace deletion. Clean up by Helm instance label.
+FLUX_HELM_LABELS = {
+    "cert-manager": "app.kubernetes.io/instance=cert-manager",
+    "keda": "app.kubernetes.io/instance=keda",
+    "falco": "app.kubernetes.io/instance=falco",
+    "trivy": "app.kubernetes.io/instance=trivy-operator",
+    "dapr": "app.kubernetes.io/part-of=dapr",
+    "argocd": "app.kubernetes.io/instance=argocd",
+    "argo-workflows": "app.kubernetes.io/instance=argo-workflows",
+    "1pass": "app.kubernetes.io/instance=connect",
+}
+for app, enabled in CONFIG["flux_apps"].items():
+    if not enabled and app in FLUX_HELM_LABELS:
+        label = FLUX_HELM_LABELS[app]
+        cleanup_parts.append(
+            "echo '  Cleaning cluster-scoped resources for {app}...'".format(app=app)
+            + " && kubectl delete clusterrole,clusterrolebinding -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
+            + " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
+            + " && kubectl delete crd -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
+        )
+        # Some CRDs don't have labels — clean up by API group for known apps
+        if app == "cert-manager":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep cert-manager.io); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "keda":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep keda.sh); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "dapr":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep dapr.io); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "argocd":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep argoproj.io); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "argo-workflows":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep argoproj.io); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "trivy":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep aquasecurity.github.io); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
+        elif app == "1pass":
+            cleanup_parts.append(
+                "for crd in $(kubectl get crd -o name 2>/dev/null | grep onepassword.com); do"
+                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+            )
 
 cleanup_parts.append("echo '✓ Cleanup complete'")
 
