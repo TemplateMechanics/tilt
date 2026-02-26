@@ -265,6 +265,7 @@ data:
     opensearch.hosts: ["http://wazuh-indexer:9200"]
     server.ssl.enabled: false
     opensearch.ssl.verificationMode: none
+    opensearch_security.enabled: false
 
   wazuh.yml: |
     hosts:
