@@ -6,3 +6,5 @@ resources:
   - qdrant.yaml
   - tempo.yaml
   - traefik.yaml
+  - falco.yaml
+  - trivy.yaml

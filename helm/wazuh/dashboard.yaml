@@ -1,0 +1,101 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wazuh-dashboard
+  namespace: wazuh
+  labels:
+    app: wazuh-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wazuh-dashboard
+  template:
+    metadata:
+      labels:
+        app: wazuh-dashboard
+    spec:
+      containers:
+        - name: wazuh-dashboard
+          image: wazuh/wazuh-dashboard:4.9.0
+          env:
+            - name: INDEXER_URL
+              value: "http://wazuh-indexer:9200"
+            - name: WAZUH_API_URL
+              value: "http://wazuh-manager"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: wazuh-api-username
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: wazuh-api-password
+            - name: DASHBOARD_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: indexer-username
+            - name: DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: indexer-password
+          ports:
+            - containerPort: 5601
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: dashboard-config
+              mountPath: /usr/share/wazuh-dashboard/config/opensearch_dashboards.yml
+              subPath: opensearch_dashboards.yml
+            - name: dashboard-config
+              mountPath: /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
+              subPath: wazuh.yml
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5601
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5601
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: dashboard-config
+          configMap:
+            name: wazuh-dashboard-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-dashboard
+  namespace: wazuh
+  labels:
+    app: wazuh-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5601
+      targetPort: 5601
+      name: http
+      protocol: TCP
+  selector:
+    app: wazuh-dashboard

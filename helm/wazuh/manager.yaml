@@ -1,0 +1,126 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-manager
+  namespace: wazuh
+  labels:
+    app: wazuh-manager
+spec:
+  serviceName: wazuh-manager
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wazuh-manager
+  template:
+    metadata:
+      labels:
+        app: wazuh-manager
+    spec:
+      initContainers:
+        - name: volume-permissions
+          image: busybox:1.36
+          command: ["sh", "-c", "chown -R 101:101 /var/ossec/data || true"]
+          volumeMounts:
+            - name: manager-data
+              mountPath: /var/ossec/data
+      containers:
+        - name: wazuh-manager
+          image: wazuh/wazuh-manager:4.9.0
+          env:
+            - name: INDEXER_URL
+              value: "http://wazuh-indexer:9200"
+            - name: FILEBEAT_SSL_VERIFICATION_MODE
+              value: "none"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: wazuh-api-username
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-credentials
+                  key: wazuh-api-password
+          ports:
+            - containerPort: 1514
+              name: agent
+              protocol: TCP
+            - containerPort: 1515
+              name: registration
+              protocol: TCP
+            - containerPort: 514
+              name: syslog
+              protocol: UDP
+            - containerPort: 55000
+              name: api
+              protocol: TCP
+          volumeMounts:
+            - name: manager-data
+              mountPath: /var/ossec/data
+            - name: manager-config
+              mountPath: /wazuh-config-mount/etc/ossec.conf
+              subPath: ossec.conf
+            - name: filebeat-config
+              mountPath: /etc/filebeat/filebeat.yml
+              subPath: filebeat.yml
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: 55000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket:
+              port: 55000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 10
+      volumes:
+        - name: manager-data
+          persistentVolumeClaim:
+            claimName: wazuh-manager-data
+        - name: manager-config
+          configMap:
+            name: wazuh-manager-config
+        - name: filebeat-config
+          configMap:
+            name: wazuh-filebeat-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-manager
+  namespace: wazuh
+  labels:
+    app: wazuh-manager
+spec:
+  type: ClusterIP
+  ports:
+    - port: 1514
+      targetPort: 1514
+      name: agent
+      protocol: TCP
+    - port: 1515
+      targetPort: 1515
+      name: registration
+      protocol: TCP
+    - port: 514
+      targetPort: 514
+      name: syslog
+      protocol: UDP
+    - port: 55000
+      targetPort: 55000
+      name: api
+      protocol: TCP
+  selector:
+    app: wazuh-manager

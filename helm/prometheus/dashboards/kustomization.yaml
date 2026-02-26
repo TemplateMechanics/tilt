@@ -12,3 +12,6 @@ resources:
   - qdrant.yaml
   - tempo.yaml
   - traefik.yaml
+  - wazuh.yaml
+  - falco.yaml
+  - trivy.yaml
