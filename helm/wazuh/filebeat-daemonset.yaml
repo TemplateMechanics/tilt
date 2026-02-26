@@ -14,9 +14,26 @@ data:
         paths:
           - /var/log/containers/*.log
         exclude_files:
-          # Exclude Falco/Trivy — collected by dedicated inputs below
+          # Exclude services with dedicated inputs below
           - '/var/log/containers/falco-.*\.log'
           - '/var/log/containers/trivy-.*\.log'
+          - '/var/log/containers/scan-vulnerabilityreport-.*\.log'
+          - '/var/log/containers/traefik-.*\.log'
+          - '/var/log/containers/source-controller-.*\.log'
+          - '/var/log/containers/kustomize-controller-.*\.log'
+          - '/var/log/containers/helm-controller-.*\.log'
+          - '/var/log/containers/notification-controller-.*\.log'
+          - '/var/log/containers/crossplane-.*\.log'
+          - '/var/log/containers/provider-helm-.*\.log'
+          - '/var/log/containers/provider-kubernetes-.*\.log'
+          - '/var/log/containers/backstage-.*\.log'
+          - '/var/log/containers/prometheus-prometheus-.*\.log'
+          - '/var/log/containers/alertmanager-.*\.log'
+          - '/var/log/containers/prometheus-kube-prometheus-operator-.*\.log'
+          - '/var/log/containers/kube-apiserver-.*\.log'
+          - '/var/log/containers/etcd-.*\.log'
+          - '/var/log/containers/kube-scheduler-.*\.log'
+          - '/var/log/containers/kube-controller-manager-.*\.log'
         processors:
           - add_kubernetes_metadata:
               host: ${NODE_NAME}
@@ -61,6 +78,110 @@ data:
                 - logs_path:
                     logs_path: "/var/log/containers/"
 
+      # Traefik ingress controller access logs (web attack detection)
+      - type: container
+        paths:
+          - /var/log/containers/traefik-*.log
+        fields:
+          security.source: traefik
+          security.type: ingress
+        fields_under_root: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Flux GitOps controller events (change tracking / supply chain)
+      - type: container
+        paths:
+          - /var/log/containers/source-controller-*.log
+          - /var/log/containers/kustomize-controller-*.log
+          - /var/log/containers/helm-controller-*.log
+          - /var/log/containers/notification-controller-*.log
+        fields:
+          security.source: flux
+          security.type: gitops
+        fields_under_root: true
+        json.keys_under_root: true
+        json.add_error_key: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Crossplane provider logs (infrastructure change tracking)
+      - type: container
+        paths:
+          - /var/log/containers/crossplane-*.log
+          - /var/log/containers/provider-helm-*.log
+          - /var/log/containers/provider-kubernetes-*.log
+        fields:
+          security.source: crossplane
+          security.type: infrastructure
+        fields_under_root: true
+        json.keys_under_root: true
+        json.add_error_key: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Backstage developer portal logs (audit / access)
+      - type: container
+        paths:
+          - /var/log/containers/backstage-*.log
+        fields:
+          security.source: backstage
+          security.type: developer-portal
+        fields_under_root: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Prometheus / Alertmanager logs (monitoring integrity)
+      - type: container
+        paths:
+          - /var/log/containers/prometheus-prometheus-*.log
+          - /var/log/containers/alertmanager-*.log
+          - /var/log/containers/prometheus-kube-prometheus-operator-*.log
+        fields:
+          security.source: prometheus
+          security.type: monitoring
+        fields_under_root: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
+      # Kube-system critical components (API server, etcd, scheduler)
+      - type: container
+        paths:
+          - /var/log/containers/kube-apiserver-*.log
+          - /var/log/containers/etcd-*.log
+          - /var/log/containers/kube-scheduler-*.log
+          - /var/log/containers/kube-controller-manager-*.log
+        fields:
+          security.source: kube-system
+          security.type: control-plane
+        fields_under_root: true
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+
     # Enrich with K8s metadata
     processors:
       - add_cloud_metadata: ~
@@ -81,6 +202,24 @@ data:
         - index: "filebeat-trivy-%{+yyyy.MM.dd}"
           when.equals:
             security.source: "trivy"
+        - index: "filebeat-traefik-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "traefik"
+        - index: "filebeat-flux-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "flux"
+        - index: "filebeat-crossplane-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "crossplane"
+        - index: "filebeat-backstage-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "backstage"
+        - index: "filebeat-prometheus-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "prometheus"
+        - index: "filebeat-kube-system-%{+yyyy.MM.dd}"
+          when.equals:
+            security.source: "kube-system"
         - index: "filebeat-kubernetes-%{+yyyy.MM.dd}"
       pipeline: ""
 

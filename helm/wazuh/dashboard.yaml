@@ -16,6 +16,21 @@ spec:
       labels:
         app: wazuh-dashboard
     spec:
+      initContainers:
+        - name: disable-security
+          image: wazuh/wazuh-dashboard:4.9.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Copy all plugins to the emptyDir, then remove securityDashboards
+              cp -a /usr/share/wazuh-dashboard/plugins/. /plugins/
+              rm -rf /plugins/securityDashboards
+              echo "Removed securityDashboards plugin"
+              ls /plugins/
+          volumeMounts:
+            - name: dashboard-plugins
+              mountPath: /plugins
       containers:
         - name: wazuh-dashboard
           image: wazuh/wazuh-dashboard:4.9.0
@@ -55,6 +70,8 @@ spec:
             - name: dashboard-config
               mountPath: /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml
               subPath: wazuh.yml
+            - name: dashboard-plugins
+              mountPath: /usr/share/wazuh-dashboard/plugins
           resources:
             limits:
               cpu: "1"
@@ -79,6 +96,8 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 5
       volumes:
+        - name: dashboard-plugins
+          emptyDir: {}
         - name: dashboard-config
           configMap:
             name: wazuh-dashboard-config
