@@ -1,5 +1,5 @@
 {%- if values.deploymentType == 'helm-release' and values.helmRepoUrl %}
-apiVersion: source.toolkit.fluxcd.io/v1
+apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
 metadata:
   name: ${{ values.helmRepo | default(values.name) }}
