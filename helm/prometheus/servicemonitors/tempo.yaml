@@ -2,13 +2,16 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: tempo
-  namespace: tracing
+  namespace: monitoring
   labels:
     app: tempo
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: tempo
+  namespaceSelector:
+    matchNames:
+      - tracing
   endpoints:
     - port: tempo-prom-metrics
       path: /metrics
