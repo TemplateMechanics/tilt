@@ -130,15 +130,45 @@ local_resource(
 
 ###############################################################################
 # AUTO-CLEANUP: Delete resources for disabled apps
+#
+# Order matters for proper teardown:
+# 1. Delete Crossplane DevApplication CRs first (lets Crossplane cascade-
+#    delete namespace, HelmRelease, IngressRoute, ServiceMonitor).
+# 2. Wait briefly for Crossplane to process the cascade.
+# 3. Delete any remaining namespaces that weren't fully cleaned up.
+# 4. Force-clear Terminating namespaces whose finalizers are stuck.
+# 5. Handle special cases (Kyverno webhooks, azure cluster-scoped resources).
 ###############################################################################
 
-# Build list of disabled app namespaces to clean up
+# ── Phase 1: Crossplane DevApplication CR cleanup ──────────────────────
+# The DevApplication CRs live in the default namespace, NOT in the app
+# namespace. Deleting just the namespace leaves the CR behind, which causes
+# Crossplane to keep trying to recreate resources.
+disabled_crossplane_apps = []
+for app, enabled in CONFIG["crossplane_apps"].items():
+    if not enabled:
+        disabled_crossplane_apps.append(app)
+
+# When ALL Crossplane apps are disabled, the "crossplane-applications"
+# local_resource never runs kubectl apply -k ./apps/, so stale CRs from a
+# previous enable cycle persist. Clean them up explicitly.
+crossplane_cr_cleanup_cmd = ""
+if disabled_crossplane_apps:
+    crossplane_cr_cleanup_cmd = (
+        "echo 'Cleaning up Crossplane DevApplication CRs...'"
+        + " && for app in " + " ".join(disabled_crossplane_apps) + "; do"
+        + " kubectl delete devapplication $app -n default --ignore-not-found --wait=false 2>/dev/null || true;"
+        + " done"
+        + " && echo 'Waiting for Crossplane cascade-delete (10s)...'"
+        + " && sleep 10"
+    )
+
+# ── Phase 2: Build namespace lists for each group ─────────────────────
 disabled_namespaces = []
 
 # Crossplane apps (namespace = app name)
-for app, enabled in CONFIG["crossplane_apps"].items():
-    if not enabled:
-        disabled_namespaces.append(app)
+for app in disabled_crossplane_apps:
+    disabled_namespaces.append(app)
 
 # Flux apps (check namespace map)
 FLUX_NS_MAP = {
@@ -151,17 +181,17 @@ for app, enabled in CONFIG["flux_apps"].items():
         ns = FLUX_NS_MAP.get(app, app)
         disabled_namespaces.append(ns)
 
-# Raw apps (check namespace map)
+# Raw apps (check namespace map — must match RAW_NAMESPACE_MAP below)
 RAW_NS_MAP = {
     "backstage": "backstage",
     "gcp-emulators": "gcp-emulators",
-    "mailhog": "mailhog", 
+    "mailhog": "mailhog",
     "azurite": "azurite",
     "kubevirt": "kubevirt",
     "macos": "macos",
     "eyeos": "eyeos",
     "mongodb": "mongodb",
-    "postgresql": "postgresql",
+    "postgresql": "postgres",  # NOTE: actual namespace is "postgres", not "postgresql"
     "redis": "redis",
     "rabbitmq": "rabbitmq",
     "mssql": "mssql",
@@ -176,31 +206,57 @@ for app, enabled in CONFIG["raw_apps"].items():
         if ns:
             disabled_namespaces.append(ns)
 
-# Create cleanup resource that runs once at startup
+# ── Phase 3: Build the unified cleanup command ────────────────────────
+cleanup_parts = []
+
+# 3a. Crossplane CR deletion (must happen BEFORE namespace deletion)
+if crossplane_cr_cleanup_cmd:
+    cleanup_parts.append(crossplane_cr_cleanup_cmd)
+
+# 3b. Namespace deletion
 if disabled_namespaces:
-    # Build cleanup command — delete namespaces, then force-clear any stuck in Terminating
-    cleanup_cmd = (
-        "for ns in " + " ".join(disabled_namespaces) + "; do"
+    cleanup_parts.append(
+        "echo 'Deleting disabled namespaces...'"
+        + " && for ns in " + " ".join(disabled_namespaces) + "; do"
         + " kubectl delete namespace $ns --ignore-not-found --wait=false 2>/dev/null || true;"
         + " done"
-        + " && echo 'Clearing stuck Terminating namespaces...'"
-        + " && for ns in $(kubectl get ns --field-selector status.phase=Terminating -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do"
-        + " echo \"  Force-finalizing $ns\";"
-        + " kubectl get ns \"$ns\" -o json | jq '.spec.finalizers = []' | kubectl replace --raw \"/api/v1/namespaces/$ns/finalize\" -f - >/dev/null 2>&1 || true;"
-        + " done"
-        + " && echo '✓ Cleanup complete'"
     )
-    
-    # Add Kyverno-specific cleanup (webhooks, CRDs) if kyverno is disabled
-    if not CONFIG["flux_apps"].get("kyverno"):
-        cleanup_cmd += " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
-        cleanup_cmd += " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
-    
+
+# 3c. Force-clear stuck Terminating namespaces
+cleanup_parts.append(
+    "echo 'Clearing stuck Terminating namespaces...'"
+    + " && for ns in $(kubectl get ns --field-selector status.phase=Terminating -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do"
+    + " echo \"  Force-finalizing $ns\";"
+    + " kubectl get ns \"$ns\" -o json | jq '.spec.finalizers = []' | kubectl replace --raw \"/api/v1/namespaces/$ns/finalize\" -f - >/dev/null 2>&1 || true;"
+    + " done"
+)
+
+# 3d. Kyverno-specific cleanup (webhooks and ClusterPolicies are cluster-scoped)
+if not CONFIG["flux_apps"].get("kyverno"):
+    cleanup_parts.append(
+        "kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration"
+        + " -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
+    )
+
+# 3e. Azure cluster-scoped resource cleanup (StorageClass, PVs)
+if not CONFIG["raw_apps"].get("azure"):
+    cleanup_parts.append(
+        "kubectl delete storageclass azure-disk azure-file --ignore-not-found 2>/dev/null || true"
+    )
+
+cleanup_parts.append("echo '✓ Cleanup complete'")
+
+if disabled_namespaces or disabled_crossplane_apps:
+    # resource_deps on crossplane-compositions ensures Crossplane CRDs exist
+    # before we try to `kubectl delete devapplication`.  For non-Crossplane-only
+    # cleanup the commands already use --ignore-not-found so ordering is safe.
     local_resource(
         "cleanup-disabled-apps",
-        cmd=cleanup_cmd,
+        cmd=" && ".join(cleanup_parts),
         labels=["Infrastructure"],
         auto_init=True,
+        resource_deps=["crossplane-compositions"],
     )
 
 ###############################################################################
@@ -553,38 +609,42 @@ local_resource(
 # CROSSPLANE APPLICATIONS (Pattern 1: DevApplication XRD)
 ###############################################################################
 
-# Only apply if any crossplane apps are enabled
-if any(CONFIG["crossplane_apps"].values()):
+# Only apply ENABLED crossplane apps (not the whole kustomize directory,
+# which would recreate disabled CRs and fight with the cleanup resource).
+enabled_crossplane = [app for app, en in CONFIG["crossplane_apps"].items() if en]
+if enabled_crossplane:
     watch_file("./apps/")
+    apply_cmds = " && ".join(
+        ["kubectl apply -f ./apps/{}.yaml".format(app) for app in enabled_crossplane]
+    )
     local_resource(
         "crossplane-applications",
-        cmd="kubectl apply -k ./apps/ && echo '✓ DevApplications applied'",
+        cmd=apply_cmds + " && echo '✓ DevApplications applied'",
         labels=["Applications"],
         resource_deps=["crossplane-compositions"]
     )
     
     # Create watchers for enabled apps
-    for app, enabled in CONFIG["crossplane_apps"].items():
-        if enabled:
-            local_resource(
-                "{}-app".format(app),
-                serve_cmd="""
-                    echo "Waiting for {} pods..."
-                    while true; do
-                        POD=$(kubectl get pods -n {} -l app.kubernetes.io/name={} -o jsonpath='{{.items[0].metadata.name}}' 2>/dev/null)
-                        if [ -n "$POD" ]; then
-                            echo "Streaming logs from $POD..."
-                            kubectl logs -n {} -f "$POD" --all-containers 2>/dev/null || sleep 5
-                        else
-                            sleep 5
-                        fi
-                    done
-                """.format(app, app, app, app),
-                labels=["Applications"],
-                links=["https://{}.localhost".format(app)],
-                resource_deps=["crossplane-applications"],
-                allow_parallel=True
-            )
+    for app in enabled_crossplane:
+        local_resource(
+            "{}-app".format(app),
+            serve_cmd="""
+                echo "Waiting for {} pods..."
+                while true; do
+                    POD=$(kubectl get pods -n {} -l app.kubernetes.io/name={} -o jsonpath='{{.items[0].metadata.name}}' 2>/dev/null)
+                    if [ -n "$POD" ]; then
+                        echo "Streaming logs from $POD..."
+                        kubectl logs -n {} -f "$POD" --all-containers 2>/dev/null || sleep 5
+                    else
+                        sleep 5
+                    fi
+                done
+            """.format(app, app, app, app),
+            labels=["Applications"],
+            links=["https://{}.localhost".format(app)],
+            resource_deps=["crossplane-applications"],
+            allow_parallel=True
+        )
 
 ###############################################################################
 # FLUX APPLICATIONS (Pattern 2: HelmRelease via Kustomize)

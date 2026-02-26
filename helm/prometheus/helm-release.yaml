@@ -14,12 +14,37 @@ spec:
         name: prometheus-community
         namespace: flux-system
   values:
-    # Disable node-exporter on Docker Desktop (incompatible with macOS)
+    # =========================================================================
+    # Node Exporter — disabled on Docker Desktop (incompatible with macOS)
+    # =========================================================================
     prometheus-node-exporter:
       enabled: false
+
+    # =========================================================================
+    # Disable components that don't work on Docker Desktop
+    # =========================================================================
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+    kubeProxy:
+      enabled: false
+
+    # =========================================================================
+    # Prometheus
+    # =========================================================================
     prometheus:
       prometheusSpec:
         retention: 7d
+        # Scrape ALL ServiceMonitors/PodMonitors across all namespaces
+        # (no label selector restriction)
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
         storageSpec:
           volumeClaimTemplate:
             spec:
@@ -27,9 +52,52 @@ spec:
               resources:
                 requests:
                   storage: 10Gi
+
+    # =========================================================================
+    # Grafana
+    # =========================================================================
     grafana:
       adminPassword: admin
       ingress:
         enabled: true
         hosts:
           - grafana.localhost
+      # Add Loki and Tempo as additional datasources
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          uid: loki
+          url: http://loki.logging.svc:3100
+          access: proxy
+          isDefault: false
+          jsonData:
+            maxLines: 1000
+            derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: '"traceId":"(\w+)"'
+                name: TraceID
+                url: "$${__value.raw}"
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          url: http://tempo.tracing.svc:3200
+          access: proxy
+          isDefault: false
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+            nodeGraph:
+              enabled: true
+            serviceMap:
+              datasourceUid: prometheus
+      # Dashboard provisioning from ConfigMaps
+      sidecar:
+        dashboards:
+          enabled: true
+          searchNamespace: monitoring
+          label: grafana_dashboard
+          labelValue: "1"
+          folderAnnotation: grafana_folder
+          provider:
+            foldersFromFilesStructure: true
