@@ -1,11 +1,28 @@
 #!/bin/bash
-# Create OpenSearch Dashboards visualizations and dashboards for Wazuh filebeat indices
-# Run from outside the cluster: kubectl exec -n wazuh deployment/wazuh-dashboard -- bash < create-dashboards.sh
+# Provision OpenSearch index patterns, visualizations, and dashboards for Wazuh.
+# Runs automatically via a Kubernetes Job after dashboard starts, or manually:
+#   cat helm/wazuh/create-dashboards.sh | kubectl exec -n wazuh -i deployment/wazuh-dashboard -- bash
 
-DASHBOARD_URL="http://localhost:5601"
+DASHBOARD_URL="${DASHBOARD_URL:-http://wazuh-dashboard:5601}"
 OSD_HEADER="osd-xsrf: true"
 
-echo "=== Creating Visualizations ==="
+###############################################################################
+# Wait for dashboard API to be ready
+###############################################################################
+echo "=== Waiting for Wazuh Dashboard to be ready ==="
+for i in $(seq 1 60); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DASHBOARD_URL}/api/status" 2>/dev/null)
+  if [ "$STATUS" = "200" ]; then
+    echo "  Dashboard API is ready"
+    break
+  fi
+  echo "  Attempt $i/60 - status $STATUS, retrying in 5s..."
+  sleep 5
+done
+if [ "$STATUS" != "200" ]; then
+  echo "ERROR: Dashboard did not become ready in time"
+  exit 1
+fi
 
 # Helper function to create a saved object
 create_saved_object() {
@@ -20,8 +37,22 @@ create_saved_object() {
 }
 
 ###############################################################################
+# INDEX PATTERNS
+###############################################################################
+echo "=== Creating Index Patterns ==="
+
+for pattern in "filebeat-*" "filebeat-kubernetes-*" "filebeat-backstage-*" \
+               "filebeat-prometheus-*" "filebeat-flux-*" "filebeat-crossplane-*" \
+               "filebeat-kube-system-*" "filebeat-traefik-*" "filebeat-falco-*" \
+               "filebeat-trivy-*" "wazuh-alerts-*"; do
+  create_saved_object "index-pattern" "${pattern}" \
+    "{\"attributes\":{\"title\":\"${pattern}\",\"timeFieldName\":\"@timestamp\"}}"
+done
+
+###############################################################################
 # VISUALIZATIONS - Log Volume Over Time (per source)
 ###############################################################################
+echo "=== Creating Visualizations ==="
 
 for source in kubernetes kube-system backstage prometheus flux crossplane; do
   title_name=$(echo "$source" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')

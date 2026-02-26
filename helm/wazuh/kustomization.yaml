@@ -10,3 +10,11 @@ resources:
   - dashboard.yaml
   - ingress.yaml
   - filebeat-daemonset.yaml
+  - dashboard-provisioner.yaml
+configMapGenerator:
+  - name: wazuh-dashboard-provisioner
+    namespace: wazuh
+    files:
+      - create-dashboards.sh
+generatorOptions:
+  disableNameSuffixHash: true

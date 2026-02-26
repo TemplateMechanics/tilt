@@ -809,7 +809,7 @@ RAW_WORKLOADS = {
     "airflow": ["airflow-webserver", "airflow-scheduler", "airflow-postgresql", "airflow-redis"],
     "jupyterhub": ["jupyterhub"],
     "wordpress": ["wordpress", "mysql"],
-    "wazuh": ["wazuh-indexer", "wazuh-manager", "wazuh-dashboard", "wazuh-filebeat"],
+    "wazuh": ["wazuh-indexer", "wazuh-manager", "wazuh-dashboard", "wazuh-filebeat", "wazuh-dashboard-provisioner"],
     "knative": ["knative-operator"],
 }
 
@@ -903,11 +903,15 @@ for app, enabled in CONFIG["raw_apps"].items():
         workloads = RAW_WORKLOADS.get(app, [app])
         for workload in workloads:
             url_subdomain = RAW_APP_URLS.get(app, app)
+            # Provisioner job depends on dashboard, not just namespace
+            extra_deps = []
+            if workload == "wazuh-dashboard-provisioner":
+                extra_deps = ["wazuh-dashboard"]
             k8s_resource(
                 workload,
                 labels=[label],
-                resource_deps=["{}-ns".format(app)] if ns else [],
-                links=["https://{}.localhost".format(url_subdomain)] if app in RAW_APPS_WITH_UI else []
+                resource_deps=(["{}-ns".format(app)] if ns else []) + extra_deps,
+                links=["https://{}.localhost".format(url_subdomain)] if app in RAW_APPS_WITH_UI and workload not in ["wazuh-dashboard-provisioner"] else []
             )
 
 ###############################################################################
