@@ -95,6 +95,17 @@ data:
     spec:
       owner: platform-team
       domain: infrastructure
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: System
+    metadata:
+      name: wazuh-system
+      description: Wazuh SIEM platform for threat detection and log analysis
+      annotations:
+        dev.tilt/config-key: raw_apps.wazuh
+    spec:
+      owner: platform-team
+      domain: infrastructure
     
     # =============================================================================
     # APIS - Service interfaces
@@ -396,3 +407,17 @@ data:
       type: storage
       owner: platform-team
       system: dev-environment
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Resource
+    metadata:
+      name: wazuh-opensearch
+      description: OpenSearch indexer for Wazuh security events
+      tags:
+        - database
+        - opensearch
+        - siem
+    spec:
+      type: database
+      owner: platform-team
+      system: wazuh-system

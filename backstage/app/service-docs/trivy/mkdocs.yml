@@ -1,0 +1,5 @@
+site_name: Trivy Operator
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md
