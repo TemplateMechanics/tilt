@@ -299,7 +299,7 @@ if not CONFIG["flux_apps"].get("kyverno"):
         + " && kubectl delete clusterpolicy --all --ignore-not-found 2>/dev/null || true"
         + " && kubectl delete clusterrole,clusterrolebinding -l app.kubernetes.io/instance=kyverno --ignore-not-found 2>/dev/null || true"
         + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep kyverno.io); do"
-        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+        + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
     )
 
 # 3e. Azure cluster-scoped resource cleanup (StorageClass, PVs)
@@ -332,19 +332,22 @@ RAW_CLUSTER_CLEANUP = {
     ),
     "velero": (
         "kubectl delete clusterrolebinding velero --ignore-not-found 2>/dev/null || true"
-        + " && kubectl delete crd -l component=velero --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete crd -l component=velero --ignore-not-found --wait=false 2>/dev/null || true"
         + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep velero.io); do"
-        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+        + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
     ),
     "knative": (
         "kubectl delete clusterrole knative-operator --ignore-not-found 2>/dev/null || true"
         + " && kubectl delete clusterrolebinding knative-operator --ignore-not-found 2>/dev/null || true"
         + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep knative.dev); do"
-        + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+        + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
     ),
     "kubevirt": (
-        "kubectl delete -f https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/kubevirt-operator.yaml"
-        + " --ignore-not-found 2>/dev/null || true"
+        "kubectl delete clusterrole,clusterrolebinding -l kubevirt.io --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l kubevirt.io --ignore-not-found 2>/dev/null || true"
+        + " && kubectl delete apiservice -l kubevirt.io --ignore-not-found 2>/dev/null || true"
+        + " && for crd in $(kubectl get crd -o name 2>/dev/null | grep kubevirt.io); do"
+        + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
     ),
 }
 raw_cluster_cmds = []
@@ -377,44 +380,56 @@ for app, enabled in CONFIG["flux_apps"].items():
             "echo '  Cleaning cluster-scoped resources for {app}...'".format(app=app)
             + " && kubectl delete clusterrole,clusterrolebinding -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
             + " && kubectl delete validatingwebhookconfiguration,mutatingwebhookconfiguration -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
-            + " && kubectl delete crd -l {label} --ignore-not-found 2>/dev/null || true".format(label=label)
+            + " && kubectl delete crd -l {label} --ignore-not-found --wait=false 2>/dev/null || true".format(label=label)
         )
         # Some CRDs don't have labels — clean up by API group for known apps
         if app == "cert-manager":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep cert-manager.io); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "keda":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep keda.sh); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "dapr":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep dapr.io); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "argocd":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep argoproj.io); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "argo-workflows":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep argoproj.io); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "trivy":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep aquasecurity.github.io); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
         elif app == "1pass":
             cleanup_parts.append(
                 "for crd in $(kubectl get crd -o name 2>/dev/null | grep onepassword.com); do"
-                + " kubectl delete $crd --ignore-not-found 2>/dev/null || true; done"
+                + " kubectl delete $crd --ignore-not-found --wait=false 2>/dev/null || true; done"
             )
+
+# 3i. Force-clear stuck CRD finalizers (CRDs stuck in Terminating because
+#     their namespace was already deleted but the customresourcecleanup
+#     finalizer can't reach the CRs)
+cleanup_parts.append(
+    "echo 'Clearing stuck CRD finalizers...'"
+    + " && for crd in $(kubectl get crd -o json 2>/dev/null"
+    + " | jq -r '.items[] | select(.metadata.deletionTimestamp != null) | .metadata.name'); do"
+    + " echo \"  Force-finalizing CRD $crd\";"
+    + " kubectl patch crd \"$crd\" --type=merge -p '{\"metadata\":{\"finalizers\":null}}' 2>/dev/null || true;"
+    + " done"
+)
 
 cleanup_parts.append("echo '✓ Cleanup complete'")
 
