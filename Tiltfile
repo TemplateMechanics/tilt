@@ -17,6 +17,23 @@ load("ext://helm_remote", "helm_remote")
 load("ext://namespace", "namespace_yaml")
 
 ###############################################################################
+# CROSS-PLATFORM SHELL HELPER
+#
+# On Windows, Tilt runs local_resource commands through cmd.exe by default,
+# which doesn't understand bash syntax ($(…), for-loops, grep, awk, etc.).
+# Wrapping every command with sh() forces execution through bash (Git Bash
+# on Windows, /bin/bash everywhere else), making the Tiltfile portable.
+###############################################################################
+
+def sh(script):
+    """Wrap a bash script so it runs through bash on ALL platforms (including Windows).
+    
+    Returns a list ['bash', '-c', script] which Tilt executes directly,
+    bypassing cmd.exe on Windows.
+    """
+    return ['bash', '-c', script]
+
+###############################################################################
 # CONFIGURATION (loaded from tilt-config.json)
 ###############################################################################
 
@@ -86,7 +103,7 @@ CONFIG = load_config()
 # Bootstrap: create namespace, seed ConfigMap from local file, deploy app script
 local_resource(
     "tilt-config-seed",
-    cmd=" && ".join([
+    cmd=sh(" && ".join([
         "kubectl create namespace tilt-system --dry-run=client -o yaml | kubectl apply -f -",
         "kubectl create configmap tilt-config -n tilt-system"
           + " --from-file=config.json=./tilt-config.json"
@@ -94,7 +111,7 @@ local_resource(
         "kubectl create configmap tilt-config-server-app -n tilt-system"
           + " --from-file=config-server.py=./scripts/config-server.py"
           + " --dry-run=client -o yaml | kubectl apply -f -",
-    ]),
+    ])),
     deps=["./scripts/config-server.py", "./tilt-config.json"],
     labels=["Platform"],
     auto_init=True,
@@ -113,7 +130,7 @@ k8s_resource(
 # them to tilt-config.json so watch_file() triggers a Tilt reload.
 local_resource(
     "tilt-config-sync",
-    serve_cmd="""
+    serve_cmd=sh("""
         echo "Watching ConfigMap tilt-config for Backstage changes..."
         LAST_HASH=""
         while true; do
@@ -129,7 +146,7 @@ local_resource(
             fi
             sleep 3
         done
-    """,
+    """),
     labels=["Platform"],
     resource_deps=["tilt-config-server"],
 )
@@ -383,7 +400,7 @@ if disabled_namespaces or disabled_crossplane_apps:
     # cleanup the commands already use --ignore-not-found so ordering is safe.
     local_resource(
         "cleanup-disabled-apps",
-        cmd=" && ".join(cleanup_parts),
+        cmd=sh(" && ".join(cleanup_parts)),
         labels=["Infrastructure"],
         auto_init=True,
         resource_deps=["crossplane-compositions"],
@@ -395,13 +412,12 @@ if disabled_namespaces or disabled_crossplane_apps:
 
 def get_os_type():
     """Detect OS type for platform-specific commands"""
-    windows_check = str(local("echo %OS%", quiet=True)).strip().lower()
-    if "windows" in windows_check:
+    uname_result = str(local(sh("uname -s 2>/dev/null || echo Windows"), quiet=True)).strip()
+    if "MINGW" in uname_result or "MSYS" in uname_result or "CYGWIN" in uname_result or "Windows" in uname_result:
         return "windows"
-    uname_result = str(local("uname", quiet=True)).strip().lower()
-    if "darwin" in uname_result:
+    elif "Darwin" in uname_result:
         return "macos"
-    elif "linux" in uname_result:
+    elif "Linux" in uname_result:
         return "linux"
     return "unknown"
 
@@ -414,7 +430,7 @@ def k8s_kustomize_simple(path, name, labels=[], links=[], resource_deps=[]):
     k8s_yaml(kustomize(path), allow_duplicates=True)
     local_resource(
         name=name,
-        cmd="kubectl get pods -n {} 2>/dev/null | head -10 || echo 'Namespace not ready'".format(name),
+        cmd=sh("kubectl get pods -n {} 2>/dev/null | head -10 || echo 'Namespace not ready'".format(name)),
         labels=labels,
         links=links,
         resource_deps=resource_deps,
@@ -436,11 +452,11 @@ k8s_namespace("tracing")
 os_type = get_os_type()
 cert_path = "./certificates"
 
-cert_exists = str(local("test -f {}/intermediateCA/certs/localhost-chain.cert.pem && echo 'yes' || echo 'no'".format(cert_path), quiet=True)).strip()
+cert_exists = str(local(sh("test -f {}/intermediateCA/certs/localhost-chain.cert.pem && echo 'yes' || echo 'no'".format(cert_path)), quiet=True)).strip()
 
 local_resource(
     "dev-certificate-generate",
-    cmd="""
+    cmd=sh("""
         cd {cert_path}
         # Fix root-owned CA dirs via macOS GUI sudo prompt
         for d in rootCA intermediateCA; do
@@ -455,14 +471,14 @@ local_resource(
             fi
         done
         SKIP_CERT_TRUST=true bash ./generate-certs.sh
-    """.format(cert_path=cert_path),
+    """.format(cert_path=cert_path)),
     labels=["Infrastructure"],
     auto_init=(cert_exists != "yes")
 )
 
 local_resource(
     "dev-certificate-trust",
-    cmd="""
+    cmd=sh("""
         cd {cert_path}
         ROOT_CERT="rootCA/certs/ca.cert.pem"
         if [ ! -f "$ROOT_CERT" ]; then
@@ -514,14 +530,14 @@ local_resource(
                 echo "Manually trust: $FULL_CERT_PATH"
                 ;;
         esac
-    """.format(cert_path=cert_path),
+    """.format(cert_path=cert_path)),
     labels=["Infrastructure"],
     resource_deps=["dev-certificate-generate"]
 )
 
 local_resource(
     "dev-certificate-install",
-    cmd="cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path),
+    cmd=sh("cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path)),
     labels=["Infrastructure"],
     resource_deps=["dev-certificate-trust"]
 )
@@ -529,7 +545,7 @@ local_resource(
 # Flux GitOps
 local_resource(
     "flux-install",
-    cmd="""
+    cmd=sh("""
         flux check --pre && flux install || echo 'Flux already installed'
         echo "Waiting for all Flux controllers to be ready..."
         kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
@@ -558,7 +574,7 @@ local_resource(
             done
         fi
         echo "✓ Flux API versions aligned"
-    """,
+    """),
     labels=["Infrastructure"]
 )
 
@@ -584,7 +600,7 @@ watch_file("./helm/traefik.yaml")
 # Instead, helm-repositories applies them at runtime after flux-install completes.
 local_resource(
     "helm-repositories",
-    cmd="""
+    cmd=sh("""
         EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
         echo "Expecting $EXPECTED HelmRepositories..."
 
@@ -601,19 +617,19 @@ local_resource(
             echo "  Attempt $i/30 ($COUNT/$EXPECTED repositories)..."
         done
         echo "Timeout: only $COUNT/$EXPECTED HelmRepositories created"; exit 1
-    """,
+    """),
     labels=["Platform"],
     resource_deps=["flux-install"]
 )
 
 k8s_yaml(kustomize("./helm/prometheus/"), allow_duplicates=True)
-local_resource("prometheus", cmd="kubectl get pods -n monitoring | head -5", labels=["Observability"], links=["https://prometheus.localhost"])
+local_resource("prometheus", cmd=sh("kubectl get pods -n monitoring | head -5"), labels=["Observability"], links=["https://prometheus.localhost"])
 
 k8s_yaml(kustomize("./helm/loki/"), allow_duplicates=True)
-local_resource("loki", cmd="kubectl get pods -n logging | head -5", labels=["Observability"])
+local_resource("loki", cmd=sh("kubectl get pods -n logging | head -5"), labels=["Observability"])
 
 k8s_yaml(kustomize("./helm/tempo/"), allow_duplicates=True)
-local_resource("tempo", cmd="kubectl get pods -n tracing | head -5", labels=["Observability"])
+local_resource("tempo", cmd=sh("kubectl get pods -n tracing | head -5"), labels=["Observability"])
 
 ###############################################################################
 # CROSSPLANE PLATFORM
@@ -624,7 +640,7 @@ k8s_yaml(kustomize("./helm/crossplane/"), allow_duplicates=True)
 # Wait for Crossplane to be fully ready (HelmRelease + Pods + Webhooks)
 local_resource(
     "crossplane-core-ready",
-    cmd="""
+    cmd=sh("""
         echo "Applying Crossplane manifests..."
         kubectl apply -k ./helm/crossplane/ 2>&1
         
@@ -670,21 +686,21 @@ local_resource(
         kubectl get pods -n crossplane-system 2>/dev/null
         kubectl describe pods -n crossplane-system -l app=crossplane 2>/dev/null | tail -20
         exit 1
-    """,
+    """),
     labels=["Platform"],
     resource_deps=["helm-repositories"]
 )
 
 local_resource(
     "crossplane-providers",
-    cmd="kubectl apply -f ./helm/crossplane/providers/providers.yaml && echo '✓ Providers applied'",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/providers.yaml && echo '✓ Providers applied'"),
     labels=["Platform"],
     resource_deps=["crossplane-core-ready"]
 )
 
 local_resource(
     "crossplane-providers-ready",
-    cmd="""
+    cmd=sh("""
         echo "Waiting for providers..."
         for i in $(seq 1 120); do
             HELM_OK=$(kubectl get providers.pkg.crossplane.io provider-helm -o jsonpath='{.status.conditions[?(@.type=="Healthy")].status}' 2>/dev/null || echo "False")
@@ -709,28 +725,28 @@ local_resource(
             echo "Attempt $i/120: helm=$HELM_OK k8s=$K8S_OK"; sleep 3
         done
         exit 1
-    """,
+    """),
     labels=["Platform"],
     resource_deps=["crossplane-providers"]
 )
 
 local_resource(
     "crossplane-rbac",
-    cmd="kubectl apply -f ./helm/crossplane/providers/configs/rbac.yaml && echo '✓ RBAC applied'",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/rbac.yaml && echo '✓ RBAC applied'"),
     labels=["Platform"],
     resource_deps=["crossplane-providers-ready"]
 )
 
 local_resource(
     "crossplane-provider-configs",
-    cmd="kubectl apply -f ./helm/crossplane/providers/configs/provider-configs.yaml && echo '✓ ProviderConfigs applied'",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/provider-configs.yaml && echo '✓ ProviderConfigs applied'"),
     labels=["Platform"],
     resource_deps=["crossplane-rbac"]
 )
 
 local_resource(
     "crossplane-compositions",
-    cmd="kubectl apply -k ./helm/crossplane/compositions/ && echo '✓ Compositions applied'",
+    cmd=sh("kubectl apply -k ./helm/crossplane/compositions/ && echo '✓ Compositions applied'"),
     labels=["Platform"],
     resource_deps=["crossplane-provider-configs"]
 )
@@ -749,7 +765,7 @@ if enabled_crossplane:
     )
     local_resource(
         "crossplane-applications",
-        cmd=apply_cmds + " && echo '✓ DevApplications applied'",
+        cmd=sh(apply_cmds + " && echo '✓ DevApplications applied'"),
         labels=["Applications"],
         resource_deps=["crossplane-compositions"]
     )
@@ -758,7 +774,7 @@ if enabled_crossplane:
     for app in enabled_crossplane:
         local_resource(
             "{}-app".format(app),
-            serve_cmd="""
+            serve_cmd=sh("""
                 echo "Waiting for {} pods..."
                 while true; do
                     POD=$(kubectl get pods -n {} -l app.kubernetes.io/name={} -o jsonpath='{{.items[0].metadata.name}}' 2>/dev/null)
@@ -769,7 +785,7 @@ if enabled_crossplane:
                         sleep 5
                     fi
                 done
-            """.format(app, app, app, app),
+            """.format(app, app, app, app)),
             labels=["Applications"],
             links=["https://{}.localhost".format(app)],
             resource_deps=["crossplane-applications"],
@@ -825,7 +841,7 @@ for app, enabled in CONFIG["flux_apps"].items():
         if app == "kyverno":
             local_resource(
                 app,
-                cmd="""
+                cmd=sh("""
                     echo "Waiting for Kyverno HelmRelease to be ready..."
                     for i in $(seq 1 150); do
                         if kubectl get crd clusterpolicies.kyverno.io >/dev/null 2>&1; then
@@ -839,7 +855,7 @@ for app, enabled in CONFIG["flux_apps"].items():
                         echo "  Attempt $i/150..."; sleep 2
                     done
                     echo "Timeout waiting for Kyverno"; exit 1
-                """,
+                """),
                 labels=[label],
                 links=["https://{}.localhost".format(app)],
                 resource_deps=["helm-repositories"]
@@ -847,19 +863,19 @@ for app, enabled in CONFIG["flux_apps"].items():
             # Apply policies after kyverno is ready
             local_resource(
                 "kyverno-policies",
-                cmd="""
+                cmd=sh("""
                     echo "Applying Kyverno policies..."
                     kubectl apply -k ./helm/kyverno-policies/
                     echo "✓ Policies applied"
                     kubectl get clusterpolicy | head -5
-                """,
+                """),
                 labels=["Security"],
                 resource_deps=[app]
             )
         else:
             local_resource(
                 "{}-status".format(app),
-                cmd="kubectl get pods -n {} | head -5".format(ns),
+                cmd=sh("kubectl get pods -n {} | head -5".format(ns)),
                 labels=[label],
                 links=["https://{}.localhost".format(app)],
                 resource_deps=["helm-repositories"]
@@ -945,7 +961,7 @@ if CONFIG["raw_apps"].get("mssql"):
     # Create namespace first (handle stuck Terminating state)
     local_resource(
         "mssql-ns",
-        cmd="""
+        cmd=sh("""
             NS_PHASE=$(kubectl get ns mssql -o jsonpath='{.status.phase}' 2>/dev/null || echo '')
             if [ "$NS_PHASE" = "Terminating" ]; then
                 echo 'Namespace mssql is Terminating, clearing finalizers...'
@@ -953,14 +969,14 @@ if CONFIG["raw_apps"].get("mssql"):
                 for i in $(seq 1 30); do kubectl get ns mssql >/dev/null 2>&1 || break; sleep 1; done
             fi
             kubectl create namespace mssql --dry-run=client -o yaml | kubectl apply -f -
-        """,
+        """),
         labels=["Databases"],
     )
     
     # Deploy MSSQL using local helm chart
     local_resource(
         "mssql",
-        cmd="helm upgrade --install mssql ./helm/mssql -n mssql --wait --timeout=5m && kubectl get pods -n mssql",
+        cmd=sh("helm upgrade --install mssql ./helm/mssql -n mssql --wait --timeout=5m && kubectl get pods -n mssql"),
         labels=["Databases"],
         resource_deps=["mssql-ns"],
         links=["https://mssql.localhost"],
@@ -980,7 +996,7 @@ for app, enabled in CONFIG["raw_apps"].items():
         if ns:
             local_resource(
                 "{}-ns".format(app),
-                cmd="""
+                cmd=sh("""
                     NS_PHASE=$(kubectl get ns {ns} -o jsonpath='{{.status.phase}}' 2>/dev/null || echo '')
                     if [ "$NS_PHASE" = "Terminating" ]; then
                         echo 'Namespace {ns} is Terminating, clearing finalizers...'
@@ -992,7 +1008,7 @@ for app, enabled in CONFIG["raw_apps"].items():
                         done
                     fi
                     kubectl create namespace {ns} --dry-run=client -o yaml | kubectl apply -f -
-                """.format(ns=ns),
+                """.format(ns=ns)),
                 labels=[label],
             )
         
@@ -1004,14 +1020,14 @@ for app, enabled in CONFIG["raw_apps"].items():
             # Install the KubeVirt operator from official release
             local_resource(
                 "kubevirt-operator",
-                cmd="kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/kubevirt-operator.yaml",
+                cmd=sh("kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/v1.3.1/kubevirt-operator.yaml"),
                 labels=[label],
                 resource_deps=["kubevirt-ns"],
             )
             # Apply CR after operator is ready
             local_resource(
                 "kubevirt-cr",
-                cmd="kubectl wait --for=condition=Available deployment/virt-operator -n kubevirt --timeout=180s && kubectl apply -f ./helm/kubevirt/kubevirt-cr.yaml",
+                cmd=sh("kubectl wait --for=condition=Available deployment/virt-operator -n kubevirt --timeout=180s && kubectl apply -f ./helm/kubevirt/kubevirt-cr.yaml"),
                 labels=[label],
                 resource_deps=["kubevirt-operator"],
             )
@@ -1039,7 +1055,7 @@ if CONFIG["crossplane_apps"].get("harbor"):
     # Apply Harbor XRD for project management
     local_resource(
         "harbor-xrd",
-        cmd="kubectl apply -k ./helm/crossplane/compositions/harbor/ 2>/dev/null || echo 'Harbor XRD not ready yet'",
+        cmd=sh("kubectl apply -k ./helm/crossplane/compositions/harbor/ 2>/dev/null || echo 'Harbor XRD not ready yet'"),
         labels=["App-Resources"],
         resource_deps=["crossplane-compositions"]
     )
@@ -1047,7 +1063,7 @@ if CONFIG["crossplane_apps"].get("harbor"):
     # Apply Harbor projects
     local_resource(
         "harbor-resources",
-        cmd="kubectl apply -k ./apps/harbor-resources/ 2>/dev/null || echo 'Waiting for Harbor XRD...'",
+        cmd=sh("kubectl apply -k ./apps/harbor-resources/ 2>/dev/null || echo 'Waiting for Harbor XRD...'"),
         labels=["App-Resources"],
         resource_deps=["harbor-app", "harbor-xrd"]
     )
