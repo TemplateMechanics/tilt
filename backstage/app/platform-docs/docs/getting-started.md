@@ -6,10 +6,13 @@
 |------|---------|--------------|
 | Docker Desktop | Latest | [docs.docker.com](https://docs.docker.com/get-docker/) |
 | Kubernetes | 1.25+ | Enable in Docker Desktop |
+| Git | Latest | [git-scm.com](https://git-scm.com/) (**required on Windows** — provides Git Bash) |
 | Tilt | 0.33+ | [docs.tilt.dev](https://docs.tilt.dev/install.html) |
 | Helm | 3.12+ | [helm.sh](https://helm.sh/docs/intro/install/) |
-| Flux CLI | 2.0+ | [fluxcd.io](https://fluxcd.io/docs/installation/) |
+| Flux CLI | 2.0+ | Auto-installed by Tilt (or [fluxcd.io](https://fluxcd.io/docs/installation/)) |
 | kubectl | 1.25+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+
+> **Windows users**: See the [Windows Setup](windows.md) guide for detailed instructions, including Chocolatey-based installation and WSL conflict resolution.
 
 ## Starting the Environment
 

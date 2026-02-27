@@ -12,6 +12,7 @@ nav:
   - Configuration: configuration.md
   - Service Catalog: service-catalog.md
   - Guides:
+      - Windows Setup: windows.md
       - Crossplane Integration: crossplane.md
       - GCP Emulators: gcp-emulators.md
       - KubeVirt: kubevirt.md
