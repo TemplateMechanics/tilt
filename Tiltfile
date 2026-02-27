@@ -669,6 +669,29 @@ local_resource(
 k8s_yaml(kustomize("./helm/prometheus/"), allow_duplicates=True)
 local_resource("prometheus", cmd=sh("kubectl get pods -n monitoring | head -5"), labels=["Observability"], links=["https://prometheus.localhost"])
 
+# Apply ServiceMonitors/PodMonitors after Prometheus Operator CRDs are available
+local_resource(
+    "prometheus-monitors",
+    cmd=sh("""
+        echo "Waiting for Prometheus Operator CRDs..."
+        for i in $(seq 1 60); do
+            if kubectl get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1 && \
+               kubectl get crd podmonitors.monitoring.coreos.com >/dev/null 2>&1; then
+                echo "CRDs ready — applying monitors..."
+                kubectl apply -k ./helm/prometheus/servicemonitors/ 2>&1
+                kubectl apply -k ./helm/prometheus/podmonitors/ 2>&1
+                echo "ServiceMonitors and PodMonitors applied."
+                exit 0
+            fi
+            echo "  Attempt $i/60 — CRDs not yet available..."
+            sleep 5
+        done
+        echo "Timeout waiting for Prometheus Operator CRDs"; exit 1
+    """),
+    labels=["Observability"],
+    resource_deps=["prometheus"]
+)
+
 k8s_yaml(kustomize("./helm/loki/"), allow_duplicates=True)
 local_resource("loki", cmd=sh("kubectl get pods -n logging | head -5"), labels=["Observability"])
 
