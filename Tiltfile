@@ -572,7 +572,25 @@ local_resource(
 local_resource(
     "flux-install",
     cmd=sh("""
-        flux check --pre && flux install || echo 'Flux already installed'
+        # Check if Flux CLI is available; install it if not
+        if ! command -v flux >/dev/null 2>&1; then
+            echo "Flux CLI not found — installing..."
+            if command -v brew >/dev/null 2>&1; then
+                brew install fluxcd/tap/flux
+            elif command -v choco >/dev/null 2>&1; then
+                choco install flux -y
+            elif command -v curl >/dev/null 2>&1; then
+                curl -s https://fluxcd.io/install.sh | bash
+            else
+                echo "ERROR: Cannot install Flux CLI. Install it manually:"
+                echo "  https://fluxcd.io/flux/installation/#install-the-flux-cli"
+                exit 1
+            fi
+        fi
+
+        echo "Installing / upgrading Flux on cluster..."
+        flux install
+
         echo "Waiting for all Flux controllers to be ready..."
         kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
         kubectl -n flux-system wait --for=condition=available deployment/helm-controller --timeout=120s
