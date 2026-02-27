@@ -110,6 +110,46 @@ The script automatically resets `index.txt` before signing. If it persists:
 echo -n > certificates/intermediateCA/index.txt
 ```
 
+## Windows Issues
+
+### `'EXPECTED' is not recognized as an internal or external command`
+
+Tilt is running commands through `cmd.exe` instead of bash. This means the `sh()` wrapper isn't being used. Ensure you're on the latest version of the Tiltfile.
+
+### `execvpe(/bin/bash) failed: No such file or directory`
+
+WSL's `/bin/bash` is being found on PATH instead of Git Bash. The Tiltfile handles this automatically by locating Git Bash via `git --exec-path`. Verify Git for Windows is installed:
+
+```powershell
+git --version
+git --exec-path
+```
+
+The second command should return something like `C:/Program Files/Git/mingw64/libexec/git-core`.
+
+### Flux CLI not found on Windows
+
+The `flux-install` resource auto-installs the Flux CLI. On Windows, it prefers Chocolatey:
+
+```powershell
+# Install Chocolatey if not already available
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Or install Flux manually
+choco install flux -y
+```
+
+### Certificate trust fails
+
+Run the following in an **elevated** (Administrator) command prompt:
+
+```cmd
+certutil -addstore -f "Root" certificates\rootCA\certs\ca.cert.pem
+```
+
+See the [Windows Setup](windows.md) guide for full details.
+
 ## Tilt Dashboard
 
 The Tilt web UI at [localhost:10350](http://localhost:10350) shows all resources, build history, and logs.
