@@ -23,15 +23,39 @@ load("ext://namespace", "namespace_yaml")
 # which doesn't understand bash syntax ($(…), for-loops, grep, awk, etc.).
 # Wrapping every command with sh() forces execution through bash (Git Bash
 # on Windows, /bin/bash everywhere else), making the Tiltfile portable.
+#
+# IMPORTANT: On Windows, 'bash' on PATH may resolve to WSL's /bin/bash
+# which can be broken. We detect Windows first (using raw local() through
+# cmd.exe), then locate Git for Windows' bash.exe explicitly.
 ###############################################################################
+
+# Detect platform BEFORE defining sh(). Raw local() uses cmd.exe on Windows
+# and /bin/sh on Unix. 'echo %OS%' outputs 'Windows_NT' on cmd.exe and
+# the literal '%OS%' on Unix shells — no bash needed.
+_os_probe = str(local('echo %OS%', quiet=True)).strip()
+_IS_WINDOWS = 'Windows' in _os_probe
+
+if _IS_WINDOWS:
+    # Find Git for Windows bash (avoids WSL conflict).
+    # 'git --exec-path' returns e.g. C:/Program Files/Git/mingw64/libexec/git-core
+    _git_exec = str(local('git --exec-path', quiet=True)).strip().replace('\\', '/')
+    _mingw_idx = _git_exec.find('/mingw')
+    if _mingw_idx > 0:
+        _BASH = _git_exec[:_mingw_idx] + '/bin/bash.exe'
+    else:
+        # Fallback: standard Git for Windows install path
+        _BASH = 'C:/Program Files/Git/bin/bash.exe'
+    print('Windows detected — using Git Bash: ' + _BASH)
+else:
+    _BASH = 'bash'
 
 def sh(script):
     """Wrap a bash script so it runs through bash on ALL platforms (including Windows).
     
-    Returns a list ['bash', '-c', script] which Tilt executes directly,
+    Returns a list [bash_path, '-c', script] which Tilt executes directly,
     bypassing cmd.exe on Windows.
     """
-    return ['bash', '-c', script]
+    return [_BASH, '-c', script]
 
 ###############################################################################
 # CONFIGURATION (loaded from tilt-config.json)
@@ -411,11 +435,13 @@ if disabled_namespaces or disabled_crossplane_apps:
 ###############################################################################
 
 def get_os_type():
-    """Detect OS type for platform-specific commands"""
-    uname_result = str(local(sh("uname -s 2>/dev/null || echo Windows"), quiet=True)).strip()
-    if "MINGW" in uname_result or "MSYS" in uname_result or "CYGWIN" in uname_result or "Windows" in uname_result:
+    """Detect OS type for platform-specific commands.
+    Uses _IS_WINDOWS from the early platform detection, plus uname for macOS/Linux.
+    """
+    if _IS_WINDOWS:
         return "windows"
-    elif "Darwin" in uname_result:
+    uname_result = str(local(sh("uname -s"), quiet=True)).strip()
+    if "Darwin" in uname_result:
         return "macos"
     elif "Linux" in uname_result:
         return "linux"
