@@ -13,6 +13,8 @@ spec:
         kind: HelmRepository
         name: prometheus-community
         namespace: flux-system
+  upgrade:
+    cleanupOnFail: true
   values:
     # =========================================================================
     # Node Exporter — disabled on Docker Desktop (incompatible with macOS)
