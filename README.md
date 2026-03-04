@@ -133,7 +133,7 @@ Service configuration is stored in `tilt-config.json` at the project root. Each 
 ```
 
 You can edit this file directly, or toggle services through:
-- **Backstage UI** — Infrastructure Dashboard at https://backstage.localhost/infra
+- **Backstage UI** — Infrastructure Dashboard at https://backstage.localhost/infrastructure
 - **Config API** — `curl -X PATCH http://tilt-config.localhost/config -H 'Content-Type: application/json' -d '{"raw_apps":{"redis":{"enabled":true}}}'`
 - **Manual edit** — Edit `tilt-config.json`; Tilt auto-reloads via `watch_file()`
 
