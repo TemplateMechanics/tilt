@@ -1,17 +1,17 @@
 {%- if values.deploymentType == 'crossplane-app' %}
-apiVersion: devplatform.local/v1alpha1
+apiVersion: devplatform.systechs.io/v1alpha1
 kind: DevApplication
 metadata:
   name: ${{ values.name }}
   namespace: crossplane-system
 spec:
-  appName: ${{ values.name }}
-  namespace: ${{ values.namespace }}
+  name: ${{ values.name }}
+  domain: ${{ values.name }}.localhost
   {%- if values.helmChart %}
-  helm:
-    chart: ${{ values.helmChart }}
-    version: "${{ values.helmVersion }}"
-    values: |
-      # Add your Helm values here
+  chart:
+    repository: ${{ values.helmRepo | default(values.name) }}
+    name: ${{ values.helmChart }}
+    version: "${{ values.helmVersion | default('*') }}"
+    values: {}
   {%- endif %}
 {%- endif %}

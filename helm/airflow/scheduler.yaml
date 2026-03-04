@@ -29,8 +29,8 @@ spec:
               key: AIRFLOW__CORE__SQL_ALCHEMY_CONN
       - name: create-admin
         image: apache/airflow:2.9.0
-        command: ["airflow"]
-        args: ["users", "create", "--username", "admin", "--password", "admin", "--firstname", "Admin", "--lastname", "User", "--role", "Admin", "--email", "admin@example.com"]
+        command: ["bash", "-c"]
+        args: ["airflow users list | grep -w 'admin' || airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com"]
         env:
         - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
           valueFrom:

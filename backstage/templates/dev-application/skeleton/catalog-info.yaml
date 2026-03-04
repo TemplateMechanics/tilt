@@ -5,7 +5,7 @@ metadata:
   description: ${{ values.description }}
   annotations:
     backstage.io/techdocs-ref: dir:.
-    tilt.dev/resource-name: ${{ values.name }}
+    tilt.dev/resource: ${{ values.name }}
   labels:
     app.kubernetes.io/name: ${{ values.name }}
   links:

@@ -18,7 +18,7 @@ spec:
       custom-rules.yaml: |
         - rule: Drop and execute new binary in container
           desc: >
-            (Overwridden to filter out azure ama-logs container)
+            (Overridden to filter out azure ama-logs container)
           condition: >
             spawned_process
             and container
@@ -34,7 +34,7 @@ spec:
         
         - rule: Contact K8S API Server From Container
           desc: >
-            (Overwridden to filter out azure ama-logs container)
+            (Overridden to filter out azure ama-logs container)
           condition: >
             evt.type=connect 
             and (fd.typechar=4 or fd.typechar=6) 
