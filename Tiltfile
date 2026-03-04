@@ -528,7 +528,38 @@ local_resource(
 )
 
 k8s_yaml(kustomize("./helm/prometheus/"), allow_duplicates=True)
-local_resource("prometheus", cmd=sh("kubectl get pods -n monitoring | head -5"), labels=["Observability"], links=["https://prometheus.localhost"])
+local_resource(
+    "prometheus",
+    cmd=sh("""
+        echo "Applying Prometheus manifests..."
+        kubectl apply -k ./helm/prometheus/ 2>&1
+
+        echo "Waiting for Prometheus HelmRelease to be ready..."
+        echo "(This can take 3-5 minutes on cold start)"
+        for i in $(seq 1 90); do
+            if kubectl get helmrelease prometheus -n monitoring >/dev/null 2>&1; then
+                STATUS=$(kubectl get helmrelease prometheus -n monitoring -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                if [ "$STATUS" = "True" ]; then
+                    echo "✓ Prometheus HelmRelease ready"
+                    kubectl get pods -n monitoring | head -10
+                    exit 0
+                fi
+                MSG=$(kubectl get helmrelease prometheus -n monitoring -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
+                echo "  Attempt $i/90 (status: ${STATUS:-pending}, msg: ${MSG:-n/a})..."
+            else
+                echo "  Attempt $i/90 (waiting for HelmRelease)..."
+            fi
+            sleep 5
+        done
+        echo "Timeout waiting for Prometheus HelmRelease"
+        kubectl get helmrelease -n monitoring -o yaml 2>/dev/null | tail -30
+        kubectl get pods -n monitoring 2>/dev/null
+        exit 1
+    """),
+    labels=["Observability"],
+    links=["https://prometheus.localhost"],
+    resource_deps=["helm-repositories"],
+)
 
 # Apply ServiceMonitors/PodMonitors after Prometheus Operator CRDs are available
 local_resource(

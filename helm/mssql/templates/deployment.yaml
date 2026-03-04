@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "mssql-latest.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicas}}
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       {{- include "mssql-latest.selectorLabels" . | nindent 6 }}
