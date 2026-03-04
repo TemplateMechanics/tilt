@@ -71,6 +71,10 @@ export const TiltPage = () => {
     retry();
   };
 
+  const totalResources = resources?.length || 0;
+  const runningCount = resources?.filter(r => r.runtimeStatus === 'ok').length || 0;
+  const errorCount = resources?.filter(r => r.runtimeStatus === 'error').length || 0;
+
   const columns: TableColumn<TiltResource>[] = [
     {
       title: 'Name',
@@ -147,7 +151,9 @@ export const TiltPage = () => {
   return (
     <Page themeId="tool">
       <Header title="Tilt Resources" subtitle="Local Development Environment">
-        <HeaderLabel label="Status" value={loading ? 'Loading...' : `${resources?.length || 0} resources`} />
+        <HeaderLabel label="Running" value={loading ? '...' : `${runningCount} / ${totalResources}`} />
+        {errorCount > 0 && <HeaderLabel label="Errors" value={`${errorCount}`} />}
+        <HeaderLabel label="Total" value={loading ? 'Loading...' : `${totalResources} resources`} />
       </Header>
       <Content>
         <ContentHeader title="Resources">
