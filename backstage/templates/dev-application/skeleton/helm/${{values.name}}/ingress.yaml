@@ -1,4 +1,4 @@
-{%- if values.ingress and values.port %}
+{%- if values.createIngress and values.port %}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
