@@ -460,9 +460,10 @@ local_resource(
         echo "✓ All Flux controllers ready"
 
         # Detect available Flux API versions and patch YAMLs to match
+        # Prefer GA versions (v2, v1) over beta (v2beta2, v1beta2) — sort by length so shorter (GA) wins
         echo "Detecting Flux API versions..."
-        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | sort -rV | head -1)
-        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | sort -rV | head -1)
+        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
+        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
         echo "  HelmRelease API: $HR_API"
         echo "  HelmRepository API: $SR_API"
 
