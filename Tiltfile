@@ -424,9 +424,8 @@ local_resource(
 
 local_resource(
     "dev-certificate-install",
-    cmd=sh("cd {} && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path)),
+    cmd=sh("cd {} && kubectl create namespace traefik --dry-run=client -o yaml | kubectl apply -f - && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path)),
     labels=["Infrastructure"],
-    resource_deps=["dev-certificate-trust"]
 )
 
 # Flux GitOps

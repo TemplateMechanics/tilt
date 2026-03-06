@@ -18,5 +18,5 @@ resources:
   # - statefulset.yaml
   # - service.yaml
   
-  # Ingress (works with both approaches)
+  # Ingress & Service (works with both approaches — KubeVirt service is in virtualmachine.yaml)
   - ingress.yaml

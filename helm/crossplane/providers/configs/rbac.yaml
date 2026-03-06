@@ -35,6 +35,8 @@ spec:
 ---
 # Fallback: Grant all SAs in crossplane-system namespace cluster-admin
 # This is a broader approach but works reliably for dev environments
+# TODO (production): Remove this fallback and bind cluster-admin only to specific
+# Crossplane/provider controller ServiceAccounts before deploying to production.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
