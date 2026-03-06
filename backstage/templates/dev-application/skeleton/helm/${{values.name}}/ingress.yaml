@@ -26,5 +26,5 @@ spec:
   tls:
     - hosts:
         - ${{ values.name }}.localhost
-      secretName: wildcard-localhost-tls
+      secretName: wildcard-tls-dev
 {%- endif %}

@@ -9,6 +9,9 @@ resources:
   - helm-repo.yaml
 {%- else %}
   - deployment.yaml
+{%-   if values.port %}
+  - service.yaml
+{%-   endif %}
 {%- endif %}
 {%- if values.createIngress %}
   - ingress.yaml

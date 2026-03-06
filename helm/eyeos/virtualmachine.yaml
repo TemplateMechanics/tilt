@@ -120,11 +120,11 @@ spec:
             claimName: eyeos-system-disk
 
 ---
-# Service for VNC access
+# Service for VNC access (named 'eyeos' to match the Ingress backend)
 apiVersion: v1
 kind: Service
 metadata:
-  name: eyeos-vnc
+  name: eyeos
   namespace: eyeos
 spec:
   type: ClusterIP
