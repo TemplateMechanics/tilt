@@ -1,0 +1,19 @@
+apiVersion: keda.sh/v1alpha1
+kind: ClusterTriggerAuthentication
+metadata:
+  name: keda-trigger-auth-azure-storage-account
+spec:
+  secretTargetRef:
+    - parameter: connection
+      name: storage-connect-string
+      key: credential
+---
+apiVersion: keda.sh/v1alpha1
+kind: ClusterTriggerAuthentication
+metadata:
+  name: keda-trigger-auth-azure-storage-account-sftp-cust
+spec:
+  secretTargetRef:
+    - parameter: connection
+      name: storage-connect-string-sftp-cust
+      key: credential

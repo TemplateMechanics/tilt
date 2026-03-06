@@ -1,0 +1,204 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-argocd
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "CI/CD"
+data:
+  argocd.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Argo CD GitOps Dashboard",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "Application Health Status",
+          "type": "piechart",
+          "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum by (health_status) (argocd_app_info)",
+              "legendFormat": "{{ health_status }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+        },
+        {
+          "title": "Application Sync Status",
+          "type": "piechart",
+          "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum by (sync_status) (argocd_app_info)",
+              "legendFormat": "{{ sync_status }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+        },
+        {
+          "title": "Total Applications",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+          "targets": [
+            { "expr": "count(argocd_app_info)", "legendFormat": "Apps" }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } }
+        },
+        {
+          "title": "Healthy Applications",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+          "targets": [
+            { "expr": "count(argocd_app_info{health_status=\"Healthy\"})", "legendFormat": "Healthy" }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+        },
+        {
+          "title": "Degraded Applications",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+          "targets": [
+            { "expr": "count(argocd_app_info{health_status=\"Degraded\"})", "legendFormat": "Degraded" }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }] } } }
+        },
+        {
+          "title": "Synced Applications",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 12, "y": 4 },
+          "targets": [
+            { "expr": "count(argocd_app_info{sync_status=\"Synced\"})", "legendFormat": "Synced" }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+        },
+        {
+          "title": "OutOfSync Applications",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 4, "x": 16, "y": 4 },
+          "targets": [
+            { "expr": "count(argocd_app_info{sync_status=\"OutOfSync\"})", "legendFormat": "OutOfSync" }
+          ],
+          "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "orange", "value": null }] } } }
+        },
+        {
+          "title": "Sync Operations Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_app_sync_total[5m])) by (phase)",
+              "legendFormat": "{{ phase }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20 } } }
+        },
+        {
+          "title": "Reconciliation Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_app_reconcile_count[5m])) by (namespace)",
+              "legendFormat": "{{ namespace }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20 } } }
+        },
+        {
+          "title": "Reconciliation Duration (p99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(argocd_app_reconcile_bucket[5m])) by (le))",
+              "legendFormat": "p99"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(argocd_app_reconcile_bucket[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(argocd_app_reconcile_bucket[5m])) by (le))",
+              "legendFormat": "p50"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } } }
+        },
+        {
+          "title": "Git Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_git_request_total[5m])) by (request_type)",
+              "legendFormat": "{{ request_type }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 50 } } }
+        },
+        {
+          "title": "Controller Workqueue Depth",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "targets": [
+            {
+              "expr": "argocd_kubectl_exec_pending{namespace=\"argocd\"}",
+              "legendFormat": "Pending kubectl exec"
+            },
+            {
+              "expr": "workqueue_depth{namespace=\"argocd\"}",
+              "legendFormat": "{{ name }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } } }
+        },
+        {
+          "title": "API Server Request Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "targets": [
+            {
+              "expr": "sum(rate(grpc_server_handled_total{grpc_service=~\".*ArgoCD.*\"}[5m])) by (grpc_method)",
+              "legendFormat": "{{ grpc_method }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 10 } } }
+        },
+        {
+          "title": "Repo Server Cache Hit Rate",
+          "type": "gauge",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 32 },
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_redis_request_total{failed=\"false\"}[5m])) / sum(rate(argocd_redis_request_total[5m])) * 100",
+              "legendFormat": "Cache Hit %"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 80 }] } } }
+        },
+        {
+          "title": "Cluster API Call Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 16, "x": 8, "y": 32 },
+          "targets": [
+            {
+              "expr": "sum(rate(argocd_cluster_api_resource_actions[5m])) by (action)",
+              "legendFormat": "{{ action }}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 40 } } }
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["argocd", "gitops", "ci-cd"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "title": "Argo CD",
+      "uid": "argocd-overview"
+    }

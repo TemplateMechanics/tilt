@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eyeos
+  namespace: eyeos
+spec:
+  serviceName: eyeos
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eyeos
+  template:
+    metadata:
+      labels:
+        app: eyeos
+    spec:
+      # WARNING: Requires privileged access for KVM
+      hostNetwork: true
+      
+      # Optional: Pin to specific node with KVM
+      # nodeSelector:
+      #   kubernetes.io/hostname: your-node-name
+      
+      containers:
+      - name: eyeos
+        # Docker-eyeOS - Run iOS/iPadOS
+        # Available tags: latest, ios17, ios16, ipad
+        image: sickcodes/docker-eyeos:latest
+        
+        # Security context - REQUIRED for KVM
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - ALL
+        
+        # Environment variables
+        env:
+        # iOS/iPadOS version
+        - name: VERSION
+          value: "17"
+        
+        # Device type: iphone, ipad
+        - name: DEVICE_TYPE
+          value: "iphone"
+        
+        # Device model
+        - name: DEVICE_MODEL
+          value: "iPhone15,2"  # iPhone 14 Pro
+        
+        # RAM allocation (in GB)
+        - name: RAM
+          value: "4"
+        
+        # CPU cores
+        - name: CORES
+          value: "4"
+        
+        # Display resolution
+        - name: WIDTH
+          value: "1170"
+        - name: HEIGHT
+          value: "2532"
+        
+        # VNC settings
+        - name: VNC_PASSWORD
+          value: "changeme"
+        
+        # Enable SSH
+        - name: SSH_ENABLED
+          value: "true"
+        
+        # SSH password
+        - name: SSH_PASSWORD
+          value: "alpine"
+        
+        # Enable audio
+        - name: AUDIO_ENABLED
+          value: "true"
+        
+        # Jailbreak support (for advanced testing)
+        - name: JAILBREAK
+          value: "false"
+        
+        # Ports
+        ports:
+        # VNC
+        - containerPort: 5900
+          name: vnc
+          protocol: TCP
+        
+        # noVNC web interface
+        - containerPort: 6080
+          name: web-vnc
+          protocol: TCP
+        
+        # SSH
+        - containerPort: 2222
+          name: ssh
+          protocol: TCP
+        
+        # WebDAV (file transfer)
+        - containerPort: 8080
+          name: webdav
+          protocol: TCP
+        
+        # iOS debugging port
+        - containerPort: 9221
+          name: ios-debug
+          protocol: TCP
+        
+        # Resources
+        resources:
+          requests:
+            cpu: "4000m"
+            memory: "4Gi"
+          limits:
+            cpu: "8000m"
+            memory: "8Gi"
+        
+        # Volume mounts
+        volumeMounts:
+        - name: eyeos-disk
+          mountPath: /home/user/disk.img
+          subPath: disk.img
+        
+        # Shared storage for apps/data
+        - name: eyeos-disk
+          mountPath: /home/user/shared
+          subPath: shared
+        
+        # KVM device
+        - name: dev-kvm
+          mountPath: /dev/kvm
+        
+        # Startup probe - iOS takes time to boot
+        startupProbe:
+          tcpSocket:
+            port: 5900
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          failureThreshold: 40
+          successThreshold: 1
+        
+        # Liveness probe
+        livenessProbe:
+          tcpSocket:
+            port: 5900
+          periodSeconds: 30
+          failureThreshold: 3
+        
+      volumes:
+      - name: eyeos-disk
+        persistentVolumeClaim:
+          claimName: eyeos-disk
+      
+      # KVM device
+      - name: dev-kvm
+        hostPath:
+          path: /dev/kvm
+          type: CharDevice

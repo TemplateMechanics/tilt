@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azurite
+  namespace: azurite
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azurite
+  template:
+    metadata:
+      labels:
+        app: azurite
+    spec:
+      containers:
+        - name: azurite
+          image: mcr.microsoft.com/azure-storage/azurite:latest
+          ports:
+            - containerPort: 10000
+              name: blob
+            - containerPort: 10001
+              name: queue
+            - containerPort: 10002
+              name: table
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: azurite-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azurite
+  namespace: azurite
+spec:
+  selector:
+    app: azurite
+  ports:
+    - name: blob
+      port: 10000
+      targetPort: 10000
+    - name: queue
+      port: 10001
+      targetPort: 10001
+    - name: table
+      port: 10002
+      targetPort: 10002
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: azurite-setup-velero
+  namespace: azurite
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: azure-cli
+          image: mcr.microsoft.com/azure-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Wait for Azurite to be ready
+              echo "Waiting for Azurite to be ready..."
+              until curl -s http://azurite:10000/devstoreaccount1?restype=account > /dev/null 2>&1; do
+                echo "Azurite not ready yet, waiting..."
+                sleep 2
+              done
+              echo "Azurite is ready!"
+              
+              # Create the velero container
+              echo "Creating velero container..."
+              az storage container create \
+                --name velero \
+                --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+              
+              echo "Velero container created successfully!"

@@ -1,0 +1,45 @@
+---
+apiVersion: devplatform.systechs.io/v1alpha1
+kind: DevApplication
+metadata:
+  name: qdrant
+spec:
+  name: qdrant
+  domain: qdrant.localhost
+  chart:
+    name: qdrant
+    version: ">=0.8.0"
+    repository: qdrant
+    values:
+      # Single replica for local dev
+      replicaCount: 1
+      # Persistent storage for vectors
+      persistence:
+        enabled: true
+        size: 10Gi
+        storageClass: ""
+        accessModes:
+          - ReadWriteOnce
+      # Service configuration
+      service:
+        type: ClusterIP
+        port: 6333
+        grpcPort: 6334
+      # Disable built-in ingress (Crossplane creates IngressRoute)
+      ingress:
+        enabled: false
+      # Resources (conservative for local dev)
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+      # Config
+      config:
+        cluster:
+          enabled: false
+  ingress:
+    enabled: true
+    servicePort: 6333

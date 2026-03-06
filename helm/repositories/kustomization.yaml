@@ -1,0 +1,36 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Core Platform
+  - crossplane.yaml
+  - grafana.yaml       # For loki, tempo, grafana
+  - jetstack.yaml      # For cert-manager
+  
+  # Crossplane-managed apps (via DevApplication XRD)
+  - jenkins.yaml
+  - harbor.yaml
+  - qdrant.yaml
+  - langfuse.yaml
+  - localstack.yaml
+  
+  # Flux-managed apps (external Helm charts)
+  - ollama.yaml
+  - keda.yaml
+  - kyverno.yaml
+  - policy-reporter.yaml
+  - falco.yaml
+  - aquasecurity.yaml
+  - velero.yaml
+  - 1password.yaml
+  
+  # CNCF projects
+  - open-telemetry.yaml
+  - nats.yaml
+  - dapr.yaml
+  - argoproj.yaml
+  - opencost.yaml
+  - bitnami.yaml
+  
+  # Note: The following now use raw manifests (official images, no Bitnami):
+  # mongodb, postgresql, redis, rabbitmq, keycloak, airflow, jupyterhub, wordpress

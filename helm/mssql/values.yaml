@@ -33,7 +33,9 @@ service:
   port: 1433
 
 pvc:
-  StorageClass: "hostpath"
+  # Leave empty to use the cluster's default StorageClass (works on any K8s distro).
+  # Override with "hostpath", "standard", "local-path", etc. if needed.
+  StorageClass: ""
   mssqldataaccessMode: ReadWriteOnce
   mssqldbsize: "2Gi"
   userdbaccessMode: ReadWriteOnce

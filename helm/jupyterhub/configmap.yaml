@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupyterhub-config
+  namespace: jupyterhub
+data:
+  jupyterhub_config.py: |
+    c.JupyterHub.authenticator_class = 'dummy'
+    c.DummyAuthenticator.password = "jupyter"
+    c.Authenticator.admin_users = {'admin'}
+    # Use simple spawner for dev (not KubeSpawner)
+    c.JupyterHub.spawner_class = 'simple'
+    c.JupyterHub.ip = '0.0.0.0'
+    c.JupyterHub.port = 8000

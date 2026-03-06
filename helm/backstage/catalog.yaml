@@ -1,0 +1,358 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-catalog
+  namespace: backstage
+data:
+  all.yaml: |
+    apiVersion: backstage.io/v1alpha1
+    kind: System
+    metadata:
+      name: dev-platform
+      description: Local Development Platform
+      annotations:
+        backstage.io/techdocs-ref: dir:.
+    spec:
+      owner: platform-team
+    ---
+    # ==========================================================================
+    # CI/CD Components
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: harbor
+      description: Container Registry - stores and distributes Docker images
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=harbor'
+        tilt.dev/resource: harbor-app
+      links:
+        - url: https://harbor.localhost
+          title: Harbor UI
+          icon: dashboard
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+      providesApis:
+        - harbor-api
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: API
+    metadata:
+      name: harbor-api
+      description: Harbor Container Registry API
+    spec:
+      type: openapi
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+      definition: |
+        openapi: 3.0.0
+        info:
+          title: Harbor API
+          version: 2.0
+        servers:
+          - url: https://harbor.localhost/api/v2.0
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: jenkins
+      description: CI/CD Automation Server
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=jenkins'
+        tilt.dev/resource: jenkins-app
+      links:
+        - url: https://jenkins.localhost
+          title: Jenkins UI
+          icon: dashboard
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    # ==========================================================================
+    # AI/ML Components
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: langfuse
+      description: LLM Observability & Analytics Platform
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=langfuse'
+        tilt.dev/resource: langfuse-app
+      links:
+        - url: https://langfuse.localhost
+          title: Langfuse UI
+          icon: dashboard
+    spec:
+      type: service
+      lifecycle: production
+      owner: ai-team
+      system: dev-platform
+      providesApis:
+        - langfuse-api
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: API
+    metadata:
+      name: langfuse-api
+      description: Langfuse Tracing API
+    spec:
+      type: openapi
+      lifecycle: production
+      owner: ai-team
+      system: dev-platform
+      definition: |
+        openapi: 3.0.0
+        info:
+          title: Langfuse API
+          version: 1.0
+        servers:
+          - url: https://langfuse.localhost/api
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: qdrant
+      description: Vector Database for AI/ML embeddings
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=qdrant'
+        tilt.dev/resource: qdrant-app
+      links:
+        - url: https://qdrant.localhost
+          title: Qdrant Dashboard
+          icon: dashboard
+    spec:
+      type: service
+      lifecycle: production
+      owner: ai-team
+      system: dev-platform
+      providesApis:
+        - qdrant-api
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: API
+    metadata:
+      name: qdrant-api
+      description: Qdrant Vector Database API
+    spec:
+      type: grpc
+      lifecycle: production
+      owner: ai-team
+      system: dev-platform
+      definition: |
+        // Qdrant gRPC API
+        service Qdrant {
+          rpc Search(SearchRequest) returns (SearchResponse);
+          rpc Upsert(UpsertRequest) returns (UpsertResponse);
+        }
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: ollama
+      description: Local LLM Runner
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=ollama'
+        tilt.dev/resource: ollama
+      links:
+        - url: https://ollama.localhost
+          title: Ollama API
+          icon: smart_toy
+    spec:
+      type: service
+      lifecycle: experimental
+      owner: ai-team
+      system: dev-platform
+    ---
+    # ==========================================================================
+    # Cloud Emulators
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: localstack
+      description: AWS Services Emulator (S3, SQS, DynamoDB, etc.)
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=localstack'
+        tilt.dev/resource: localstack-app
+      links:
+        - url: https://localstack.localhost
+          title: LocalStack Dashboard
+          icon: cloud
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+      providesApis:
+        - aws-s3-local
+        - aws-sqs-local
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: API
+    metadata:
+      name: aws-s3-local
+      description: LocalStack S3 API
+    spec:
+      type: openapi
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+      definition: |
+        openapi: 3.0.0
+        info:
+          title: LocalStack S3
+          version: 1.0
+        servers:
+          - url: http://localstack.localstack.svc:4566
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: API
+    metadata:
+      name: aws-sqs-local
+      description: LocalStack SQS API
+    spec:
+      type: openapi
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+      definition: |
+        openapi: 3.0.0
+        info:
+          title: LocalStack SQS
+          version: 1.0
+        servers:
+          - url: http://localstack.localstack.svc:4566
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: azurite
+      description: Azure Storage Emulator (Blob, Queue, Table)
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app=azurite'
+        tilt.dev/resource: azurite
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: gcp-emulators
+      description: GCP Emulators (Firestore, PubSub, BigTable)
+      annotations:
+        tilt.dev/resource: gcp-emulators-ns
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: mailhog
+      description: Email Testing SMTP Server
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app=mailhog'
+        tilt.dev/resource: mailhog
+      links:
+        - url: https://mailhog.localhost
+          title: MailHog UI
+          icon: email
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    # ==========================================================================
+    # Observability Stack
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: grafana
+      description: Monitoring Dashboards
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=grafana'
+        grafana/dashboard-selector: "general"
+      links:
+        - url: https://grafana.localhost
+          title: Grafana Dashboards
+          icon: dashboard
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: prometheus
+      description: Metrics Collection
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=prometheus'
+      links:
+        - url: https://prometheus.localhost
+          title: Prometheus UI
+          icon: trending_up
+    spec:
+      type: service
+      lifecycle: production
+      owner: platform-team
+      system: dev-platform
+    ---
+    # ==========================================================================
+    # Security
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Component
+    metadata:
+      name: kyverno
+      description: Kubernetes Policy Engine
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=kyverno'
+        tilt.dev/resource: kyverno
+    spec:
+      type: service
+      lifecycle: production
+      owner: security-team
+      system: dev-platform
+    ---
+    # ==========================================================================
+    # Infrastructure Resources
+    # ==========================================================================
+    apiVersion: backstage.io/v1alpha1
+    kind: Resource
+    metadata:
+      name: crossplane
+      description: Crossplane Control Plane for infrastructure provisioning
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app=crossplane'
+    spec:
+      type: kubernetes-cluster
+      owner: platform-team
+      system: dev-platform
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Resource
+    metadata:
+      name: traefik
+      description: Ingress Controller & Load Balancer
+      annotations:
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=traefik'
+    spec:
+      type: kubernetes-cluster
+      owner: platform-team
+      system: dev-platform

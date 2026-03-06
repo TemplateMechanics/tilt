@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: macos
+  namespace: macos
+spec:
+  selector:
+    app: macos
+  type: ClusterIP
+  ports:
+  - name: vnc
+    port: 5900
+    targetPort: 5900
+    protocol: TCP
+  - name: web-vnc
+    port: 5800
+    targetPort: 5800
+    protocol: TCP
+  - name: ssh
+    port: 10022
+    targetPort: 10022
+    protocol: TCP

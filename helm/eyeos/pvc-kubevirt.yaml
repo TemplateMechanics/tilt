@@ -1,0 +1,19 @@
+# PVC for iOS/iPadOS Virtual Machine
+# Provides persistent storage for the iOS installation
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eyeos-system-disk
+  namespace: eyeos
+  labels:
+    app: eyeos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # Use hostpath for local development
+  storageClassName: hostpath
+  resources:
+    requests:
+      # iOS needs less space than macOS (~64GB)
+      storage: 64Gi

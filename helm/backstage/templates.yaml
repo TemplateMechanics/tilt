@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-templates
+  namespace: backstage
+data:
+  dev-application.yaml: |
+    apiVersion: scaffolder.backstage.io/v1beta3
+    kind: Template
+    metadata:
+      name: dev-application
+      title: New Development Application
+      description: Scaffold a new application for local development with Crossplane and Tilt
+      tags:
+        - crossplane
+        - tilt
+        - kubernetes
+        - helm
+    spec:
+      owner: platform-team
+      type: service
+      
+      parameters:
+        - title: Application Details
+          required:
+            - name
+            - description
+            - owner
+          properties:
+            name:
+              title: Application Name
+              type: string
+              description: Unique name for the application (lowercase, no spaces)
+              pattern: '^[a-z][a-z0-9-]*$'
+              ui:autofocus: true
+            description:
+              title: Description
+              type: string
+              description: Brief description of the application
+            owner:
+              title: Owner
+              type: string
+              description: Team that owns this application
+              default: platform-team
+                
+        - title: Deployment Configuration
+          required:
+            - deploymentType
+          properties:
+            deploymentType:
+              title: Deployment Type
+              type: string
+              description: How should this application be deployed?
+              enum:
+                - crossplane-app
+                - flux-helm
+                - raw-manifest
+              enumNames:
+                - Crossplane DevApplication (with sub-resources)
+                - Flux HelmRelease (GitOps Helm)
+                - Raw Kubernetes Manifests
+              default: crossplane-app
+            helmChart:
+              title: Helm Chart (optional)
+              type: string
+              description: Name of the Helm chart to use (e.g., bitnami/postgresql)
+            helmVersion:
+              title: Helm Chart Version
+              type: string
+              description: Version of the Helm chart
+            helmRepo:
+              title: Helm Repository Name
+              type: string
+              description: Name for the HelmRepository resource (defaults to app name)
+            helmRepoUrl:
+              title: Helm Repository URL
+              type: string
+              description: URL of the Helm repository (e.g., https://charts.bitnami.com/bitnami)
+            image:
+              title: Container Image
+              type: string
+              description: Container image for raw-manifest deployments (e.g., nginx:latest)
+            namespace:
+              title: Namespace
+              type: string
+              description: Kubernetes namespace (defaults to app name)
+                
+        - title: Ingress Configuration
+          properties:
+            createIngress:
+              title: Create Ingress
+              type: boolean
+              description: Create a Traefik IngressRoute for this application
+              default: true
+            ingressPort:
+              title: Service Port
+              type: integer
+              description: Port to expose via ingress
+              default: 80
+                
+        - title: Catalog Integration
+          properties:
+            addToCatalog:
+              title: Add to Backstage Catalog
+              type: boolean
+              description: Create a catalog-info.yaml for this application
+              default: true
+              
+      steps:
+        - id: log
+          name: Log Parameters
+          action: debug:log
+          input:
+            message: |
+              Creating application: ${{ parameters.name }}
+              Deployment Type: ${{ parameters.deploymentType }}
+              Namespace: ${{ parameters.namespace | default(parameters.name) }}
+              
+        - id: create-pr-note
+          name: Create PR Instructions
+          action: debug:log
+          input:
+            message: |
+              To add this application to your dev environment:
+              
+              1. Create the following files in helm/${{ parameters.name }}/:
+                 - namespace.yaml
+                 - kustomization.yaml
+                 - deployment.yaml (or helm-release.yaml/crossplane-app.yaml)
+                 - service.yaml
+                 - ingress.yaml
+              
+              2. Add '${{ parameters.name }}: True' to the Tiltfile CONFIG
+              
+              3. Run 'tilt up' to deploy
+              
+      output:
+        links:
+          - title: Tilt Dashboard
+            url: http://localhost:10350
+          - title: Documentation
+            url: https://backstage.localhost/docs

@@ -1,0 +1,2 @@
+# Velero installed via Tiltfile local_resource with velero CLI
+# See Tiltfile for the actual installation command

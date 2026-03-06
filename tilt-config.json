@@ -1,0 +1,248 @@
+{
+  "crossplane_apps": {
+    "harbor": {
+      "enabled": false,
+      "description": "Container registry",
+      "category": "CI/CD",
+      "tested": true
+    },
+    "jenkins": {
+      "enabled": false,
+      "description": "CI/CD automation",
+      "category": "CI/CD",
+      "tested": true
+    },
+    "langfuse": {
+      "enabled": false,
+      "description": "LLM observability",
+      "category": "AI/ML",
+      "tested": true
+    },
+    "qdrant": {
+      "enabled": false,
+      "description": "Vector database",
+      "category": "AI/ML",
+      "tested": true
+    },
+    "localstack": {
+      "enabled": false,
+      "description": "AWS services emulator",
+      "category": "Cloud Emulators",
+      "tested": true
+    }
+  },
+  "flux_apps": {
+    "ollama": {
+      "enabled": false,
+      "description": "Local LLM runner",
+      "category": "AI/ML",
+      "tested": true
+    },
+    "kyverno": {
+      "enabled": false,
+      "description": "Kubernetes policy engine",
+      "category": "Security & Policy",
+      "tested": true
+    },
+    "falco": {
+      "enabled": false,
+      "description": "Runtime security monitoring",
+      "category": "Security & Policy",
+      "tested": true
+    },
+    "policy-reporter": {
+      "enabled": false,
+      "description": "Kyverno policy reports",
+      "category": "Security & Policy",
+      "tested": false
+    },
+    "1pass": {
+      "enabled": false,
+      "description": "1Password Connect",
+      "category": "Security & Policy",
+      "tested": false
+    },
+    "keda": {
+      "enabled": false,
+      "description": "Event-driven autoscaling",
+      "category": "Infrastructure",
+      "tested": true
+    },
+    "velero": {
+      "enabled": false,
+      "description": "Backup and DR",
+      "category": "Infrastructure",
+      "tested": false
+    },
+    "cert-manager": {
+      "enabled": false,
+      "description": "Certificate management",
+      "category": "Infrastructure",
+      "tested": true
+    },
+    "trivy": {
+      "enabled": false,
+      "description": "Kubernetes vulnerability scanner",
+      "category": "Security & Policy",
+      "tested": true
+    },
+    "otel-collector": {
+      "enabled": false,
+      "description": "OpenTelemetry Collector telemetry pipeline",
+      "category": "Observability",
+      "tested": false
+    },
+    "nats": {
+      "enabled": false,
+      "description": "Cloud-native messaging system",
+      "category": "Messaging",
+      "tested": false
+    },
+    "dapr": {
+      "enabled": false,
+      "description": "Distributed application runtime",
+      "category": "Infrastructure",
+      "tested": false
+    },
+    "argo-workflows": {
+      "enabled": false,
+      "description": "Kubernetes-native workflow engine",
+      "category": "CI/CD",
+      "tested": false
+    },
+    "argocd": {
+      "enabled": false,
+      "description": "GitOps continuous delivery for Kubernetes",
+      "category": "CI/CD",
+      "tested": false
+    },
+    "opencost": {
+      "enabled": false,
+      "description": "Kubernetes cost monitoring",
+      "category": "Observability",
+      "tested": false
+    },
+    "thanos": {
+      "enabled": false,
+      "description": "Long-term Prometheus storage",
+      "category": "Observability",
+      "tested": false
+    }
+  },
+  "raw_apps": {
+    "backstage": {
+      "enabled": true,
+      "description": "Developer Portal",
+      "category": "Developer Portal",
+      "tested": true
+    },
+    "mongodb": {
+      "enabled": false,
+      "description": "MongoDB document database",
+      "category": "Databases",
+      "tested": true
+    },
+    "postgresql": {
+      "enabled": false,
+      "description": "PostgreSQL database",
+      "category": "Databases",
+      "tested": true
+    },
+    "redis": {
+      "enabled": false,
+      "description": "Redis cache",
+      "category": "Databases",
+      "tested": true
+    },
+    "rabbitmq": {
+      "enabled": false,
+      "description": "RabbitMQ broker",
+      "category": "Databases",
+      "tested": true
+    },
+    "mssql": {
+      "enabled": false,
+      "description": "Microsoft SQL Server",
+      "category": "Databases",
+      "tested": true
+    },
+    "keycloak": {
+      "enabled": false,
+      "description": "Identity management",
+      "category": "Identity & Workflow",
+      "tested": true
+    },
+    "airflow": {
+      "enabled": false,
+      "description": "Workflow orchestration",
+      "category": "Identity & Workflow",
+      "tested": true
+    },
+    "jupyterhub": {
+      "enabled": false,
+      "description": "Jupyter notebooks",
+      "category": "Identity & Workflow",
+      "tested": true
+    },
+    "wordpress": {
+      "enabled": false,
+      "description": "WordPress blog",
+      "category": "Demo Apps",
+      "tested": true
+    },
+    "mailhog": {
+      "enabled": false,
+      "description": "Email testing SMTP server",
+      "category": "Dev Tools",
+      "tested": true
+    },
+    "azurite": {
+      "enabled": false,
+      "description": "Azure Storage emulator",
+      "category": "Cloud Emulators",
+      "tested": true
+    },
+    "gcp-emulators": {
+      "enabled": false,
+      "description": "GCP emulators",
+      "category": "Cloud Emulators",
+      "tested": true
+    },
+    "azure": {
+      "enabled": false,
+      "description": "Azure storage classes and PVCs",
+      "category": "Infrastructure",
+      "tested": false
+    },
+    "kubevirt": {
+      "enabled": false,
+      "description": "KubeVirt VM operator",
+      "category": "Infrastructure",
+      "tested": false
+    },
+    "macos": {
+      "enabled": false,
+      "description": "macOS VM via KubeVirt",
+      "category": "Experimental",
+      "tested": false
+    },
+    "eyeos": {
+      "enabled": false,
+      "description": "iOS VM via KubeVirt",
+      "category": "Experimental",
+      "tested": false
+    },
+    "wazuh": {
+      "enabled": false,
+      "description": "Security monitoring and SIEM",
+      "category": "Security & Policy",
+      "tested": true
+    },
+    "knative": {
+      "enabled": false,
+      "description": "Serverless workloads on Kubernetes",
+      "category": "Infrastructure",
+      "tested": false
+    }
+  }
+}

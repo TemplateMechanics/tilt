@@ -1,0 +1,40 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dapr
+  namespace: dapr-system
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: dapr
+      version: "1.14.4"
+      sourceRef:
+        kind: HelmRepository
+        name: dapr
+        namespace: flux-system
+  values:
+    global:
+      mtls:
+        enabled: false
+      ha:
+        enabled: false
+      prometheus:
+        enabled: true
+        port: 9090
+      logAsJson: true
+    dapr_dashboard:
+      enabled: true
+      runAsNonRoot: true
+    dapr_sidecar_injector:
+      enabled: true
+      sidecarRunAsNonRoot: true
+    dapr_placement:
+      enabled: true
+      runAsNonRoot: true
+      replicaCount: 1
+    dapr_operator:
+      runAsNonRoot: true
+    dapr_sentry:
+      enabled: true
+      runAsNonRoot: true

@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    tilt.dev/resource: ${{ values.name }}
+  labels:
+    app.kubernetes.io/name: ${{ values.name }}
+  links:
+    {%- if values.ingress %}
+    - url: https://${{ values.name }}.localhost
+      title: Application URL
+      icon: dashboard
+    {%- endif %}
+    {%- if values.grafana %}
+    - url: https://grafana.localhost/d/${{ values.name }}
+      title: Grafana Dashboard
+      icon: dashboard
+    {%- endif %}
+spec:
+  type: service
+  lifecycle: development
+  owner: ${{ values.owner | default('platform-team') }}
+  system: ${{ values.system | default('local-dev') }}

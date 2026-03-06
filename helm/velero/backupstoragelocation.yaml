@@ -1,0 +1,16 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: velero
+    prefix: backups
+  config:
+    region: us-east-1
+    s3ForcePathStyle: "true"
+    s3Url: http://localstack.localstack.svc.cluster.local:4566
+    publicUrl: http://localstack.localstack.svc.cluster.local:4566
+  validationFrequency: 0s

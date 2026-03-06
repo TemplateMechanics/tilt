@@ -1,0 +1,62 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: argo-cd
+      version: "7.7.5"
+      sourceRef:
+        kind: HelmRepository
+        name: argoproj
+        namespace: flux-system
+      interval: 12h
+  install:
+    remediation:
+      retries: 5
+  upgrade:
+    remediation:
+      retries: 5
+  values:
+    global:
+      domain: argocd.localhost
+    configs:
+      params:
+        server.insecure: true
+      cm:
+        url: https://argocd.localhost
+        exec.enabled: "true"
+        admin.enabled: "true"
+    server:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    controller:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    repoServer:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    applicationSet:
+      replicas: 1
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+    redis:
+      enabled: true
+    dex:
+      enabled: false
+    notifications:
+      enabled: false

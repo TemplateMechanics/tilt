@@ -1,0 +1,96 @@
+# Service Deployment Patterns
+#
+# This workspace demonstrates three deployment patterns:
+#
+# 1. CROSSPLANE (DevApplication XRD)
+#    - Best for: Services needing advanced lifecycle management, dependencies, or sub-resources
+#    - Location: apps/*.yaml
+#    - Examples: harbor (with projects), jenkins (with jobs), langfuse, qdrant, localstack
+#    - Features: Composable, can create sub-resources (repos, users, etc.)
+#
+# 2. TILT + FLUX (HelmRelease via k8s_kustomize)
+#    - Best for: External Helm charts with GitOps reconciliation
+#    - Location: helm/<service>/kustomization.yaml (with helm-release.yaml)
+#    - Examples: ollama, kyverno, falco, keda, velero, cert-manager
+#    - Features: Flux manages Helm lifecycle, Tilt shows status
+#
+# 3. TILT + RAW MANIFESTS
+#    - Best for: Simple services, official images, avoiding Helm complexity
+#    - Location: helm/<service>/*.yaml (no HelmRelease, direct k8s manifests)
+#    - Examples: mongodb, postgresql, redis, rabbitmq, keycloak, airflow, wordpress
+#    - Features: Direct control, easy customization, official images
+
+###############################################################################
+# SERVICE INVENTORY
+###############################################################################
+
+# All services available in helm/ folder:
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ CROSSPLANE-MANAGED (DevApplication XRD)                                     │
+# ├─────────────────────────────────────────────────────────────────────────────┤
+# │ harbor      │ Container registry with project/repo management              │
+# │ jenkins     │ CI/CD automation with job/credential management              │
+# │ langfuse    │ LLM observability and tracing                                │
+# │ qdrant      │ Vector database for AI/embeddings                            │
+# │ localstack  │ AWS services emulator                                        │
+# └─────────────────────────────────────────────────────────────────────────────┘
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ FLUX-MANAGED (HelmRelease + Kustomize)                                      │
+# ├─────────────────────────────────────────────────────────────────────────────┤
+# │ AI/ML                                                                       │
+# │   ollama         │ Local LLM runner (ollama/ollama)                        │
+# │                                                                             │
+# │ Security & Policy                                                           │
+# │   kyverno        │ Kubernetes policy engine                                │
+# │   policy-reporter│ Kyverno policy reports (requires kyverno)               │
+# │   falco          │ Runtime security monitoring                             │
+# │   1pass          │ 1Password Connect (requires secrets setup)              │
+# │                                                                             │
+# │ Infrastructure                                                              │
+# │   keda           │ Event-driven autoscaling                                │
+# │   velero         │ Backup and disaster recovery                            │
+# │   cert-manager   │ Certificate management                                  │
+# └─────────────────────────────────────────────────────────────────────────────┘
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ RAW MANIFESTS (Official Images - No Bitnami)                                │
+# ├─────────────────────────────────────────────────────────────────────────────┤
+# │ Databases                                                                   │
+# │   mongodb        │ MongoDB document database (mongo:8.0)                   │
+# │   postgresql     │ PostgreSQL database (postgres:17-alpine)                │
+# │   redis          │ Redis cache (redis:8-alpine)                            │
+# │   rabbitmq       │ RabbitMQ broker (rabbitmq:4-management)                 │
+# │   mssql          │ Microsoft SQL Server (local helm chart)                 │
+# │                                                                             │
+# │ Identity & Workflow                                                         │
+# │   keycloak       │ Identity management (quay.io/keycloak:24)               │
+# │   airflow        │ Workflow orchestration (apache/airflow:2.9)             │
+# │   jupyterhub     │ Jupyter notebooks (jupyterhub/k8s-hub)                  │
+# │                                                                             │
+# │ Demo Apps                                                                   │
+# │   wordpress      │ WordPress blog (wordpress:6.4 + mysql:8.0)              │
+# │                                                                             │
+# │ Dev Tools / Emulators                                                       │
+# │   mailhog        │ Email testing SMTP server                               │
+# │   azurite        │ Azure Storage emulator                                  │
+# │   gcp-emulators  │ GCP emulators (Firestore, PubSub, Bigtable)             │
+# │                                                                             │
+# │ Infrastructure                                                              │
+# │   azure          │ Azure storage classes and PVCs                          │
+# │                                                                             │
+# │ Experimental (require KVM, privileged containers)                           │
+# │   macos          │ Docker-OSX macOS VM                                     │
+# │   eyeos          │ iOS testing environment                                 │
+# └─────────────────────────────────────────────────────────────────────────────┘
+
+###############################################################################
+# ALWAYS-ON INFRASTRUCTURE (managed in Tiltfile, not configurable)
+###############################################################################
+# - traefik (ingress controller)
+# - prometheus (metrics + alerting)
+# - loki (log aggregation)
+# - tempo (distributed tracing)
+# - crossplane (infrastructure as code)
+# - flux (GitOps engine)

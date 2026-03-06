@@ -1,0 +1,18 @@
+---
+# ProviderConfig for Helm provider - uses in-cluster credentials
+apiVersion: helm.crossplane.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: InjectedIdentity
+---
+# ProviderConfig for Kubernetes provider - uses in-cluster credentials
+apiVersion: kubernetes.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: InjectedIdentity

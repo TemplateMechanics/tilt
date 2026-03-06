@@ -48,14 +48,65 @@ CN  = localhost
 subjectAltName = @alt_names
 
 [ alt_names ]
-DNS.1 = localhost
-DNS.2 = auth.localhost
-DNS.3 = admin.localhost
-DNS.4 = api.localhost
-DNS.5 = backstage.localhost
-DNS.6 = client.localhost
-DNS.7 = ghost.localhost
-DNS.8 = harbor.localhost
-DNS.9 = jenkins.localhost
-DNS.10 = jupyterhub.localhost
-DNS.11 = wordpress.localhost
+# Wildcard — covers any <service>.localhost created by Crossplane or templates
+DNS.1 = *.localhost
+DNS.2 = localhost
+
+# ─── Infrastructure ───────────────────────────────────────────────────
+DNS.3 = traefik.localhost
+DNS.4 = grafana.localhost
+DNS.5 = prometheus.localhost
+DNS.6 = tilt-config.localhost
+
+# ─── Security / Auth ─────────────────────────────────────────────────
+DNS.7 = auth.localhost
+DNS.8 = keycloak.localhost
+DNS.9 = admin.localhost
+
+# ─── Developer Portal ────────────────────────────────────────────────
+DNS.10 = backstage.localhost
+
+# ─── Crossplane DevApplications ──────────────────────────────────────
+DNS.11 = harbor.localhost
+DNS.12 = jenkins.localhost
+DNS.13 = langfuse.localhost
+DNS.14 = qdrant.localhost
+DNS.15 = localstack.localhost
+
+# ─── Flux HelmRelease Apps ───────────────────────────────────────────
+DNS.16 = ollama.localhost
+DNS.17 = cert-manager.localhost
+
+# ─── Raw Manifest Apps ───────────────────────────────────────────────
+DNS.18 = airflow.localhost
+DNS.19 = jupyterhub.localhost
+DNS.20 = wordpress.localhost
+DNS.21 = mailhog.localhost
+DNS.22 = rabbitmq.localhost
+DNS.23 = mongodb.localhost
+DNS.24 = postgresql.localhost
+DNS.25 = mssql.localhost
+DNS.26 = redis.localhost
+
+# ─── Cloud Emulators / Storage ────────────────────────────────────────
+DNS.27 = azurite.localhost
+
+# ─── Experimental ────────────────────────────────────────────────────
+DNS.28 = macos.localhost
+DNS.29 = eyeos.localhost
+DNS.30 = kubevirt.localhost
+
+# ─── Catch-all ───────────────────────────────────────────────────────
+DNS.31 = api.localhost
+DNS.32 = client.localhost
+DNS.33 = ghost.localhost
+
+# ─── SIEM / Security ─────────────────────────────────────────────────
+DNS.34 = wazuh.localhost
+
+# ─── CNCF Projects ──────────────────────────────────────────────────
+DNS.35 = argo.localhost
+DNS.36 = dapr.localhost
+DNS.37 = opencost.localhost
+DNS.38 = thanos.localhost
+DNS.39 = argocd.localhost

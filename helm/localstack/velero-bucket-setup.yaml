@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: localstack-setup-velero
+  namespace: localstack
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: aws-cli
+          image: amazon/aws-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Wait for LocalStack to be ready
+              echo "Waiting for LocalStack to be ready..."
+              until curl -s http://localstack:4566/_localstack/health | grep -q '"s3":'; do
+                echo "LocalStack not ready yet, waiting..."
+                sleep 2
+              done
+              echo "LocalStack is ready!"
+              
+              # Configure AWS CLI for LocalStack
+              aws configure set aws_access_key_id test
+              aws configure set aws_secret_access_key test
+              aws configure set region us-east-1
+              
+              # Create the velero bucket
+              echo "Creating velero bucket..."
+              aws --endpoint-url=http://localstack:4566 s3 mb s3://velero || echo "Bucket already exists"
+              
+              echo "Velero bucket setup completed successfully!"

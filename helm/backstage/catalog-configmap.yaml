@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-catalog
+  namespace: backstage
+data:
+  all.yaml: |
+    ---
+    # Domain and Group definitions only.
+    # Component and API entities with TechDocs are defined in
+    # service-docs/catalog.yaml.  The System entity lives in
+    # platform-docs/catalog-info.yaml.
+    apiVersion: backstage.io/v1alpha1
+    kind: Domain
+    metadata:
+      name: infrastructure
+      description: Infrastructure and platform services
+    spec:
+      owner: platform-team
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: Group
+    metadata:
+      name: platform-team
+      description: Platform engineering team
+    spec:
+      type: team
+      children: []

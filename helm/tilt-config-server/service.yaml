@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tilt-config-server
+  namespace: tilt-system
+  labels:
+    app: tilt-config-server
+spec:
+  selector:
+    app: tilt-config-server
+  ports:
+    - port: 10351
+      targetPort: 10351
+      protocol: TCP
+      name: http
