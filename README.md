@@ -236,7 +236,7 @@ The custom `@internal/backstage-plugin-tilt` plugin provides:
 | Component | Mount Point | Description |
 |-----------|-------------|-------------|
 | `TiltPage` | `/tilt` | Table of all Tilt resources with status, labels, and actions |
-| `InfrastructureDashboardPage` | `/infra` | Category-grouped service toggles with live status |
+| `InfrastructureDashboardPage` | `/infrastructure` | Category-grouped service toggles with live status |
 | `TiltResourceCard` | Entity page | Status card for a single Tilt resource |
 | `EntityTiltContent` | Entity tab | Tilt details for catalog components annotated with `tilt.dev/resource` |
 
