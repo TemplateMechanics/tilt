@@ -14,7 +14,7 @@ The Tilt development environment fully supports Windows. The Tiltfile includes c
 | Tilt | 0.33+ | [docs.tilt.dev](https://docs.tilt.dev/install.html) |
 | Helm | 3.12+ | `choco install kubernetes-helm` |
 | kubectl | 1.25+ | `choco install kubernetes-cli` |
-| Flux CLI | 2.0+ | Auto-installed by Tilt (via Chocolatey or curl) |
+| Flux CLI | 2.0+ | `choco install flux -y` |
 
 !!! important "Git for Windows is required"
     Git for Windows provides `bash.exe` which the Tiltfile uses to run all shell commands. Without it, Tilt will fail to execute resources. Make sure Git is on your PATH — run `git --version` to confirm.
@@ -30,10 +30,8 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
 # Install all prerequisites
-choco install git docker-desktop kubernetes-helm kubernetes-cli tilt -y
+choco install git docker-desktop kubernetes-helm kubernetes-cli tilt flux -y
 ```
-
-If Chocolatey is available, the Tiltfile will also use it to auto-install the Flux CLI when missing.
 
 ## How Windows Support Works
 
