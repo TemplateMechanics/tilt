@@ -1,0 +1,142 @@
+---
+# Composition for Harbor Projects
+# Uses provider-kubernetes to create a Job that calls Harbor API
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: harborproject
+  labels:
+    crossplane.io/xrd: xharborprojects.harbor.devplatform.systechs.io
+spec:
+  compositeTypeRef:
+    apiVersion: harbor.devplatform.systechs.io/v1alpha1
+    kind: XHarborProject
+  
+  resources:
+    # Create a ConfigMap with the project config
+    - name: project-config
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: harbor-project-placeholder
+                namespace: harbor
+              data:
+                project.json: |
+                  {
+                    "project_name": "placeholder",
+                    "public": false,
+                    "storage_limit": -1
+                  }
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "harbor-project-%s"
+        - type: CombineFromComposite
+          combine:
+            variables:
+              - fromFieldPath: spec.name
+              - fromFieldPath: spec.public
+              - fromFieldPath: spec.storageLimit
+            strategy: string
+            string:
+              fmt: |
+                {
+                  "project_name": "%s",
+                  "public": %t,
+                  "storage_limit": %s
+                }
+          toFieldPath: spec.forProvider.manifest.data["project.json"]
+    
+    # Create a Job that provisions the project via Harbor API
+    - name: project-job
+      base:
+        apiVersion: kubernetes.crossplane.io/v1alpha2
+        kind: Object
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: batch/v1
+              kind: Job
+              metadata:
+                name: harbor-create-placeholder
+                namespace: harbor
+              spec:
+                ttlSecondsAfterFinished: 60
+                backoffLimit: 5
+                template:
+                  spec:
+                    restartPolicy: OnFailure
+                    containers:
+                      - name: create-project
+                        image: curlimages/curl:8.5.0
+                        env:
+                          - name: HARBOR_URL
+                            value: "http://harbor-core"
+                          - name: PROJECT_CONFIG
+                            valueFrom:
+                              configMapKeyRef:
+                                name: harbor-project-placeholder
+                                key: project.json
+                          - name: HARBOR_PASSWORD
+                            valueFrom:
+                              secretKeyRef:
+                                name: harbor-core
+                                key: HARBOR_ADMIN_PASSWORD
+                                optional: true
+                        command:
+                          - /bin/sh
+                          - -c
+                          - |
+                            set -e
+                            PASS="${HARBOR_PASSWORD:-Harbor12345}"
+                            AUTH=$(echo -n "admin:${PASS}" | base64)
+                            
+                            # Wait for Harbor
+                            until curl -sf ${HARBOR_URL}/api/v2.0/health; do
+                              echo "Waiting for Harbor..."
+                              sleep 5
+                            done
+                            
+                            # Check if exists
+                            PROJECT_NAME=$(echo $PROJECT_CONFIG | grep -o '"project_name": *"[^"]*"' | cut -d'"' -f4)
+                            EXISTS=$(curl -s -H "Authorization: Basic ${AUTH}" \
+                              "${HARBOR_URL}/api/v2.0/projects?name=${PROJECT_NAME}" | grep -c "\"name\":\"${PROJECT_NAME}\"" || true)
+                            
+                            if [ "$EXISTS" -gt 0 ]; then
+                              echo "Project ${PROJECT_NAME} already exists"
+                              exit 0
+                            fi
+                            
+                            # Create project
+                            curl -sf -X POST \
+                              -H "Authorization: Basic ${AUTH}" \
+                              -H "Content-Type: application/json" \
+                              -d "${PROJECT_CONFIG}" \
+                              "${HARBOR_URL}/api/v2.0/projects"
+                            
+                            echo "Project ${PROJECT_NAME} created!"
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.metadata.name
+          transforms:
+            - type: string
+              string:
+                fmt: "harbor-create-%s"
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.manifest.spec.template.spec.containers[0].env[1].valueFrom.configMapKeyRef.name
+          transforms:
+            - type: string
+              string:
+                fmt: "harbor-project-%s"

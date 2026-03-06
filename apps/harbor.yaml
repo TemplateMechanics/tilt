@@ -1,0 +1,39 @@
+---
+apiVersion: devplatform.systechs.io/v1alpha1
+kind: DevApplication
+metadata:
+  name: harbor
+  namespace: default
+spec:
+  name: harbor
+  domain: harbor.localhost
+  
+  chart:
+    repository: harbor
+    name: harbor
+    version: "1.15.1"
+    values:
+      expose:
+        type: clusterIP
+        tls:
+          enabled: false
+      externalURL: https://harbor.localhost
+      persistence:
+        enabled: false
+      trivy:
+        enabled: false
+      notary:
+        enabled: false
+      metrics:
+        enabled: true
+  
+  ingress:
+    enabled: true
+    serviceName: harbor-portal
+    servicePort: 80
+  
+  monitoring:
+    enabled: true
+    metrics: true
+    logs: true
+    traces: false

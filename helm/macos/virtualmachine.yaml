@@ -1,0 +1,163 @@
+# macOS Virtual Machine using KubeVirt
+# This creates a VM that can run macOS using KubeVirt's virtualization
+#
+# Prerequisites:
+# - KubeVirt must be installed (see helm/kubevirt/)
+# - Linux host with KVM support
+# - Legal: Apple EULA requires Apple hardware
+#
+# Note: This uses a containerDisk approach with OSX-KVM base image
+# For production, use a DataVolume with a pre-installed macOS image
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: macos-vm
+  namespace: macos
+  labels:
+    app: macos
+    os: macos
+    version: ventura
+spec:
+  # VM should start automatically when created
+  running: true
+  
+  # VM template specification
+  template:
+    metadata:
+      labels:
+        app: macos
+        kubevirt.io/domain: macos-vm
+    spec:
+      # Termination grace period (macOS needs time to shutdown)
+      terminationGracePeriodSeconds: 120
+      
+      domain:
+        # Machine type - q35 is required for macOS
+        machine:
+          type: q35
+        
+        # CPU configuration
+        cpu:
+          # Host-passthrough is best for macOS compatibility
+          model: host-passthrough
+          cores: 4
+          threads: 1
+          sockets: 1
+          # Dedicated CPU for better performance
+          dedicatedCpuPlacement: false
+        
+        # Memory configuration
+        memory:
+          guest: 8Gi
+        
+        # Firmware - UEFI required for macOS
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: false
+        
+        # Features required for macOS
+        features:
+          acpi: {}
+          apic: {}
+          smm:
+            enabled: true
+          kvm:
+            hidden: true
+          hyperv:
+            # Disable Hyper-V enlightenments for macOS
+            relaxed: {}
+            vapic: {}
+            spinlocks:
+              spinlocks: 8191
+        
+        # Clock configuration
+        clock:
+          utc: {}
+          timer:
+            hpet:
+              present: false
+            pit:
+              tickPolicy: delay
+            rtc:
+              tickPolicy: catchup
+        
+        # Devices
+        devices:
+          # Disable tablet for macOS
+          autoattachPodInterface: true
+          autoattachSerialConsole: true
+          autoattachGraphicsDevice: true
+          
+          # Disk devices
+          disks:
+            # System disk (macOS installation)
+            - name: system-disk
+              disk:
+                bus: sata
+              bootOrder: 1
+            
+            # Data disk for user files
+            - name: data-disk
+              disk:
+                bus: sata
+          
+          # Network interface
+          interfaces:
+            - name: default
+              masquerade: {}
+          
+          # Graphics - VNC for remote access
+          # Note: GPU passthrough requires additional configuration
+          
+          # Input devices
+          inputs:
+            - type: tablet
+              bus: usb
+              name: tablet
+        
+        # Resource requests
+        resources:
+          requests:
+            memory: 8Gi
+            cpu: "4"
+          limits:
+            memory: 10Gi
+            cpu: "4"
+      
+      # Networks
+      networks:
+        - name: default
+          pod: {}
+      
+      # Volumes
+      volumes:
+        # System disk - using the PVC for persistent storage
+        - name: system-disk
+          persistentVolumeClaim:
+            claimName: macos-system-disk
+        
+        # Data disk for user files
+        - name: data-disk
+          persistentVolumeClaim:
+            claimName: macos-data-disk
+
+---
+# Service for VNC access
+apiVersion: v1
+kind: Service
+metadata:
+  name: macos-vnc
+  namespace: macos
+spec:
+  type: ClusterIP
+  selector:
+    kubevirt.io/domain: macos-vm
+  ports:
+    - name: vnc
+      port: 5900
+      targetPort: 5900
+    - name: ssh
+      port: 22
+      targetPort: 22

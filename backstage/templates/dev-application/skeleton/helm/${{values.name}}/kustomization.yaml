@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+{%- if values.deploymentType == 'crossplane-app' %}
+  - crossplane-app.yaml
+{%- elif values.deploymentType == 'helm-release' %}
+  - helm-release.yaml
+  - helm-repo.yaml
+{%- else %}
+  - deployment.yaml
+{%-   if values.port %}
+  - service.yaml
+{%-   endif %}
+{%- endif %}
+{%- if values.createIngress %}
+  - ingress.yaml
+{%- endif %}
+{%- if values.addToCatalog %}
+  - catalog-info.yaml
+{%- endif %}

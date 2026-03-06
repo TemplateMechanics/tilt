@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wazuh
+  namespace: wazuh
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wazuh.localhost`)
+      kind: Rule
+      services:
+        - name: wazuh-dashboard
+          port: 5601
+  tls: {}

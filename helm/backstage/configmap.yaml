@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backstage-config
+  namespace: backstage
+data:
+  app-config.yaml: |
+    app:
+      title: Dev Portal
+      baseUrl: https://backstage.localhost
+
+    organization:
+      name: SysTechs
+
+    backend:
+      baseUrl: https://backstage.localhost
+      listen: ':7000'
+      csp:
+        connect-src: ["'self'", 'http:', 'https:']
+      cors:
+        origin: https://backstage.localhost
+        methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+        credentials: true
+      database:
+        client: pg
+        pluginDivisionMode: schema
+        connection:
+          host: ${POSTGRES_HOST}
+          port: ${POSTGRES_PORT}
+          user: ${POSTGRES_USER}
+          password: ${POSTGRES_PASSWORD}
+          database: backstage_db
+
+    integrations:
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
+
+    techdocs:
+      builder: 'local'
+      generator:
+        runIn: 'local'
+      publisher:
+        type: 'local'
+
+    auth:
+      providers:
+        guest:
+          dangerouslyAllowOutsideDevelopment: true
+
+    catalog:
+      import:
+        entityFilename: catalog-info.yaml
+        pullRequestBranchName: backstage-integration
+      rules:
+        - allow: [Component, System, Domain, Group, API, Resource, Location, Template]
+      locations:
+        # Load catalog from locally mounted ConfigMap
+        - type: file
+          target: /app/catalog/all.yaml
+          rules:
+            - allow: [Component, System, Domain, Group, API, Resource, Location, Template]
+        # TechDocs entity co-located with mkdocs.yml
+        - type: file
+          target: /app/platform-docs/catalog-info.yaml
+          rules:
+            - allow: [System]
+        # Per-service TechDocs with Component and API entities
+        - type: file
+          target: /app/service-docs/catalog.yaml
+          rules:
+            - allow: [Component, API]
+
+    # Kubernetes plugin config - connects to local cluster
+    kubernetes:
+      serviceLocatorMethod:
+        type: 'multiTenant'
+      clusterLocatorMethods:
+        - type: 'config'
+          clusters:
+            - url: https://kubernetes.default.svc
+              name: local-dev
+              authProvider: 'serviceAccount'
+              skipTLSVerify: true
+              skipMetricsLookup: true
+
+    # Tilt integration (custom plugin endpoint)
+    tilt:
+      baseUrl: http://host.docker.internal:10350
+
+    # Proxy: route config-server requests to in-cluster K8s Service
+    proxy:
+      endpoints:
+        '/tilt-api':
+          target: 'http://host.docker.internal:10350'
+          changeOrigin: true
+          allowedMethods: ['GET', 'POST', 'PATCH', 'PUT', 'OPTIONS']
+          allowedHeaders: ['Content-Type', 'Accept']
+        '/tilt-config':
+          target: 'http://tilt-config-server.tilt-system.svc:10351'
+          changeOrigin: true
+          allowedMethods: ['GET', 'PATCH', 'PUT', 'OPTIONS']
+          allowedHeaders: ['Content-Type', 'Accept']
+        '/grafana/api':
+          target: 'http://prometheus-grafana.monitoring.svc:80'
+          headers:
+            Authorization: 'Basic YWRtaW46YWRtaW4='
+          changeOrigin: true
+
+    # Grafana integration
+    grafana:
+      domain: https://grafana.localhost
+      unifiedAlerting: true
+
+    # Argo CD integration
+    argocd:
+      baseUrl: https://argocd.localhost
+      appLocatorMethods:
+        - type: 'config'
+          instances:
+            - name: main
+              url: https://argocd.localhost

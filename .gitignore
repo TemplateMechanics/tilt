@@ -1,2 +1,10 @@
 certificates/intermediateCA
 certificates/rootCA
+
+# Azurite runtime data
+azurite-data/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride

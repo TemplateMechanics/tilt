@@ -1,0 +1,277 @@
+---
+# Wazuh Indexer (OpenSearch) configuration — security disabled for dev
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-indexer-config
+  namespace: wazuh
+data:
+  opensearch.yml: |
+    network.host: "0.0.0.0"
+    node.name: "wazuh-indexer"
+    cluster.name: "wazuh-cluster"
+    discovery.type: single-node
+    compatibility.override_main_response_version: true
+    plugins.security.disabled: true
+    path.data: /var/lib/wazuh-indexer
+    path.logs: /var/log/wazuh-indexer
+
+---
+# Filebeat config inside the Wazuh Manager — ships alerts to the indexer
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-filebeat-config
+  namespace: wazuh
+data:
+  filebeat.yml: |
+    filebeat.modules:
+      - module: wazuh
+        alerts:
+          enabled: true
+        archives:
+          enabled: false
+
+    setup.template.json.enabled: false
+    setup.template.name: "wazuh"
+    setup.template.pattern: "wazuh-alerts-*"
+    setup.template.overwrite: false
+    setup.template.settings:
+      index.number_of_shards: 1
+      index.number_of_replicas: 0
+    setup.ilm.enabled: false
+
+    output.elasticsearch:
+      hosts: ["http://wazuh-indexer:9200"]
+
+    logging.level: info
+    logging.to_files: true
+    logging.files:
+      path: /var/log/filebeat
+      name: filebeat
+      keepfiles: 7
+      permissions: 0644
+
+---
+# Wazuh Manager ossec.conf — minimal dev config with syslog listener
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-manager-config
+  namespace: wazuh
+data:
+  ossec.conf: |
+    <ossec_config>
+      <global>
+        <jsonout_output>yes</jsonout_output>
+        <alerts_log>yes</alerts_log>
+        <logall>no</logall>
+        <logall_json>no</logall_json>
+        <email_notification>no</email_notification>
+        <smtp_server>localhost</smtp_server>
+        <email_from>wazuh@localhost</email_from>
+        <email_to>admin@localhost</email_to>
+      </global>
+
+      <alerts>
+        <log_alert_level>3</log_alert_level>
+        <email_alert_level>12</email_alert_level>
+      </alerts>
+
+      <!-- Syslog listener — accepts forwarded logs from Loki/Promtail/rsyslog -->
+      <remote>
+        <connection>syslog</connection>
+        <port>514</port>
+        <protocol>udp</protocol>
+        <allowed-ips>0.0.0.0/0</allowed-ips>
+      </remote>
+
+      <!-- Secure agent connection -->
+      <remote>
+        <connection>secure</connection>
+        <port>1514</port>
+        <protocol>tcp</protocol>
+      </remote>
+
+      <!-- Vulnerability detection -->
+      <vulnerability-detection>
+        <enabled>yes</enabled>
+        <index-status>yes</index-status>
+        <feed-update-interval>60m</feed-update-interval>
+      </vulnerability-detection>
+
+      <!-- File integrity monitoring -->
+      <syscheck>
+        <disabled>no</disabled>
+        <frequency>43200</frequency>
+        <scan_on_start>yes</scan_on_start>
+        <directories>/etc,/usr/bin,/usr/sbin</directories>
+        <directories>/bin,/sbin,/boot</directories>
+      </syscheck>
+
+      <!-- Rootcheck -->
+      <rootcheck>
+        <disabled>no</disabled>
+        <check_files>yes</check_files>
+        <check_trojans>yes</check_trojans>
+        <check_dev>yes</check_dev>
+        <check_sys>yes</check_sys>
+        <check_pids>yes</check_pids>
+        <check_ports>yes</check_ports>
+        <check_if>yes</check_if>
+        <frequency>43200</frequency>
+      </rootcheck>
+
+      <!-- Log analysis (local) -->
+      <localfile>
+        <log_format>syslog</log_format>
+        <location>/var/ossec/logs/active-responses.log</location>
+      </localfile>
+
+      <!-- =============================== -->
+      <!-- Cluster API monitoring (wodles)  -->
+      <!-- =============================== -->
+
+      <!-- Kubernetes API Server health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>k8s-api-health</tag>
+        <command>curl -sk --connect-timeout 10 --max-time 20 https://kubernetes.default.svc/healthz -o /dev/null -w '{"api":"kubernetes","status_code":%{http_code},"url":"https://kubernetes.default.svc/healthz"}' 2>/dev/null || echo '{"api":"kubernetes","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Traefik Ingress Controller health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>traefik-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://traefik.traefik.svc:80/ -o /dev/null -w '{"api":"traefik","status_code":%{http_code},"url":"http://traefik.traefik.svc:80"}' 2>/dev/null || echo '{"api":"traefik","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Prometheus health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>prometheus-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090/-/healthy -o /dev/null -w '{"api":"prometheus","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"prometheus","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Grafana health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>grafana-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://prometheus-grafana.monitoring.svc:80/api/health -o /dev/null -w '{"api":"grafana","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"grafana","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Backstage health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>backstage-health</tag>
+        <command>curl -sk --connect-timeout 10 --max-time 20 https://backstage.backstage.svc:7000/ -o /dev/null -w '{"api":"backstage","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"backstage","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Loki health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>loki-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://loki.logging.svc:3100/ready -o /dev/null -w '{"api":"loki","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"loki","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Tempo (tracing) health -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>tempo-health</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://tempo.tracing.svc:3200/ready -o /dev/null -w '{"api":"tempo","status_code":%{http_code}}' 2>/dev/null || echo '{"api":"tempo","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Alertmanager — check for active firing alerts -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>alertmanager-alerts</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 'http://prometheus-kube-prometheus-alertmanager.monitoring.svc:9093/api/v2/alerts?active=true' 2>/dev/null | python3 -c "import sys,json; alerts=json.load(sys.stdin); print(json.dumps({'api':'alertmanager','active_alerts':len(alerts),'alerts':[{'name':a.get('labels',{}).get('alertname',''),'severity':a.get('labels',{}).get('severity','')} for a in alerts[:10]]}))" 2>/dev/null || echo '{"api":"alertmanager","status_code":0,"error":"connection_failed"}'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Flux source-controller — check for failed sources -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>flux-sources</tag>
+        <command>curl -s --connect-timeout 10 --max-time 20 http://source-controller.flux-system.svc:80/metrics 2>/dev/null | grep -c 'gotk_reconcile_condition.*status="False"' | xargs -I{} echo '{"api":"flux","failed_reconciliations":{}}' 2>/dev/null || echo '{"api":"flux","error":"connection_failed"}'</command>
+        <interval>10m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- MSSQL health check -->
+      <wodle name="command">
+        <disabled>no</disabled>
+        <tag>mssql-health</tag>
+        <command>bash -c '(echo > /dev/tcp/mssql-mssql-latest.mssql.svc/1433) 2>/dev/null &amp;&amp; echo "{\"api\":\"mssql\",\"port_open\":true}" || echo "{\"api\":\"mssql\",\"port_open\":false}"'</command>
+        <interval>5m</interval>
+        <ignore_output>no</ignore_output>
+        <run_on_start>yes</run_on_start>
+        <timeout>30</timeout>
+      </wodle>
+
+      <!-- Indexer connection -->
+      <indexer>
+        <enabled>yes</enabled>
+        <hosts>
+          <host>http://wazuh-indexer:9200</host>
+        </hosts>
+      </indexer>
+    </ossec_config>
+
+---
+# Wazuh Dashboard config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wazuh-dashboard-config
+  namespace: wazuh
+data:
+  opensearch_dashboards.yml: |
+    server.host: "0.0.0.0"
+    server.port: 5601
+    opensearch.hosts: ["http://wazuh-indexer:9200"]
+    server.ssl.enabled: false
+    opensearch.ssl.verificationMode: none
+    opensearch_security.enabled: false
+
+  wazuh.yml: |
+    hosts:
+      - default:
+          url: https://wazuh-manager
+          port: 55000
+          username: wazuh-wui
+          password: MyS3cr3tP4ssw0rd!
+          run_as: false

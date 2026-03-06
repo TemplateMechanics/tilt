@@ -1,0 +1,51 @@
+---
+# Grant cluster-admin to specific Crossplane controller ServiceAccounts
+# Named SAs are bound directly; a group-based fallback below covers dynamically-created provider SAs
+# Note: In production, use more restrictive RBAC
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-provider-admin-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  # Crossplane controller SA
+  - kind: ServiceAccount
+    name: crossplane
+    namespace: crossplane-system
+  # RBAC controller SA
+  - kind: ServiceAccount
+    name: rbac-manager
+    namespace: crossplane-system
+---
+# DeploymentRuntimeConfig to inject cluster-admin via SA annotation
+# This ensures providers get proper permissions regardless of their hash suffix
+apiVersion: pkg.crossplane.io/v1beta1
+kind: DeploymentRuntimeConfig
+metadata:
+  name: default
+spec:
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        # Ensures the SA gets picked up by our ClusterRoleBinding
+        crossplane.io/provider: "true"
+---
+# Fallback: Grant all SAs in crossplane-system namespace cluster-admin
+# This is a broader approach but works reliably for dev environments
+# TODO (production): Remove this fallback and bind cluster-admin only to specific
+# Crossplane/provider controller ServiceAccounts before deploying to production.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-system-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: Group
+    name: system:serviceaccounts:crossplane-system
+    apiGroup: rbac.authorization.k8s.io

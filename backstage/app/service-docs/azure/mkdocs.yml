@@ -1,0 +1,5 @@
+site_name: Azure Storage Resources
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md

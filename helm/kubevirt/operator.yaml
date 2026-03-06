@@ -1,0 +1,111 @@
+# KubeVirt Operator
+# This deploys the KubeVirt operator which manages the KubeVirt installation
+# Source: https://github.com/kubevirt/kubevirt/releases
+#
+# NOTE: KubeVirt requires:
+# - Linux host with KVM support (/dev/kvm)
+# - Hardware virtualization (Intel VT-x or AMD-V)
+# - Will NOT work on Docker Desktop for Mac/Windows
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubevirt-operator
+  namespace: kubevirt
+  labels:
+    app: kubevirt-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubevirt-operator
+  labels:
+    app: kubevirt-operator
+rules:
+  # WARNING: Wildcard permissions - acceptable for local dev clusters only.
+  # The KubeVirt operator requires broad access to manage CRDs, pods, services,
+  # networking, storage, and node-level resources. The upstream operator install
+  # (https://github.com/kubevirt/kubevirt/releases) uses equivalent permissions.
+  # For production, use the official KubeVirt operator manifest which defines
+  # granular per-resource RBAC rules, or install via OLM (Operator Lifecycle Manager).
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubevirt-operator
+  labels:
+    app: kubevirt-operator
+subjects:
+  - kind: ServiceAccount
+    name: kubevirt-operator
+    namespace: kubevirt
+roleRef:
+  kind: ClusterRole
+  name: kubevirt-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: virt-operator
+  namespace: kubevirt
+  labels:
+    app: virt-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: virt-operator
+  template:
+    metadata:
+      labels:
+        app: virt-operator
+    spec:
+      serviceAccountName: kubevirt-operator
+      containers:
+        - name: virt-operator
+          # Use a stable release version
+          image: quay.io/kubevirt/virt-operator:v1.3.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - virt-operator
+          args:
+            - --port=8443
+            - -v=2
+          ports:
+            - containerPort: 8443
+              name: metrics
+              protocol: TCP
+            - containerPort: 8444
+              name: webhooks
+              protocol: TCP
+          env:
+            - name: OPERATOR_IMAGE
+              value: quay.io/kubevirt/virt-operator:v1.3.1
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+            limits:
+              cpu: 500m
+              memory: 500Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault

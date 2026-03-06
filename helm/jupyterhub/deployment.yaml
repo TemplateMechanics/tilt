@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyterhub
+  namespace: jupyterhub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyterhub
+  template:
+    metadata:
+      labels:
+        app: jupyterhub
+    spec:
+      serviceAccountName: jupyterhub
+      containers:
+      - name: jupyterhub
+        image: quay.io/jupyterhub/jupyterhub:5.2
+        command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: JUPYTERHUB_CRYPT_KEY
+          value: "0000000000000000000000000000000000000000000000000000000000000000"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/jupyterhub
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+      volumes:
+      - name: config
+        configMap:
+          name: jupyterhub-config

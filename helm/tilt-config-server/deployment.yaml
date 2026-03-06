@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tilt-config-server
+  namespace: tilt-system
+  labels:
+    app: tilt-config-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tilt-config-server
+  template:
+    metadata:
+      labels:
+        app: tilt-config-server
+    spec:
+      serviceAccountName: tilt-config-server
+      containers:
+        - name: config-server
+          image: python:3.12-slim
+          command: ["python3", "/app/config-server.py"]
+          ports:
+            - containerPort: 10351
+              name: http
+          env:
+            - name: CONFIG_NAMESPACE
+              value: tilt-system
+            - name: CONFIG_CONFIGMAP
+              value: tilt-config
+            - name: CONFIG_KEY
+              value: config.json
+            - name: TILT_CONFIG_PORT
+              value: "10351"
+          volumeMounts:
+            - name: app
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 10351
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 10351
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+      volumes:
+        - name: app
+          configMap:
+            name: tilt-config-server-app

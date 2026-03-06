@@ -1,0 +1,142 @@
+# iOS/iPadOS Virtual Machine using KubeVirt
+# This creates a VM that can run iOS/iPadOS using KubeVirt's virtualization
+#
+# Prerequisites:
+# - KubeVirt must be installed (see helm/kubevirt/)
+# - Linux host with KVM support
+# - iOS/iPadOS IPSW firmware (legally obtained)
+#
+# Note: iOS runs with less resources than full macOS
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: ios-vm
+  namespace: eyeos
+  labels:
+    app: eyeos
+    os: ios
+    version: "17"
+spec:
+  # VM should start automatically when created
+  running: true
+  
+  # VM template specification
+  template:
+    metadata:
+      labels:
+        app: eyeos
+        kubevirt.io/domain: ios-vm
+    spec:
+      # Termination grace period
+      terminationGracePeriodSeconds: 60
+      
+      domain:
+        # Machine type
+        machine:
+          type: q35
+        
+        # CPU configuration
+        cpu:
+          model: host-passthrough
+          cores: 4
+          threads: 1
+          sockets: 1
+        
+        # Memory configuration (iOS needs less than macOS)
+        memory:
+          guest: 4Gi
+        
+        # Firmware - UEFI required
+        firmware:
+          bootloader:
+            efi:
+              secureBoot: false
+        
+        # Features
+        features:
+          acpi: {}
+          apic: {}
+          smm:
+            enabled: true
+          kvm:
+            hidden: true
+        
+        # Clock configuration
+        clock:
+          utc: {}
+          timer:
+            hpet:
+              present: false
+            pit:
+              tickPolicy: delay
+            rtc:
+              tickPolicy: catchup
+        
+        # Devices
+        devices:
+          autoattachPodInterface: true
+          autoattachSerialConsole: true
+          autoattachGraphicsDevice: true
+          
+          # Disk devices
+          disks:
+            # System disk (iOS installation)
+            - name: system-disk
+              disk:
+                bus: sata
+              bootOrder: 1
+          
+          # Network interface
+          interfaces:
+            - name: default
+              masquerade: {}
+          
+          # Input devices
+          inputs:
+            - type: tablet
+              bus: usb
+              name: tablet
+        
+        # Resource requests
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: "4"
+          limits:
+            memory: 6Gi
+            cpu: "4"
+      
+      # Networks
+      networks:
+        - name: default
+          pod: {}
+      
+      # Volumes
+      volumes:
+        # System disk - using the PVC for persistent storage
+        - name: system-disk
+          persistentVolumeClaim:
+            claimName: eyeos-system-disk
+
+---
+# Service for VNC access (named 'eyeos' to match the Ingress backend)
+apiVersion: v1
+kind: Service
+metadata:
+  name: eyeos
+  namespace: eyeos
+spec:
+  type: ClusterIP
+  selector:
+    kubevirt.io/domain: ios-vm
+  ports:
+    - name: vnc
+      port: 5900
+      targetPort: 5900
+    - name: web-vnc
+      port: 6080
+      targetPort: 6080
+    - name: ssh
+      port: 22
+      targetPort: 22

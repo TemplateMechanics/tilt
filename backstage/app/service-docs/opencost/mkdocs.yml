@@ -1,0 +1,5 @@
+site_name: OpenCost
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md

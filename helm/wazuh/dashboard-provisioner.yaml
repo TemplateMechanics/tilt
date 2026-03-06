@@ -1,0 +1,30 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wazuh-dashboard-provisioner
+  namespace: wazuh
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: wazuh-dashboard-provisioner
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: provisioner
+          image: curlimages/curl:8.7.1
+          command: ["/bin/sh", "/scripts/create-dashboards.sh"]
+          env:
+            - name: DASHBOARD_URL
+              value: "http://wazuh-dashboard:5601"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+      volumes:
+        - name: script
+          configMap:
+            name: wazuh-dashboard-provisioner
+            defaultMode: 0755

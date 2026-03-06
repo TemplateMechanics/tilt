@@ -1,0 +1,57 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: trivy-operator
+      version: "0.28.1"
+      sourceRef:
+        kind: HelmRepository
+        name: aquasecurity
+        namespace: flux-system
+  values:
+    # Operator configuration
+    operator:
+      # Scan all namespaces
+      scanJobsConcurrentLimit: 3
+      # Vulnerability scan for workloads
+      vulnerabilityScannerEnabled: true
+      # Config audit (misconfiguration) scans
+      configAuditScannerEnabled: true
+      # RBAC assessment
+      rbacAssessmentScannerEnabled: true
+      # Exposed secrets scanner
+      exposedSecretScannerEnabled: true
+      # Infra assessment (node components)
+      infraAssessmentScannerEnabled: true
+      # Automatic scan on workload changes
+      batchDeleteLimit: 10
+
+    # Trivy scanner settings
+    trivy:
+      # Use standalone mode (no Trivy server needed)
+      mode: Standalone
+      # Severity levels to report
+      severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+      # Slow scanning to reduce resource pressure in dev
+      resources:
+        requests:
+          cpu: 100m
+          memory: 100M
+        limits:
+          cpu: 500m
+          memory: 500M
+
+    # Enable ServiceMonitor for Prometheus
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: prometheus
+
+    # Expose Prometheus metrics
+    service:
+      metricsPort: 8080

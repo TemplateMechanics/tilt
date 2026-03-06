@@ -1,0 +1,57 @@
+---
+# Harbor Projects managed by Crossplane
+# These are declarative - add/remove projects here and Crossplane manages them
+
+# Development images - public for easy access
+apiVersion: harbor.devplatform.systechs.io/v1alpha1
+kind: HarborProject
+metadata:
+  name: dev
+  namespace: default
+spec:
+  name: dev
+  public: true
+
+---
+# Production images - private
+apiVersion: harbor.devplatform.systechs.io/v1alpha1
+kind: HarborProject
+metadata:
+  name: prod
+  namespace: default
+spec:
+  name: prod
+  public: false
+
+---
+# Base images (shared libraries, runtime bases)
+apiVersion: harbor.devplatform.systechs.io/v1alpha1
+kind: HarborProject
+metadata:
+  name: base
+  namespace: default
+spec:
+  name: base
+  public: true
+
+---
+# Cached third-party images (pull-through cache)
+apiVersion: harbor.devplatform.systechs.io/v1alpha1
+kind: HarborProject
+metadata:
+  name: cache
+  namespace: default
+spec:
+  name: cache
+  public: true
+
+---
+# CI/CD build artifacts
+apiVersion: harbor.devplatform.systechs.io/v1alpha1
+kind: HarborProject
+metadata:
+  name: ci
+  namespace: default
+spec:
+  name: ci
+  public: false

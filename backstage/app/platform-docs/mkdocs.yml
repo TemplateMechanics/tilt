@@ -1,0 +1,27 @@
+site_name: Dev Platform
+site_description: SysTechs Local Kubernetes Development Environment
+repo_url: https://github.com/TemplateMechanics/tilt
+
+plugins:
+  - techdocs-core
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Configuration: configuration.md
+  - Service Catalog: service-catalog.md
+  - Guides:
+      - Windows Setup: windows.md
+      - Crossplane Integration: crossplane.md
+      - GCP Emulators: gcp-emulators.md
+      - KubeVirt: kubevirt.md
+      - macOS VMs: macos-vms.md
+      - iOS / eyeOS: eyeos.md
+      - 1Password Integration: 1password.md
+      - TLS Certificates: certificates.md
+  - Backstage:
+      - Tilt Plugin: tilt-plugin.md
+  - Adding Services: adding-services.md
+  - Troubleshooting: troubleshooting.md
+  - Production Notes: production-notes.md

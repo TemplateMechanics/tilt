@@ -1,0 +1,5 @@
+site_name: 1Password Connect
+plugins:
+  - techdocs-core
+nav:
+  - Home: index.md
