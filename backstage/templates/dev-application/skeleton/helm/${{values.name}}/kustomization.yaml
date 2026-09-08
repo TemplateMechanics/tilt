@@ -14,7 +14,7 @@ resources:
 {%-   endif %}
 {%- endif %}
 {%- if values.createIngress %}
-  - ingress.yaml
+  - httproute.yaml
 {%- endif %}
 {%- if values.addToCatalog %}
   - catalog-info.yaml

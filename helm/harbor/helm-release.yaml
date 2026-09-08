@@ -16,13 +16,14 @@ spec:
         namespace: flux-system
   values:
     expose:
-      type: ingress
+      # clusterIP, not ingress: routing is owned by the Gateway API HTTPRoute the
+      # Crossplane DevApplication composition creates. With type: ingress the
+      # chart renders an Ingress with className "traefik", which no controller
+      # reconciles under Istio — it would sit there looking configured.
+      # TLS terminates at the Gateway, so it stays disabled on the chart.
+      type: clusterIP
       tls:
         enabled: false
-      ingress:
-        hosts:
-          core: harbor.localhost
-        className: traefik
     externalURL: http://harbor.localhost
     harborAdminPassword: "P@ssw0rd"
     trivy:

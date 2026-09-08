@@ -7,4 +7,4 @@ resources:
   - catalog-configmap.yaml
   - postgresql.yaml
   - deployment.yaml
-  - ingress.yaml
+  - httproute.yaml

@@ -19,4 +19,4 @@ resources:
   # - service.yaml
   
   # Ingress (works with both approaches)
-  - ingress.yaml
+  - httproute.yaml

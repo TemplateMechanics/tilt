@@ -75,31 +75,47 @@ spec:
             mergeOptions:
               keepMapValues: true
     
-    # 3. Create Traefik IngressRoute
-    - name: ingressroute
+    # 3. Create Gateway API HTTPRoute
+    #
+    # DROPPED IN MIGRATION: the Traefik IngressRoute attached a `security`
+    # Middleware (traefik ns) that set CORS headers, allowing any method/header
+    # and origins matching https?://(.*)?.localhost$. Gateway API v1 has no
+    # standard CORS filter, so there is no like-for-like replacement here.
+    # This is called out rather than silently dropped because a missing CORS
+    # header shows up as an opaque browser console error, not a routing failure.
+    # To restore it, add an Istio VirtualService corsPolicy (regex origins are
+    # supported) or an EnvoyFilter; a ResponseHeaderModifier filter cannot
+    # express the regex origin match.
+    - name: httproute
       base:
         apiVersion: kubernetes.crossplane.io/v1alpha2
         kind: Object
         spec:
           forProvider:
             manifest:
-              apiVersion: traefik.io/v1alpha1
-              kind: IngressRoute
+              apiVersion: gateway.networking.k8s.io/v1
+              kind: HTTPRoute
               metadata:
                 name: placeholder
                 namespace: placeholder
               spec:
-                entryPoints:
-                  - websecure
-                routes:
-                  - match: Host(`placeholder.localhost`)
-                    kind: Rule
-                    middlewares:
-                      - name: security
-                        namespace: traefik
-                    services:
+                hostnames:
+                  - placeholder.localhost
+                parentRefs:
+                  - name: localhost-gateway
+                    namespace: istio-system
+                    kind: Gateway
+                    group: gateway.networking.k8s.io
+                rules:
+                  - matches:
+                      - path:
+                          type: PathPrefix
+                          value: /
+                    # No namespace on the backendRef: the HTTPRoute is created in
+                    # the app's own namespace, so this stays a same-namespace
+                    # reference and needs no ReferenceGrant.
+                    backendRefs:
                       - name: placeholder
-                        namespace: placeholder
                         port: 80
       patches:
         - type: FromCompositeFieldPath
@@ -110,27 +126,20 @@ spec:
           toFieldPath: spec.forProvider.manifest.metadata.namespace
         - type: FromCompositeFieldPath
           fromFieldPath: spec.domain
-          toFieldPath: spec.forProvider.manifest.spec.routes[0].match
-          transforms:
-            - type: string
-              string:
-                fmt: "Host(`%s`)"
+          toFieldPath: spec.forProvider.manifest.spec.hostnames[0]
         # Default service name to spec.name (applied first)
         - type: FromCompositeFieldPath
           fromFieldPath: spec.name
-          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].name
+          toFieldPath: spec.forProvider.manifest.spec.rules[0].backendRefs[0].name
         # Override with explicit serviceName if provided (applied second, wins)
         - type: FromCompositeFieldPath
           fromFieldPath: spec.ingress.serviceName
-          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].name
+          toFieldPath: spec.forProvider.manifest.spec.rules[0].backendRefs[0].name
           policy:
             fromFieldPath: Optional
         - type: FromCompositeFieldPath
-          fromFieldPath: spec.name
-          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].namespace
-        - type: FromCompositeFieldPath
           fromFieldPath: spec.ingress.servicePort
-          toFieldPath: spec.forProvider.manifest.spec.routes[0].services[0].port
+          toFieldPath: spec.forProvider.manifest.spec.rules[0].backendRefs[0].port
     
     # 4. Create ServiceMonitor for Prometheus (if monitoring.metrics enabled)
     - name: servicemonitor

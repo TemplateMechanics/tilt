@@ -1,0 +1,37 @@
+{%- if values.createIngress and values.port %}
+# Gateway API replacement for the previous Traefik Ingress.
+# The old template set `secretName: wildcard-tls-dev` on a tls block, but that
+# Secret only ever existed in the traefik namespace — never in the app's own
+# namespace — so Traefik fell back to its default cert store and the route
+# worked by accident. A Gateway holds the certificate centrally, so nothing
+# here references a Secret at all.
+#
+# NOTE: ${{ values.name }}.localhost must also be present in the dnsNames of
+# helm/istio/gateway/base/certificate.yaml. A "*.localhost" wildcard alone does
+# NOT satisfy TLS hostname verification (OpenSSL and Windows schannel both
+# reject a wildcard directly under the single-label parent "localhost").
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app: ${{ values.name }}
+    app.kubernetes.io/name: ${{ values.name }}
+spec:
+  hostnames:
+    - ${{ values.name }}.localhost
+  parentRefs:
+    - name: localhost-gateway
+      namespace: istio-system
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ${{ values.name }}
+          port: ${{ values.port }}
+{%- endif %}
