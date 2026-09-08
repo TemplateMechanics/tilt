@@ -1,5 +1,5 @@
-certificates/intermediateCA
-certificates/rootCA
+archive/openssl-certs/intermediateCA
+archive/openssl-certs/rootCA
 
 # Azurite runtime data
 azurite-data/

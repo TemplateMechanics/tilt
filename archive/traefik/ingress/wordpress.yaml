@@ -1,0 +1,16 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wordpress
+  namespace: wordpress
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wordpress.localhost`)
+      kind: Rule
+      services:
+        - name: wordpress
+          namespace: wordpress
+          port: 80
