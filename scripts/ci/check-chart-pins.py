@@ -28,7 +28,13 @@ SKIP_SUBSTR = ("/node_modules/", "archive/")
 def main():
     unpinned, ranged, pinned = [], [], 0
 
-    for path in glob.glob("helm/**/*.yaml", recursive=True):
+    # apps/ MUST be scanned as well as helm/. Crossplane DevApplications carry
+    # their own spec.chart.version and are the LIVE path for harbor, jenkins,
+    # qdrant, langfuse and localstack — the helm/<app>/ directories for those are
+    # unreferenced. Scanning only helm/ reported "0 unpinned" while
+    # apps/jenkins.yaml sat on "*", which is a false clean: worse than no check,
+    # because it reads as evidence.
+    for path in glob.glob("helm/**/*.yaml", recursive=True) +                 glob.glob("apps/**/*.yaml", recursive=True):
         norm = path.replace("\\", "/")
         if any(s in norm for s in SKIP_SUBSTR):
             continue
@@ -39,10 +45,15 @@ def main():
             continue
 
         for doc in docs:
-            if doc.get("kind") != "HelmRelease":
+            kind = doc.get("kind")
+            if kind == "HelmRelease":
+                spec = (doc.get("spec") or {}).get("chart", {}).get("spec", {})
+                chart, version = spec.get("chart"), spec.get("version")
+            elif kind == "DevApplication":
+                spec = (doc.get("spec") or {}).get("chart", {}) or {}
+                chart, version = spec.get("name"), spec.get("version")
+            else:
                 continue
-            spec = (doc.get("spec") or {}).get("chart", {}).get("spec", {})
-            chart, version = spec.get("chart"), spec.get("version")
             if not chart:
                 continue
             if version in (None, "*"):

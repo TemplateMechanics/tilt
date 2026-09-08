@@ -69,9 +69,10 @@
     {
       "name": "jenkins",
       "host": "jenkins.localhost",
-      "path": "/",
-      "expect": "Jenkins",
-      "configKey": "crossplane_apps.jenkins"
+      "path": "/login",
+      "expect": "Sign in to Jenkins",
+      "configKey": "crossplane_apps.jenkins",
+      "note": "Jenkins returns HTTP 403 on / when unauthenticated while still serving the login page, so / looks like a failure when it is not. /login returns 200."
     },
     {
       "name": "jupyterhub",
@@ -100,7 +101,8 @@
       "host": "localstack.localhost",
       "path": "/_localstack/health",
       "expect": "services",
-      "configKey": "crossplane_apps.localstack"
+      "configKey": "crossplane_apps.localstack",
+      "note": "BLOCKED: chart 0.7.0 requires a LOCALSTACK_AUTH_TOKEN for all installations. Without one the container exits 55 and the route serves 503. Not a routing or migration fault."
     },
     {
       "name": "mailhog",
