@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Apply this ONLY on a cluster where the Prometheus Operator CRDs already exist.
+# Applying it earlier breaks the cert-manager install entirely rather than just
+# losing metrics — a failure that looks like a chart problem, not a config one.
+patches:
+  - target:
+      kind: HelmRelease
+      name: cert-manager
+    patch: |
+      - op: replace
+        path: /spec/values/prometheus/servicemonitor/enabled
+        value: true

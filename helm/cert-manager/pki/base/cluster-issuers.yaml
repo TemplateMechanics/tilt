@@ -1,0 +1,28 @@
+---
+# Bootstrap issuer. Exists only to sign the root CA below — a self-signed issuer
+# cannot be used for leaf certs because nothing would chain to it.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: local-root-ca
+spec:
+  ca:
+    secretName: local-root-ca
+---
+# Leaf certs are signed by the intermediate, never the root. The root key then
+# only ever signs one thing, so rotating a leaf never touches the CA that is
+# installed in the developer's OS trust store.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: local-intermediate-ca
+spec:
+  ca:
+    secretName: local-intermediate-ca
