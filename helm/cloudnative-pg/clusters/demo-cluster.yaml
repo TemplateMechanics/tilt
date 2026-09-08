@@ -1,0 +1,48 @@
+---
+# A real Cluster, deliberately, rather than shipping an operator with nothing to
+# reconcile. It proves the operator, its webhook and the CRDs work end to end,
+# and it is the template the five existing PostgreSQL deployments migrate onto.
+#
+# What this gives that a bare `image: postgres:15` Deployment does not:
+#   - a generated credential Secret, instead of a password in a committed file
+#   - point-in-time recovery via WAL archiving (needs an object store; not
+#     configured here because a laptop has none — see below)
+#   - rolling minor-version upgrades and a documented major-version path
+#   - failover when replicas > 1
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: demo-pg
+  namespace: cnpg-system
+spec:
+  instances: 1              # 1 on a dev cluster; >=3 for real failover
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+
+  bootstrap:
+    initdb:
+      database: demo
+      owner: demo
+      # No `secret:` here on purpose. Omitted, CNPG GENERATES the credential and
+      # stores it in demo-pg-app — which is the entire point: no password in the
+      # repo. Naming a secret here would reintroduce exactly the pattern this
+      # replaces.
+
+  storage:
+    size: 1Gi
+    # No storageClass: use whatever the cluster's default is. Naming one pins
+    # this to a specific distro — the same mistake the archived MSSQL chart made
+    # with azure-disk.
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # NOT configured: `backup:`. WAL archiving needs an object store, and there is
+  # no S3 on a laptop (localstack is token-gated). Stated rather than omitted
+  # silently, because a Cluster with no backup stanza looks configured and has
+  # no recovery path whatsoever. Point it at MinIO or real S3 before relying on
+  # this for anything you would miss.
