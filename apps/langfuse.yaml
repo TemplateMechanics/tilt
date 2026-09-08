@@ -8,7 +8,24 @@ spec:
   domain: langfuse.localhost
   chart:
     name: langfuse
-    version: ">=0.1.0"
+    # PREREQUISITE, and the reason this does not install out of the box:
+    # chart 2.x requires the ClickHouse Kubernetes operator to be present first —
+    #   ClickHouse operator CRDs not found (clickhouse.com/v1alpha1/ClickHouseCluster)
+    # ClickHouse is NOT a subchart in any 2.x release; only postgres and valkey
+    # are. The langfuse chart's own values describe that operator as
+    # "alpha-quality at the time of writing", so it is deliberately NOT added to
+    # this platform to unblock one service that is disabled by default.
+    #
+    # To run langfuse, either:
+    #   a) install the ClickHouse operator (clickhouse.com/v1alpha1), then enable
+    #      this app; or
+    #   b) set clickhouse.deploy: false below and point clickhouse.host at an
+    #      external ClickHouse.
+    #
+    # Pinned rather than ranged: ">=0.1.0" resolved to 2.1.0, a major version
+    # whose values are shaped completely differently, and the app silently
+    # stopped installing.
+    version: "2.1.0"
     repository: langfuse
     values:
       # Langfuse configuration
