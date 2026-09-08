@@ -88,7 +88,7 @@
 ###############################################################################
 # ALWAYS-ON INFRASTRUCTURE (managed in Tiltfile, not configurable)
 ###############################################################################
-# - traefik (ingress controller)
+# - istio (ambient mesh + Gateway API ingress)
 # - prometheus (metrics + alerting)
 # - loki (log aggregation)
 # - tempo (distributed tracing)
