@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tilt-config-server
+  namespace: tilt-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`tilt-config.localhost`)
+      kind: Rule
+      services:
+        - name: tilt-config-server
+          port: 10351
+  tls: {}
