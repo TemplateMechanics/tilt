@@ -75,7 +75,7 @@ This workspace demonstrates **three deployment patterns**, with configuration st
 
 **Best for**: Services needing sub-resource management (projects, jobs, credentials)
 
-- Creates Namespace, HelmRelease, IngressRoute, ServiceMonitor
+- Creates Namespace, HelmRelease, HTTPRoute, ServiceMonitor
 - Supports additional XRDs (e.g., HarborProject for managing repos)
 - Location: `apps/*.yaml`
 
@@ -102,7 +102,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 **Access paths:**
 
 - **From Backstage** — Routed via the Backstage proxy plugin (`/api/proxy/tilt-config/...`)
-- **Direct (Traefik)** — `http://tilt-config.localhost/config`
+- **Direct (Istio)** — `http://tilt-config.localhost/config`
 - **Port-forward** — `kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351`
 
 | Method | Endpoint | Description |
@@ -127,6 +127,6 @@ dev-certificate-generate
   └── dev-certificate-trust
         └── dev-certificate-install
 
-traefik (always-on)
+istio (always-on)
 prometheus, loki, tempo (always-on observability)
 ```

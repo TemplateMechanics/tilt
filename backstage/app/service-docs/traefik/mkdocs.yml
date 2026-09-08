@@ -1,5 +1,0 @@
-site_name: Traefik
-plugins:
-  - techdocs-core
-nav:
-  - Home: index.md

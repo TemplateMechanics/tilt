@@ -35,12 +35,12 @@ Tilt will:
 
 ## Accessing Services
 
-All services are exposed via Traefik ingress at `https://<service>.localhost`:
+All services are exposed via Istio ingress at `https://<service>.localhost`:
 
 | Service | URL |
 |---------|-----|
 | Backstage | [backstage.localhost](https://backstage.localhost) |
-| Traefik Dashboard | [traefik.localhost/dashboard/](https://traefik.localhost/dashboard/) |
+| Istio Dashboard | [grafana.localhost/dashboard/](https://grafana.localhost/dashboard/) |
 | Harbor | [harbor.localhost](https://harbor.localhost) |
 | Jenkins | [jenkins.localhost](https://jenkins.localhost) |
 | Prometheus | [prometheus.localhost](https://prometheus.localhost) |
