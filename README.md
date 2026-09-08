@@ -365,6 +365,30 @@ kubectl get providerrevision
 # Check IngressRoute
 kubectl get ingressroute -A
 
+### Backstage takes a long time on a cold build
+
+`backstage` is enabled by default and `docker_build` compiles it from source
+(`yarn tsc && yarn build:backend` on node:22). On a cold cache this regularly
+exceeds 20 minutes, during which the resource sits at
+`backstage:runtime waiting-for-pod` with no error.
+
+`tilt ci` will fail against the default timeout:
+
+```
+Error: Timeout after 22m0s: 1 resources waiting (backstage:runtime waiting-for-pod)
+```
+
+That is the build being slow, not the platform being broken — everything else
+reaches ready. Either allow for it (`tilt ci --timeout 45m`) or set
+`raw_apps.backstage.enabled: false` in `tilt-config.json` when you only need the
+infrastructure. Subsequent builds reuse the Docker layer cache and are far
+quicker.
+
+```bash
+# Watch the build rather than guessing
+kubectl get pods -n backstage
+```
+
 # Check the Istio gateway logs
 kubectl logs -n istio-system -l gateway.networking.k8s.io/gateway-name=localhost-gateway
 
