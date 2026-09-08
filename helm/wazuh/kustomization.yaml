@@ -8,7 +8,7 @@ resources:
   - indexer.yaml
   - manager.yaml
   - dashboard.yaml
-  - ingress.yaml
+  - httproute.yaml
   - filebeat-daemonset.yaml
   - dashboard-provisioner.yaml
 configMapGenerator:

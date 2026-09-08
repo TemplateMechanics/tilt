@@ -73,18 +73,31 @@ spec:
 #         - structs
 #         - terraform
 ---
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
+# Migrated from Traefik IngressRoute to Gateway API.
+# The original rule also matched Host(`www.jenkins.locahost`) — note the typo,
+# "locahost" is missing an l. That hostname could never have resolved, and it was
+# absent from the TLS SAN list, so it has been dropped rather than carried over
+# or silently corrected. If a www alias is genuinely wanted, add
+# "www.jenkins.localhost" here AND to the Certificate dnsNames, or TLS will fail
+# with a hostname mismatch.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: jenkins
   namespace: jenkins
 spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`jenkins.localhost`) || Host(`www.jenkins.locahost`)
-      kind: Rule
-      services:
+  hostnames:
+    - jenkins.localhost
+  parentRefs:
+    - name: localhost-gateway
+      namespace: istio-system
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         - name: jenkins
-          namespace: jenkins
           port: 8080

@@ -48,7 +48,10 @@ spec:
     
     # Ingress configuration
     ingress:
-      enabled: true
+    # Disabled: routing is owned by a Gateway API HTTPRoute now.
+    # Left enabled, the chart renders an Ingress that no controller
+    # watches under Istio — present in kubectl, serving nothing.
+      enabled: false
       className: traefik
       hosts:
         - host: ollama.localhost

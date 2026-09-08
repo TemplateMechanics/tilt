@@ -66,7 +66,10 @@ spec:
     grafana:
       adminPassword: admin
       ingress:
-        enabled: true
+      # Disabled: routing is owned by a Gateway API HTTPRoute now.
+      # Left enabled, the chart renders an Ingress that no controller
+      # watches under Istio — present in kubectl, serving nothing.
+        enabled: false
         hosts:
           - grafana.localhost
       # Add Loki and Tempo as additional datasources
