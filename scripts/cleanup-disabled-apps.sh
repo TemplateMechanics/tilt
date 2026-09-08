@@ -32,14 +32,53 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+###############################################################################
+# Core infrastructure guard
+#
+# These are installed unconditionally by the Tiltfile and the whole platform
+# depends on them. They must NEVER be treated as disabled apps.
+#
+# This guard exists because of a real incident: cert-manager was listed in
+# flux_apps with enabled:false while also being installed as core
+# infrastructure. Cleanup then deleted its namespace, CRDs and ClusterRoles
+# seconds after the platform created them. It was invisible — the already-issued
+# TLS Secret in istio-system kept serving HTTPS, so everything looked healthy
+# while nothing remained to renew the certificate.
+#
+# Filtering here as well as in the config means a regression in tilt-config.json
+# cannot destroy the platform's own TLS foundation.
+###############################################################################
+PROTECTED_INFRA="cert-manager istio istio-system istiod ztunnel istio-cni gateway-api"
+
+drop_protected() {
+    local out="" candidate
+    for candidate in $1; do
+        if contains "$PROTECTED_INFRA" "$candidate"; then
+            echo "  REFUSING to clean protected infrastructure: $candidate" >&2
+        else
+            out="$out $candidate"
+        fi
+    done
+    echo "$out"
+}
+
 # Helper: check if a word is in a space-separated list
 contains() {
-    local list="$1" item="$2"
+    # 'w' MUST be local. Without it, calling contains() from inside another
+    # loop over 'w' silently overwrites the caller's loop variable with the last
+    # element of this list — the caller then processes the wrong item entirely
+    # and reports success. Found exactly that way while testing drop_protected.
+    local list="$1" item="$2" w
     for w in $list; do
         [[ "$w" == "$item" ]] && return 0
     done
     return 1
 }
+
+# Apply the protected-infrastructure filter to everything cleanup acts on.
+DISABLED_RAW="$(drop_protected "$DISABLED_RAW")"
+DISABLED_FLUX="$(drop_protected "$DISABLED_FLUX")"
+NAMESPACES="$(drop_protected "$NAMESPACES")"
 
 ###############################################################################
 # Phase 3a — Crossplane DevApplication CR cleanup
