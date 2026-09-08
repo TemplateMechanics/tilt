@@ -74,12 +74,6 @@
       "category": "Infrastructure",
       "tested": false
     },
-    "cert-manager": {
-      "enabled": false,
-      "description": "Certificate management",
-      "category": "Infrastructure",
-      "tested": true
-    },
     "trivy": {
       "enabled": false,
       "description": "Kubernetes vulnerability scanner",
