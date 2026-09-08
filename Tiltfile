@@ -75,7 +75,14 @@ DEFAULT_CONFIG = {
         "ollama": {"enabled": False}, "kyverno": {"enabled": False},
         "falco": {"enabled": False}, "policy-reporter": {"enabled": False},
         "1pass": {"enabled": False}, "keda": {"enabled": False},
-        "velero": {"enabled": False}, "cert-manager": {"enabled": False},
+        "velero": {"enabled": False},
+        # cert-manager is NOT listed here on purpose. It is core
+        # infrastructure (the Gateway's TLS depends on it), installed
+        # unconditionally above. While it was a toggleable flux_app with
+        # enabled:false, the auto-cleanup deleted the namespace, CRDs and
+        # ClusterRoles immediately after the platform created them — and
+        # did it silently, because the already-issued Secret in
+        # istio-system kept serving TLS while nothing was left to renew it.
         "trivy": {"enabled": False}, "otel-collector": {"enabled": False},
         "nats": {"enabled": False}, "dapr": {"enabled": False},
         "argo-workflows": {"enabled": False}, "argocd": {"enabled": False},
@@ -207,7 +214,6 @@ for app in disabled_crossplane_apps:
 FLUX_NS_MAP = {
     "policy-reporter": "policy-reporter",
     "1pass": "1password-system",
-    "cert-manager": "cert-manager",
     "trivy": "trivy-system",
     "otel-collector": "opentelemetry",
     "dapr": "dapr-system",
@@ -325,108 +331,41 @@ def k8s_kustomize_simple(path, name, labels=[], links=[], resource_deps=[]):
     )
 
 ###############################################################################
+# GATEWAY PLATFORM OVERLAY
+#
+# kind and Docker Desktop need different gateway networking, so the Istio
+# manifests are split into kustomize overlays and the right one is picked here.
+#
+#   docker-desktop: a LoadBalancer Service binds host 80/443 directly.
+#   kind:           no load balancer exists, so the overlay adds a NodePort
+#                   Service (30080/30443, published by the kind cluster) plus a
+#                   DaemonSet that makes /run rshared for ambient capture.
+#
+# Choosing the wrong overlay leaves the gateway unreachable while every pod and
+# HelmRelease reports healthy, so it is derived from the context rather than set
+# by hand.
+###############################################################################
+
+GATEWAY_API_VERSION = "v1.3.0"
+
+def gateway_platform():
+    ctx = str(local(sh("kubectl config current-context"), quiet=True)).strip()
+    if ctx.startswith("kind-"):
+        return "kind"
+    return "docker-desktop"
+
+PLATFORM = gateway_platform()
+print("Gateway platform overlay: {}".format(PLATFORM))
+
+###############################################################################
 # INFRASTRUCTURE (Always On)
 ###############################################################################
 
 # Required namespaces
 k8s_namespace("flux")
-k8s_namespace("traefik")
 k8s_namespace("monitoring")
 k8s_namespace("logging")
 k8s_namespace("tracing")
-
-# Local TLS Certificates
-os_type = get_os_type()
-cert_path = "./certificates"
-
-cert_exists = str(local(sh("test -f {}/intermediateCA/certs/localhost-chain.cert.pem && echo 'yes' || echo 'no'".format(cert_path)), quiet=True)).strip()
-
-local_resource(
-    "dev-certificate-generate",
-    cmd=sh("""
-        cd {cert_path}
-        # Fix root-owned CA dirs via macOS GUI sudo prompt
-        for d in rootCA intermediateCA; do
-            if [ -d "$d" ]; then
-                TEST_FILE="$d/index.txt"
-                if [ -f "$TEST_FILE" ] && ! [ -w "$TEST_FILE" ]; then
-                    echo "$d has root-owned files — requesting admin privileges to fix..."
-                    bash ./sudo-helper.sh "chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA"
-                    echo "✓ Fixed ownership on CA directories"
-                    break
-                fi
-            fi
-        done
-        SKIP_CERT_TRUST=true bash ./generate-certs.sh
-    """.format(cert_path=cert_path)),
-    labels=["Infrastructure"],
-    auto_init=(cert_exists != "yes")
-)
-
-local_resource(
-    "dev-certificate-trust",
-    cmd=sh("""
-        cd {cert_path}
-        ROOT_CERT="rootCA/certs/ca.cert.pem"
-        if [ ! -f "$ROOT_CERT" ]; then
-            echo "No root CA cert found — skipping trust"
-            exit 0
-        fi
-        FULL_CERT_PATH="$(pwd)/$ROOT_CERT"
-        OS_TYPE="$(uname -s)"
-
-        case "$OS_TYPE" in
-            Darwin)
-                if security verify-cert -c "$ROOT_CERT" 2>/dev/null; then
-                    echo "✓ Root CA is already trusted (macOS)"
-                    exit 0
-                fi
-                echo "Installing Root CA into macOS System keychain..."
-                bash ./sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $FULL_CERT_PATH"
-                echo "✓ Root CA trusted in macOS System keychain"
-                ;;
-            Linux)
-                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
-                if [ -f "$TARGET" ]; then
-                    EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null || echo "")
-                    CURRENT=$(openssl x509 -in "$FULL_CERT_PATH" -noout -fingerprint -sha256 2>/dev/null || echo "none")
-                    if [ "$EXISTING" = "$CURRENT" ]; then
-                        echo "✓ Root CA is already trusted (Linux)"
-                        exit 0
-                    fi
-                fi
-                echo "Installing Root CA into Linux trusted certificates..."
-                bash ./sudo-helper.sh "cp $FULL_CERT_PATH $TARGET && update-ca-certificates"
-                echo "✓ Root CA trusted in Linux certificate store"
-                ;;
-            MINGW*|MSYS*|CYGWIN*)
-                if certutil -verify "$FULL_CERT_PATH" 2>/dev/null | grep -q "UNTRUSTED"; then
-                    echo "Installing Root CA into Windows certificate store..."
-                    certutil -addstore -user Root "$FULL_CERT_PATH" || {{
-                        echo "ERROR: Could not trust Root CA. Run in an admin PowerShell:"
-                        echo "  certutil -addstore Root $FULL_CERT_PATH"
-                        exit 1
-                    }}
-                    echo "✓ Root CA trusted in Windows certificate store"
-                else
-                    echo "✓ Root CA is already trusted (Windows)"
-                fi
-                ;;
-            *)
-                echo "Unsupported OS for automatic trust: $OS_TYPE"
-                echo "Manually trust: $FULL_CERT_PATH"
-                ;;
-        esac
-    """.format(cert_path=cert_path)),
-    labels=["Infrastructure"],
-    resource_deps=["dev-certificate-generate"]
-)
-
-local_resource(
-    "dev-certificate-install",
-    cmd=sh("cd {} && kubectl create namespace traefik --dry-run=client -o yaml | kubectl apply -f - && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path)),
-    labels=["Infrastructure"],
-)
 
 # Flux GitOps
 local_resource(
@@ -483,17 +422,6 @@ local_resource(
     labels=["Infrastructure"]
 )
 
-# Traefik Ingress
-helm_remote(
-    repo_name="traefik",
-    repo_url="https://helm.traefik.io/traefik",
-    values="./helm/traefik.yaml",
-    namespace="traefik",
-    release_name="traefik",
-    chart="traefik",
-)
-k8s_resource("traefik", labels=["Infrastructure"])
-watch_file("./helm/traefik.yaml")
 
 ###############################################################################
 # OBSERVABILITY STACK (Always On)
@@ -525,6 +453,170 @@ local_resource(
     """),
     labels=["Platform"],
     resource_deps=["flux-install"]
+)
+
+###############################################################################
+# INGRESS: Istio ambient mesh + Gateway API
+#
+# Replaces Traefik, which is archived under archive/traefik/ (still supported for
+# customers running it — see archive/README.md).
+#
+# The layers below MUST run in this order. Each one installs CRDs that the next
+# one creates instances of, so on a fresh cluster an out-of-order apply fails
+# with 'no matches for kind "Gateway"' / '"ClusterIssuer"' / '"Certificate"'.
+# That failure is transient under Flux retry, which is exactly what makes it
+# easy to misread as a flake instead of an ordering bug.
+#
+#   gateway-api-crds  Gateway/HTTPRoute kinds
+#   istio             istio-base -> istiod -> cni -> ztunnel (ambient)
+#   cert-manager      the controller (CRDs come with the chart)
+#   cert-manager-pki  ClusterIssuers + root/intermediate CA Certificates
+#   istio-gateway     the Gateway + the wildcard Certificate it serves
+#   dev-ca-trust      export the root CA and install it in the OS trust store
+###############################################################################
+
+# Shared shell helper: kubectl wait fails outright if the object does not exist
+# yet, and Flux creates HelmReleases asynchronously, so poll for existence first.
+_WAIT_HR = """
+wait_hr() {
+    ns="$1"; name="$2"; tmo="${3:-300s}"
+    for i in $(seq 1 60); do
+        kubectl -n "$ns" get helmrelease "$name" >/dev/null 2>&1 && break
+        sleep 5
+    done
+    kubectl -n "$ns" wait --for=condition=Ready "helmrelease/$name" --timeout="$tmo"
+}
+"""
+
+local_resource(
+    "gateway-api-crds",
+    cmd=sh("""
+        echo "Installing Gateway API """ + GATEWAY_API_VERSION + """ (standard channel)..."
+        kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/""" + GATEWAY_API_VERSION + """/standard-install.yaml
+        kubectl wait --for=condition=established --timeout=90s \
+            crd/gateways.gateway.networking.k8s.io \
+            crd/httproutes.gateway.networking.k8s.io
+        echo "Gateway API CRDs established"
+    """),
+    labels=["Infrastructure"],
+)
+
+local_resource(
+    "istio",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/istio/overlays/""" + PLATFORM + """
+        wait_hr istio-system istio-base
+        wait_hr istio-system istiod
+        wait_hr istio-system istio-cni
+        wait_hr istio-system ztunnel
+
+        # Ambient capture depends on /run being rshared on every node. If it is
+        # not, istio-cni cannot enter pod netns: pods run, ztunnel runs, and
+        # nothing is actually in the mesh. Checked here because every component
+        # reports healthy in that state.
+        kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
+        kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=180s
+
+        kubectl get gatewayclass istio -o name >/dev/null 2>&1 \
+            && echo "istio GatewayClass registered" \
+            || { echo "ERROR: istio GatewayClass missing - Gateway resources would be accepted and never programmed"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "gateway-api-crds", "helm-repositories"],
+)
+
+local_resource(
+    "cert-manager",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/cert-manager/overlays/""" + PLATFORM + """
+        wait_hr cert-manager cert-manager 420s
+        kubectl -n cert-manager rollout status deployment/cert-manager-webhook --timeout=180s
+        echo "cert-manager ready"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)
+
+local_resource(
+    "cert-manager-pki",
+    cmd=sh("""
+        kubectl apply -k ./helm/cert-manager/pki/overlays/""" + PLATFORM + """
+        kubectl -n cert-manager wait --for=condition=Ready certificate/local-root-ca --timeout=180s
+        kubectl -n cert-manager wait --for=condition=Ready certificate/local-intermediate-ca --timeout=180s
+        # An Issuer can exist and not be usable; assert it verified its signing CA.
+        kubectl wait --for=condition=Ready clusterissuer/local-intermediate-ca --timeout=120s
+        echo "Local CA chain ready (root -> intermediate)"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["cert-manager"],
+)
+
+local_resource(
+    "istio-gateway",
+    cmd=sh("""
+        kubectl apply -k ./helm/istio/gateway/overlays/""" + PLATFORM + """
+        kubectl -n istio-system wait --for=condition=Ready certificate/wildcard-localhost --timeout=180s
+        kubectl -n istio-system wait --for=condition=Programmed gateway/localhost-gateway --timeout=180s
+        kubectl -n istio-system get gateway localhost-gateway
+        echo "Gateway programmed and serving the wildcard certificate"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["istio", "cert-manager-pki"],
+)
+
+local_resource(
+    "dev-ca-trust",
+    cmd=sh("""
+        # The CA now lives in the cluster, not on disk. Export it rather than
+        # keeping a copy in the repo, so there is exactly one source of truth
+        # and a rotated CA cannot silently disagree with the trusted copy.
+        CA_FILE="$(mktemp -t dev-root-ca-XXXXXX).crt"
+        # go-template, not jsonpath. Starlark rejects the backslash-dot escape
+        # that jsonpath needs to address the "tls.crt" key, and the Tiltfile
+        # then fails to parse with 'invalid escape sequence'. Note this comment
+        # cannot contain that escape either - it is inside the string literal.
+        kubectl get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d > "$CA_FILE"
+        if [ ! -s "$CA_FILE" ]; then
+            echo "ERROR: exported root CA is empty - refusing to touch the trust store"
+            exit 1
+        fi
+        FP=$(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
+        echo "Root CA fingerprint: $FP"
+
+        case "$(uname -s)" in
+            Darwin)
+                if security verify-cert -c "$CA_FILE" >/dev/null 2>&1; then
+                    echo "Root CA already trusted (macOS)"
+                else
+                    bash ./archive/openssl-certs/sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $CA_FILE"
+                    echo "Root CA trusted in macOS System keychain"
+                fi
+                ;;
+            Linux)
+                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
+                EXISTING=""
+                [ -f "$TARGET" ] && EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
+                if [ "$EXISTING" = "$FP" ]; then
+                    echo "Root CA already trusted (Linux)"
+                else
+                    bash ./archive/openssl-certs/sudo-helper.sh "cp $CA_FILE $TARGET && update-ca-certificates"
+                    echo "Root CA trusted in Linux certificate store"
+                fi
+                ;;
+            MINGW*|MSYS*|CYGWIN*)
+                # certutil compares by content, so re-adding an identical cert is
+                # a no-op; -user avoids needing an elevated shell.
+                certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null \
+                    && echo "Root CA trusted in Windows user Root store" \
+                    || { echo "Could not trust Root CA automatically. Run in an admin PowerShell:"; echo "  certutil -addstore Root $CA_FILE"; }
+                ;;
+            *)
+                echo "Unsupported OS for automatic trust. Trust this file manually: $CA_FILE"
+                ;;
+        esac
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["cert-manager-pki"],
 )
 
 k8s_yaml(kustomize("./helm/prometheus/"), allow_duplicates=True)
