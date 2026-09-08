@@ -565,6 +565,97 @@ local_resource(
 )
 
 local_resource(
+    "metrics-server",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/metrics-server/overlays/""" + PLATFORM + """
+        wait_hr kube-system metrics-server
+
+        # Ready pods are not evidence the Metrics API works. On kind and Docker
+        # Desktop the kubelet serving cert has no IP SAN, and without
+        # --kubelet-insecure-tls every scrape fails while the deployment stays
+        # Running and Ready — installed and inert. Assert the API answers.
+        for i in $(seq 1 30); do
+            kubectl top nodes >/dev/null 2>&1 && { kubectl top nodes; exit 0; }
+            sleep 5
+        done
+        echo "ERROR: metrics-server is Ready but 'kubectl top nodes' still fails"
+        kubectl logs -n kube-system -l app.kubernetes.io/name=metrics-server --tail=20 2>/dev/null
+        exit 1
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install"],
+)
+
+local_resource(
+    "kiali",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/kiali/overlays/""" + PLATFORM + """
+        wait_hr istio-system kiali
+        kubectl -n istio-system rollout status deployment/kiali --timeout=180s
+
+        # Kiali is how you find out the mesh is empty. Report the data plane
+        # count rather than leaving it to be noticed: ambient installs happily
+        # with zero namespaces labelled, and every service still works.
+        AMBIENT=$(kubectl get ns -l istio.io/dataplane-mode=ambient --no-headers 2>/dev/null | wc -l)
+        echo "Namespaces enrolled in the ambient mesh: $AMBIENT"
+        [ "$AMBIENT" -eq 0 ] && echo "WARNING: nothing is in the mesh - see helm/istio/README-ambient.md"
+        exit 0
+    """),
+    labels=["Infrastructure"],
+    links=["https://kiali.localhost"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
+    "flagger",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/flagger/overlays/""" + PLATFORM + """
+        wait_hr istio-system flagger
+        # Assert the provider actually initialised as gatewayapi. With the wrong
+        # provider Flagger writes VirtualServices that Istio never applies, and
+        # canaries stall with no error.
+        kubectl logs -n istio-system -l app.kubernetes.io/name=flagger --tail=50 2>/dev/null             | grep -q "mesh provider gatewayapi"             && echo "Flagger running with the Gateway API provider"             || { echo "ERROR: Flagger did not start with the gatewayapi provider"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
+    "external-secrets",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/external-secrets/overlays/""" + PLATFORM + """
+        wait_hr external-secrets external-secrets
+        kubectl -n external-secrets rollout status deployment/external-secrets-webhook --timeout=180s
+
+        # The stores layer needs the CRDs the release above installs.
+        kubectl apply -k ./helm/external-secrets/stores
+
+        # An operator with no working store reconciles nothing while reporting
+        # healthy. Assert a Secret actually materialises.
+        kubectl -n external-secrets wait --for=condition=Ready             externalsecret/demo-credentials --timeout=120s
+        kubectl -n external-secrets get secret demo-credentials >/dev/null             && echo "External Secrets is materialising Secrets"             || { echo "ERROR: ExternalSecret Ready but no Secret was created"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)
+
+local_resource(
+    "cloudnative-pg",
+    cmd=sh(_WAIT_HR + """
+        kubectl apply -k ./helm/cloudnative-pg/overlays/""" + PLATFORM + """
+        wait_hr cnpg-system cloudnative-pg
+        kubectl -n cnpg-system rollout status deployment/cloudnative-pg --timeout=180s
+        kubectl apply -k ./helm/cloudnative-pg/clusters
+        # A Cluster can exist and never reach a usable state; wait for the
+        # operator's own readiness condition rather than for pods.
+        kubectl -n cnpg-system wait --for=condition=Ready cluster/demo-pg --timeout=300s
+        kubectl -n cnpg-system get cluster demo-pg
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)
+
+local_resource(
     "dev-ca-trust",
     cmd=sh("""
         # The CA now lives in the cluster, not on disk. Export it rather than

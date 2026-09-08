@@ -1,0 +1,8 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Requires the Gateway API CRDs and istio-system. Flagger only reconciles Canary
+# resources; installing it changes nothing until a Canary is created.
+resources:
+  - helm-repo.yaml
+  - helm-release.yaml

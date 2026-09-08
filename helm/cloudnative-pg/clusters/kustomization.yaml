@@ -1,0 +1,7 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Depends on the CNPG CRDs. Apply after the operator's HelmRelease is Ready or
+# this fails with 'no matches for kind "Cluster"'.
+resources:
+  - demo-cluster.yaml
