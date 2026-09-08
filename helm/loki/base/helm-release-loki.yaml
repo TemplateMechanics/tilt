@@ -1,0 +1,97 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: logging
+spec:
+  interval: 1h
+  chart:
+    spec:
+      # The previous chart was loki-stack, which Grafana archived. It pinned
+      # Loki 2.6.1 (built July 2022): old enough that Grafana 13's datasource
+      # health probe sends LogQL its parser rejects —
+      #   Loki health check failed: parse error at line 1, col 1:
+      #   syntax error: unexpected IDENTIFIER
+      # so the datasource showed permanently red while ordinary queries worked.
+      # Pinned exactly, not a range: a log store changing major version on a
+      # Flux reconcile is not something to discover from a broken dashboard.
+      chart: loki
+      version: "7.3.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+  values:
+    deploymentMode: SingleBinary
+
+    loki:
+      auth_enabled: false
+      commonConfig:
+        replication_factor: 1
+      storage:
+        type: filesystem
+      # schemaConfig has no usable default in chart 6+; without it Loki refuses
+      # to start rather than guessing, which is the correct behaviour but means
+      # this block is mandatory.
+      schemaConfig:
+        configs:
+          - from: "2024-04-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      limits_config:
+        retention_period: 168h    # 7d is plenty for a local dev platform
+        allow_structured_metadata: true
+        volume_enabled: true
+      compactor:
+        retention_enabled: true
+        delete_request_store: filesystem
+
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: true
+        size: 10Gi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+    # SingleBinary mode still renders the microservice deployments unless each is
+    # explicitly zeroed. Left at their defaults they schedule alongside the
+    # single binary and sit unready forever on a one-node dev cluster.
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
+    # Caches, canary and the self-test are production scaffolding; on a laptop
+    # they are pure overhead and the canary generates constant synthetic log
+    # noise that pollutes the log-review dashboard.
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false
+
+    # No nginx gateway: Grafana talks to the Loki service directly in-cluster,
+    # and the extra hop only adds a component that can fail.
+    gateway:
+      enabled: false

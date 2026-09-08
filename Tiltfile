@@ -676,8 +676,57 @@ local_resource(
     resource_deps=["prometheus"]
 )
 
-k8s_yaml(kustomize("./helm/loki/"), allow_duplicates=True)
-local_resource("loki", cmd=sh("kubectl get pods -n logging | head -5"), labels=["Observability"])
+k8s_yaml(kustomize("./helm/loki/overlays/" + PLATFORM), allow_duplicates=True)
+local_resource(
+    "loki",
+    cmd=sh("""
+        kubectl apply -k ./helm/loki/overlays/""" + PLATFORM + """
+        for i in $(seq 1 60); do
+            kubectl -n logging get helmrelease loki >/dev/null 2>&1 && break
+            sleep 5
+        done
+        kubectl -n logging wait --for=condition=Ready helmrelease/loki --timeout=420s
+        kubectl -n logging wait --for=condition=Ready helmrelease/alloy --timeout=300s
+        kubectl -n logging rollout status statefulset/loki --timeout=300s
+
+        kubectl -n logging rollout status daemonset/alloy --timeout=300s
+
+        # Readiness of the pods is not evidence that logs are being INGESTED.
+        # Alloy can run, Loki can be Ready, and the label set still be empty —
+        # every panel on the log dashboard then renders "No data" with nothing
+        # anywhere reporting a fault. So assert the `namespace` label exists.
+        #
+        # The probe runs in its own throwaway pod rather than exec-ing into
+        # Alloy: alloy is a DaemonSet (not a Deployment, so `exec deploy/alloy`
+        # fails) and its image ships neither wget nor curl. Both mistakes make
+        # the check fail even when ingestion is healthy, which is worse than no
+        # check at all.
+        echo "Checking Loki has actually ingested logs..."
+        kubectl -n logging delete pod loki-ingest-check --ignore-not-found >/dev/null 2>&1
+        kubectl -n logging run loki-ingest-check --restart=Never --image=curlimages/curl:8.11.1             --command -- sleep 300 >/dev/null 2>&1
+        kubectl -n logging wait --for=condition=ready pod/loki-ingest-check --timeout=120s >/dev/null 2>&1
+
+        INGESTING=no
+        for i in $(seq 1 30); do
+            LABELS=$(kubectl -n logging exec loki-ingest-check --                 curl -sS --max-time 10 http://loki.logging.svc.cluster.local:3100/loki/api/v1/labels 2>/dev/null || echo "")
+            case "$LABELS" in
+                *namespace*) INGESTING=yes; break ;;
+            esac
+            sleep 10
+        done
+        kubectl -n logging delete pod loki-ingest-check --ignore-not-found >/dev/null 2>&1
+
+        if [ "$INGESTING" = "yes" ]; then
+            echo "Loki is ingesting (namespace label present)"
+        else
+            echo "ERROR: Loki is up but no 'namespace' label after 5 minutes - Alloy is not shipping logs"
+            kubectl -n logging logs -l app.kubernetes.io/name=alloy --tail=30 2>/dev/null
+            exit 1
+        fi
+    """),
+    labels=["Observability"],
+    resource_deps=["helm-repositories"],
+)
 
 k8s_yaml(kustomize("./helm/tempo/"), allow_duplicates=True)
 local_resource("tempo", cmd=sh("kubectl get pods -n tracing | head -5"), labels=["Observability"])
