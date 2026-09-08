@@ -23,6 +23,12 @@ spec:
               kind: Namespace
               metadata:
                 name: placeholder
+                labels:
+                  # Scaffolded apps join the ambient mesh automatically, so they
+                  # get mTLS and L4 telemetry without the author doing anything.
+                  # Omitting it is invisible: the app works, and is simply absent
+                  # from the mesh and from Kiali's data plane count.
+                  istio.io/dataplane-mode: ambient
       patches:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.name

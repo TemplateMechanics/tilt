@@ -2,3 +2,16 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: qdrant
+  labels:
+    # Enrolled in the Istio ambient mesh: ztunnel captures traffic for this
+    # namespace, giving mTLS and L4 telemetry with no sidecar and no pod change.
+    #
+    # Without this label the mesh is inert for this workload. That is not
+    # theoretical - it was the state of the whole platform until this was added:
+    # ztunnel Running on every node, istio-cni healthy, and Kiali reporting
+    # "Data planes (0)" because not one namespace carried the label.
+    #
+    # Infrastructure namespaces (istio-system, cert-manager, flux-system,
+    # kube-system, crossplane-system, monitoring, logging, tracing) are
+    # deliberately NOT enrolled - see helm/istio/README-ambient.md.
+    istio.io/dataplane-mode: ambient

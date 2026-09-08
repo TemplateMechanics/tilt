@@ -1,0 +1,65 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      # kiali-server, not kiali-operator. The operator adds a reconcile loop and
+      # a CR to manage one deployment — worth it in production, pure overhead on
+      # a laptop where Flux already provides the reconciliation.
+      chart: kiali-server
+      version: "2.31.0"
+      sourceRef:
+        kind: HelmRepository
+        name: kiali
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+  values:
+    auth:
+      # anonymous: this is a local dev cluster reachable only on loopback, and a
+      # token strategy would mean pasting a ServiceAccount token in to look at a
+      # graph. Do NOT carry this setting to a cluster reachable by anyone else —
+      # Kiali exposes full mesh topology and config.
+      strategy: anonymous
+
+    deployment:
+      # Kiali defaults to creating its own Ingress. Left on it renders an Ingress
+      # that no controller reconciles under Istio: present in kubectl, serving
+      # nothing. Routing is owned by the Gateway API HTTPRoute alongside this.
+      ingress:
+        enabled: false
+      resources:
+        requests:
+          cpu: 25m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+    external_services:
+      prometheus:
+        # kube-prometheus-stack's service name. The chart's default is the
+        # standalone prometheus chart's "prometheus.istio-system", which does not
+        # exist here — Kiali then starts, serves its UI, and shows an empty graph
+        # with no error banner, exactly the way OpenCost did.
+        url: http://prometheus-kube-prometheus-prometheus.monitoring:9090
+      grafana:
+        enabled: true
+        internal_url: http://prometheus-grafana.monitoring:80
+        external_url: https://grafana.localhost
+      tracing:
+        # Tempo is deployed in the tracing namespace. Kiali speaks Jaeger's query
+        # API; Tempo serves it on 3200.
+        enabled: true
+        internal_url: http://tempo.tracing:3200
+        use_grpc: false
+
+    istio_namespace: istio-system

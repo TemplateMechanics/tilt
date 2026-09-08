@@ -90,6 +90,14 @@
       "note": "Route host is auth.localhost, not keycloak.localhost."
     },
     {
+      "name": "kiali",
+      "host": "kiali.localhost",
+      "path": "/",
+      "expect": "Kiali",
+      "configKey": null,
+      "note": "Istio mesh observability. auth.strategy is anonymous - local dev only."
+    },
+    {
       "name": "langfuse",
       "host": "langfuse.localhost",
       "path": "/",
