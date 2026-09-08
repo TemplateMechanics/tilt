@@ -41,6 +41,7 @@ spec:
     - grafana.localhost
     - harbor.localhost
     - jenkins.localhost
+    - kiali.localhost
     - jupyterhub.localhost
     - keycloak.localhost
     - kubevirt.localhost
