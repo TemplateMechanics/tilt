@@ -1,0 +1,44 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: local-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: Tilt Local Development Root CA
+  subject:
+    organizations:
+      - SystematicTech (local development only)
+  secretName: local-root-ca
+  duration: 87600h    # 10y — this is what gets trusted in the OS store
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-bootstrap
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: local-intermediate-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: Tilt Local Development Intermediate CA
+  subject:
+    organizations:
+      - SystematicTech (local development only)
+  secretName: local-intermediate-ca
+  duration: 43800h    # 5y
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: local-root-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
