@@ -14,6 +14,41 @@ spec:
         name: bitnami
         namespace: flux-system
   values:
+    # This release never installed. Two separate faults, both pre-existing:
+    #
+    # 1. compactor and storegateway were enabled, and the chart refuses to
+    #    render without an objstore configuration:
+    #      "When enabling Bucket Web, Compactor, Ruler or Store component,
+    #       you must provide a valid objstore configuration"
+    #    Both components exist purely to compact and serve blocks FROM object
+    #    storage, and there is none on a laptop, so they are disabled rather
+    #    than given a fake bucket. Enable them together with objstoreConfig when
+    #    pointing at MinIO or real S3.
+    #
+    # 2. dnsDiscovery pointed at "prometheus-server", the service name the
+    #    standalone prometheus chart creates. This platform runs
+    #    kube-prometheus-stack, whose Prometheus service is prometheus-operated.
+    #    Exactly the same wrong-service-name bug that left OpenCost showing an
+    #    empty cost report.
+    #
+    # WHAT THIS GIVES YOU, and what it does not: Thanos Query federating live
+    # Prometheus data. It does NOT give long-term retention — that needs the
+    # Thanos sidecar enabled on kube-prometheus-stack
+    # (prometheus.prometheusSpec.thanos) writing to an object store. Neither
+    # exists yet, so treat this as query federation only.
+    # Bitnami removed versioned tags from docker.io/bitnami in August 2025, so
+    # the tag this chart pins no longer exists:
+    #   docker.io/bitnami/thanos:0.36.0-debian-12-r1: not found
+    # The pods ImagePullBackOff while the HelmRelease sits at Ready=Unknown.
+    # bitnamilegacy is Bitnami's archive of those exact images, so the chart's
+    # entrypoint and paths still match — safer here than swapping in
+    # quay.io/thanos/thanos, which is the official image but not the one this
+    # chart is built around.
+    # This is the last Bitnami chart in the repo; anything else pulling from
+    # docker.io/bitnami will hit the same wall.
+    image:
+      registry: docker.io
+      repository: bitnamilegacy/thanos
     query:
       enabled: true
       replicaCount: 1
@@ -24,10 +59,11 @@ spec:
         requests:
           cpu: 100m
           memory: 128Mi
-      stores:
-        - dnssrv+_grpc._tcp.thanos-storegateway.thanos.svc.cluster.local
+      # No static store list: the storegateway below is disabled, so pointing at
+      # it would make Query log resolution failures forever.
+      stores: []
       dnsDiscovery:
-        sidecarsService: prometheus-server
+        sidecarsService: prometheus-operated
         sidecarsNamespace: monitoring
     queryFrontend:
       enabled: true
@@ -40,7 +76,8 @@ spec:
           cpu: 50m
           memory: 64Mi
     compactor:
-      enabled: true
+      # Requires objstore; see the note at the top of values.
+      enabled: false
       resources:
         limits:
           cpu: 200m
@@ -52,7 +89,8 @@ spec:
         enabled: true
         size: 5Gi
     storegateway:
-      enabled: true
+      # Requires objstore; see the note at the top of values.
+      enabled: false
       replicaCount: 1
       resources:
         limits:
