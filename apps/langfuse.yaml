@@ -43,7 +43,13 @@ spec:
       clickhouse:
         enabled: true
         auth:
-          username: langfuse
+          # MUST be "default". The chart refuses to render otherwise:
+          #   clickhouse.auth.username must be "default" when
+          #   clickhouse.deploy is true
+          # because the operator CR only provisions a password for the built-in
+          # default user. With "langfuse" here the whole HelmRelease fails to
+          # install, so langfuse never appears at all.
+          username: default
           password: langfuse
         # Single node for dev environment (reduce resource usage)
         shards: 1

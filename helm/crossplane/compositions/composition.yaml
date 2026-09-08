@@ -71,9 +71,22 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.chart.values
           toFieldPath: spec.forProvider.manifest.spec.values
-          policy:
-            mergeOptions:
-              keepMapValues: true
+          # No mergeOptions.keepMapValues here, deliberately.
+          #
+          # With keepMapValues: true the patch MERGES into whatever the
+          # HelmRelease already has and keeps the existing value on any key that
+          # is already set. Editing a value in a DevApplication then has no
+          # effect: the DevApplication and the XR both show the new value while
+          # the generated HelmRelease keeps the old one, and nothing anywhere
+          # reports a conflict. Observed with langfuse — clickhouse.auth.username
+          # was corrected to "default" in apps/langfuse.yaml, the XR carried
+          # "default", and the HelmRelease still had "langfuse", so the release
+          # kept failing to install with the error the fix was meant to resolve.
+          #
+          # Without it the values map is replaced, so edits actually apply. New
+          # keys are still added; the only thing lost is the ability to change a
+          # value out-of-band on the HelmRelease and have it survive, which is
+          # drift the platform should not be preserving anyway.
     
     # 3. Create Gateway API HTTPRoute
     #
