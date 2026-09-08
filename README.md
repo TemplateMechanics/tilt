@@ -145,7 +145,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 
 **Access paths:**
 - **From Backstage** — Routed via the Backstage proxy plugin (`/api/proxy/tilt-config/...`)
-- **Direct (Traefik)** — `http://tilt-config.localhost/config`
+- **Direct (Istio gateway)** — `http://tilt-config.localhost/config`
 - **Port-forward** — `kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351`
 
 | Method | Endpoint | Description |
@@ -161,7 +161,8 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 ### Always-On Infrastructure
 | Service | Description | URL |
 |---------|-------------|-----|
-| Traefik | Ingress controller | https://traefik.localhost |
+| Istio | Ambient mesh + Gateway API ingress | (no UI; see Grafana) |
+| cert-manager | Issues the local CA chain and wildcard TLS cert | (no UI) |
 | Prometheus | Metrics & alerting | https://prometheus.localhost |
 | Loki | Log aggregation | - |
 | Tempo | Distributed tracing | - |
@@ -292,7 +293,8 @@ annotations:
 │   ├── loki/
 │   ├── tempo/
 │   ├── <service>/              # Service-specific configs
-│   └── traefik.yaml            # Ingress values
+│   ├── istio/                  # Ambient control plane + Gateway (base/overlays)
+│   └── cert-manager/           # CA chain + PKI (base/overlays/components)
 ├── certificates/               # TLS certificate generation
 └── docs/                       # Additional documentation
 ```
@@ -363,8 +365,14 @@ kubectl get providerrevision
 # Check IngressRoute
 kubectl get ingressroute -A
 
-# Check Traefik logs
-kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+# Check the Istio gateway logs
+kubectl logs -n istio-system -l gateway.networking.k8s.io/gateway-name=localhost-gateway
+
+# Is a route actually attached to the Gateway?
+kubectl get httproute -A
+
+# Gateway programmed, and is the cert Ready?
+kubectl get gateway,certificate -n istio-system
 ```
 
 ### Config server not responding

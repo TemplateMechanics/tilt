@@ -23,7 +23,7 @@ WordPress is deployed as a demo CMS application with a MySQL 8.0 backend, provid
 
 ```
 ┌───────────────────────────┐
-│       Traefik Ingress     │
+│       Istio Ingress     │
 │  wordpress.localhost:443  │
 └─────────────┬─────────────┘
               │
