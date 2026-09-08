@@ -5,28 +5,32 @@
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
-  name: traefik
-  description: Cloud-native ingress controller and reverse proxy
+  name: istio
+  description: Ambient service mesh and Gateway API ingress
   annotations:
-    backstage.io/techdocs-ref: dir:./traefik/
-    dev.tilt/resource: traefik
-    dev.tilt/namespace: traefik
+    backstage.io/techdocs-ref: dir:./istio/
+    dev.tilt/resource: istio
+    dev.tilt/namespace: istio-system
     dev.tilt/enabled: "true"
-    grafana/dashboard-selector: "title == 'Traefik'"
   tags:
     - ingress
     - networking
+    - service-mesh
     - infrastructure
-  links:
-    - url: https://traefik.localhost/dashboard/
-      title: Traefik Dashboard
+  # No links: unlike Traefik, Istio ships no dashboard UI of its own, and no
+  # grafana/dashboard-selector because the platform has no Istio dashboard yet.
+  # An annotation pointing at a dashboard that does not exist renders an empty
+  # panel in the portal, which reads as a broken integration rather than an
+  # absent one.
+  #
+  # Deliberately provides no API entity. The old traefik-api described Traefik's
+  # /api/overview endpoint; Istio exposes no equivalent public REST API, so
+  # inventing one would put a lie in the catalog.
 spec:
   type: service
   lifecycle: production
   owner: platform-team
   system: dev-environment
-  providesApis:
-    - traefik-api
 ---
 apiVersion: backstage.io/v1alpha1
 kind: Component
@@ -1272,29 +1276,6 @@ spec:
 # =============================================================================
 # API DEFINITIONS
 # =============================================================================
----
-apiVersion: backstage.io/v1alpha1
-kind: API
-metadata:
-  name: traefik-api
-  description: Traefik ingress controller HTTP routing and dashboard API
-  tags:
-    - rest
-    - ingress
-spec:
-  type: openapi
-  lifecycle: production
-  owner: platform-team
-  system: dev-environment
-  definition: |
-    openapi: "3.0.0"
-    info:
-      title: Traefik API
-      version: "2.0"
-    paths:
-      /api/overview:
-        get:
-          summary: Get Traefik overview
 ---
 apiVersion: backstage.io/v1alpha1
 kind: API
