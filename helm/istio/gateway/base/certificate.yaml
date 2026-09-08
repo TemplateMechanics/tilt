@@ -1,0 +1,79 @@
+---
+# The explicit hostnames below are NOT redundant with the "*.localhost" wildcard,
+# even though they look it. Verified on this cluster: OpenSSL and Windows
+# schannel both REJECT "*.localhost" as a match for "whoami.localhost" —
+#   openssl: Verify return code: 62 (hostname mismatch)
+#   schannel: CertGetNameString() failed to match connection hostname
+# A wildcard directly beneath a single-label parent ("localhost" is effectively a
+# TLD) is not accepted by these verifiers. Adding the explicit name made the same
+# request verify clean (return code 0). The wildcard is kept only because some
+# clients do honour it. Deleting a hostname from this list breaks TLS for that
+# service with a hostname-mismatch error, not a trust error.
+#
+# Lives in istio-system because a Gateway's certificateRefs may only resolve
+# Secrets in the Gateway's own namespace (absent a ReferenceGrant). This is the
+# fix for scaffolded apps referencing a TLS secret that did not exist in their
+# namespace and silently falling back to the default cert.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-localhost
+  namespace: istio-system
+spec:
+  secretName: wildcard-localhost-tls
+  commonName: "*.localhost"
+  dnsNames:
+    - "*.localhost"
+    - localhost
+    - admin.localhost
+    - airflow.localhost
+    - api.localhost
+    - argo.localhost
+    - argocd.localhost
+    - auth.localhost
+    - azurite.localhost
+    - backstage.localhost
+    - cert-manager.localhost
+    - client.localhost
+    - dapr.localhost
+    - eyeos.localhost
+    - ghost.localhost
+    - grafana.localhost
+    - harbor.localhost
+    - jenkins.localhost
+    - jupyterhub.localhost
+    - keycloak.localhost
+    - kubevirt.localhost
+    - langfuse.localhost
+    - localstack.localhost
+    - macos.localhost
+    - mailhog.localhost
+    - mongodb.localhost
+    - mssql.localhost
+    - ollama.localhost
+    - opencost.localhost
+    - postgresql.localhost
+    - prometheus.localhost
+    - qdrant.localhost
+    - rabbitmq.localhost
+    - redis.localhost
+    - thanos.localhost
+    - tilt-config.localhost
+    - wazuh.localhost
+    - wordpress.localhost
+  duration: 2160h      # 90d
+  renewBefore: 720h    # 30d — cert-manager renews unattended; the old OpenSSL
+                       # script only regenerated when the file was MISSING, so
+                       # an expired cert was never noticed until TLS broke.
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - server auth
+    - digital signature
+    - key encipherment
+  issuerRef:
+    name: local-intermediate-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
