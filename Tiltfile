@@ -663,7 +663,7 @@ local_resource(
         kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
     """),
     labels=["Apps"],
-    links=["https://hello.localhost:8443"],
+    links=["https://hello.localhost"],
     resource_deps=["istio-gateway"],
 )
 

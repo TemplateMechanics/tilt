@@ -15,7 +15,7 @@ it before starting Claude Code:
 
 ```bash
 # 1. Create a Viewer service account + token (one time, per cluster)
-GRAFANA=https://grafana.localhost:8443
+GRAFANA=https://grafana.localhost   # add :8443 on the alternate-ports config
 SAID=$(curl -sk -u admin:admin -X POST -H 'Content-Type: application/json' \
   -d '{"name":"claude-mcp","role":"Viewer","isDisabled":false}' \
   "$GRAFANA/api/serviceaccounts" | jq -r .id)
@@ -61,8 +61,7 @@ unaffected.
 
 ## Port note
 
-`GRAFANA_URL` uses `http://grafana.localhost:8080` — plain HTTP on the kind
-host-port mapping. HTTPS would need the local root CA mounted into the container.
+`GRAFANA_URL` uses `http://grafana.localhost` — plain HTTP on the kind host-port
+mapping (append `:8080` if you run the alternate-ports kind config). HTTPS would need the local root CA mounted into the container.
 Traffic stays on the loopback interface of the developer's own machine, and the
-token is a Viewer credential on a local dev cluster. On Docker Desktop, where the
-gateway binds 80/443 directly, use `http://grafana.localhost`.
+token is a Viewer credential on a local dev cluster. This is also the Docker Desktop address.

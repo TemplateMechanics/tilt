@@ -19,16 +19,17 @@ nodes:
     # ports to the host here. There is no load balancer on kind, so without
     # this mapping the gateway is healthy and unreachable.
     #
-    # Host ports are 8080/8443 rather than 80/443 so this cluster can coexist
-    # with anything else already bound to the standard ports. Services are
-    # therefore at https://<name>.localhost:8443. If 80/443 are free on your
-    # machine, change hostPort to 80/443 and drop the :8443 everywhere.
+    # Standard ports, so services are simply https://<name>.localhost. Istio
+    # already listens on 443 inside the cluster; this is only the last hop from
+    # the host. If something on your machine already owns 80/443 (another kind
+    # cluster, a local web server), use kind/cluster-alt-ports.yaml instead:
+    #   KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up
     extraPortMappings:
       - containerPort: 30080
-        hostPort: 8080
+        hostPort: 80
         protocol: TCP
       - containerPort: 30443
-        hostPort: 8443
+        hostPort: 443
         protocol: TCP
   # A second node so scheduling, DaemonSets and node-level failures behave like
   # a real cluster rather than a single box. Both Alloy and ztunnel run per node;

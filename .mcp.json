@@ -18,7 +18,7 @@
         "stdio"
       ],
       "env": {
-        "GRAFANA_URL": "http://grafana.localhost:8080",
+        "GRAFANA_URL": "http://grafana.localhost",
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
       }
     }

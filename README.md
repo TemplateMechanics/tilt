@@ -13,9 +13,9 @@ That creates a kind cluster from `kind/cluster.yaml` and starts Tilt. The first
 run installs Istio, cert-manager and the observability stack — allow about ten
 minutes. When Tilt shows `hello-world` green:
 
-- **<https://hello.localhost:8443>** — your first app, over HTTPS, in the mesh
-- <https://grafana.localhost:8443> — metrics and logs (admin / admin)
-- <https://kiali.localhost:8443> — the service mesh
+- **<https://hello.localhost>** — your first app, over HTTPS, in the mesh
+- <https://grafana.localhost> — metrics and logs (admin / admin)
+- <https://kiali.localhost> — the service mesh
 - <http://localhost:10350> — the Tilt dashboard
 
 Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
@@ -35,9 +35,10 @@ Everything beyond the always-on core is off by default — including Backstage,
 whose first build takes 20+ minutes. Turn services on in `tilt-config.json` once
 the platform is up, not before.
 
-> **Ports:** the kind config publishes the gateway on 8443/8080 so it can coexist
-> with anything already on 443/80. On Docker Desktop Kubernetes the gateway
-> binds 443 directly and the `:8443` goes away.
+> **Ports:** services are on 443/80 by default. If something on your machine
+> already owns those (another kind cluster, a local web server), use the
+> alternate config and every URL gains `:8443`:
+> `KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up`
 
 ## Architecture
 

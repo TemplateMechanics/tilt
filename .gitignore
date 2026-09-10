@@ -8,3 +8,8 @@ azurite-data/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# browser-check dependencies (installed by scripts/platform.sh check)
+scripts/validate/node_modules/
+scripts/validate/package-lock.json
+.browser-check/
