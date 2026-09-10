@@ -1,0 +1,202 @@
+###############################################################################
+# SHARED HELPERS
+#
+# Imported by every tier with load(). Tilt's include() gives each file its own
+# global scope, so anything two tiers both need must live here and be loaded,
+# not defined in the root Tiltfile. load() executes this file once and caches
+# it, so PLATFORM and CONFIG are computed exactly once and every tier sees the
+# same values.
+###############################################################################
+
+load("ext://namespace", "namespace_yaml")
+
+# Repo root. Tiers live in tilt/ and include() resolves relative paths against
+# the included file, so every path and every shell command anchors to this.
+ROOT = config.main_dir
+
+###############################################################################
+# CROSS-PLATFORM SHELL HELPER
+#
+# On Windows, Tilt runs local_resource commands through cmd.exe by default,
+# which doesn't understand bash syntax ($(…), for-loops, grep, awk, etc.).
+# Wrapping every command with sh() forces execution through bash (Git Bash
+# on Windows, /bin/bash everywhere else), making the Tiltfile portable.
+#
+# IMPORTANT: On Windows, 'bash' on PATH may resolve to WSL's /bin/bash
+# which can be broken. We detect Windows first (using raw local() through
+# cmd.exe), then locate Git for Windows' bash.exe explicitly.
+###############################################################################
+
+# Detect platform BEFORE defining sh(). Raw local() uses cmd.exe on Windows
+# and /bin/sh on Unix. 'echo %OS%' outputs 'Windows_NT' on cmd.exe and
+# the literal '%OS%' on Unix shells — no bash needed.
+_os_probe = str(local('echo %OS%', quiet=True)).strip()
+_IS_WINDOWS = 'Windows' in _os_probe
+
+if _IS_WINDOWS:
+    # Find Git for Windows bash (avoids WSL conflict).
+    # 'git --exec-path' returns e.g. C:/Program Files/Git/mingw64/libexec/git-core
+    _git_exec = str(local('git --exec-path', quiet=True)).strip().replace('\\', '/')
+    _mingw_idx = _git_exec.find('/mingw')
+    if _mingw_idx > 0:
+        _BASH = _git_exec[:_mingw_idx] + '/bin/bash.exe'
+    else:
+        # Fallback: standard Git for Windows install path
+        _BASH = 'C:/Program Files/Git/bin/bash.exe'
+    print('Windows detected — using Git Bash: ' + _BASH)
+else:
+    _BASH = 'bash'
+
+def sh(script):
+    # Every tier file lives in tilt/, and Tilt runs an included file's
+    # commands from that file's directory. Anchoring here fixes all ~60
+    # call sites at once instead of passing dir=ROOT to each.
+    script = 'cd "%s" && ' % ROOT + script
+    """Wrap a bash script so it runs through bash on ALL platforms (including Windows).
+    
+    Returns a list [bash_path, '-c', script] which Tilt executes directly,
+    bypassing cmd.exe on Windows.
+    """
+    return [_BASH, '-c', script]
+
+
+###############################################################################
+# CONFIGURATION (loaded from tilt-config.json)
+###############################################################################
+
+# Watch the config file so Tilt reloads when Backstage changes it
+watch_file(ROOT + "/tilt-config.json")
+
+# Default config (used if tilt-config.json doesn't exist or is malformed)
+DEFAULT_CONFIG = {
+    "crossplane_apps": {
+        "harbor": {"enabled": False}, "jenkins": {"enabled": False},
+        "langfuse": {"enabled": False}, "qdrant": {"enabled": False},
+        "localstack": {"enabled": False},
+    },
+    "flux_apps": {
+        "ollama": {"enabled": False}, "kyverno": {"enabled": False},
+        "falco": {"enabled": False}, "policy-reporter": {"enabled": False},
+        "1pass": {"enabled": False}, "keda": {"enabled": False},
+        "velero": {"enabled": False},
+        # cert-manager is NOT listed here on purpose. It is core
+        # infrastructure (the Gateway's TLS depends on it), installed
+        # unconditionally above. While it was a toggleable flux_app with
+        # enabled:false, the auto-cleanup deleted the namespace, CRDs and
+        # ClusterRoles immediately after the platform created them — and
+        # did it silently, because the already-issued Secret in
+        # istio-system kept serving TLS while nothing was left to renew it.
+        "trivy": {"enabled": False}, "otel-collector": {"enabled": False},
+        "nats": {"enabled": False}, "dapr": {"enabled": False},
+        "argo-workflows": {"enabled": False}, "argocd": {"enabled": False},
+        "opencost": {"enabled": False},
+        "thanos": {"enabled": False},
+    },
+    "raw_apps": {
+        "backstage": {"enabled": False}, "mongodb": {"enabled": False},
+        "postgresql": {"enabled": False}, "redis": {"enabled": False},
+        "rabbitmq": {"enabled": False}, "mssql": {"enabled": False},
+        "keycloak": {"enabled": False}, "airflow": {"enabled": False},
+        "jupyterhub": {"enabled": False}, "wordpress": {"enabled": False},
+        "mailhog": {"enabled": False}, "azurite": {"enabled": False},
+        "gcp-emulators": {"enabled": False}, "azure": {"enabled": False},
+        "kubevirt": {"enabled": False}, "macos": {"enabled": False},
+        "eyeos": {"enabled": False}, "wazuh": {"enabled": False},
+        "knative": {"enabled": False},
+    },
+}
+
+def load_config():
+    """Load config from tilt-config.json, falling back to defaults."""
+    config_raw = read_json(ROOT + "/tilt-config.json", DEFAULT_CONFIG)
+    
+    # Convert rich config format to simple True/False for backward compatibility
+    result = {}
+    for group in ["crossplane_apps", "flux_apps", "raw_apps"]:
+        result[group] = {}
+        group_data = config_raw.get(group, {})
+        for app, app_config in group_data.items():
+            if type(app_config) == "dict":
+                result[group][app] = app_config.get("enabled", False)
+            else:
+                result[group][app] = bool(app_config)
+    return result
+
+CONFIG = load_config()
+
+
+###############################################################################
+# HELPER FUNCTIONS
+###############################################################################
+
+def get_os_type():
+    """Detect OS type for platform-specific commands.
+    Uses _IS_WINDOWS from the early platform detection, plus uname for macOS/Linux.
+    """
+    if _IS_WINDOWS:
+        return "windows"
+    uname_result = str(local(sh("uname -s"), quiet=True)).strip()
+    if "Darwin" in uname_result:
+        return "macos"
+    elif "Linux" in uname_result:
+        return "linux"
+    return "unknown"
+
+def k8s_namespace(namespace_name, allow_duplicates=False):
+    """Create a Kubernetes namespace"""
+    k8s_yaml(namespace_yaml(namespace_name), allow_duplicates=allow_duplicates)
+
+def k8s_kustomize_simple(path, name, labels=[], links=[], resource_deps=[]):
+    """Deploy via kustomize with optional Tilt resource tracking"""
+    if path.startswith("./"):
+        path = ROOT + path[1:]
+    k8s_yaml(kustomize(path), allow_duplicates=True)
+    local_resource(
+        name=name,
+        cmd=sh("kubectl get pods -n {} 2>/dev/null | head -10 || echo 'Namespace not ready'".format(name)),
+        labels=labels,
+        links=links,
+        resource_deps=resource_deps,
+        allow_parallel=True
+    )
+
+###############################################################################
+# GATEWAY PLATFORM OVERLAY
+#
+# kind and Docker Desktop need different gateway networking, so the Istio
+# manifests are split into kustomize overlays and the right one is picked here.
+#
+#   docker-desktop: a LoadBalancer Service binds host 80/443 directly.
+#   kind:           no load balancer exists, so the overlay adds a NodePort
+#                   Service (30080/30443, published by the kind cluster) plus a
+#                   DaemonSet that makes /run rshared for ambient capture.
+#
+# Choosing the wrong overlay leaves the gateway unreachable while every pod and
+# HelmRelease reports healthy, so it is derived from the context rather than set
+# by hand.
+###############################################################################
+
+GATEWAY_API_VERSION = "v1.3.0"
+
+def gateway_platform():
+    ctx = str(local(sh("kubectl config current-context"), quiet=True)).strip()
+    if ctx.startswith("kind-"):
+        return "kind"
+    return "docker-desktop"
+
+PLATFORM = gateway_platform()
+print("Gateway platform overlay: {}".format(PLATFORM))
+
+
+# Shared shell helper: kubectl wait fails outright if the object does not exist
+# yet, and Flux creates HelmReleases asynchronously, so poll for existence first.
+WAIT_HR = """
+wait_hr() {
+    ns="$1"; name="$2"; tmo="${3:-300s}"
+    for i in $(seq 1 60); do
+        kubectl -n "$ns" get helmrelease "$name" >/dev/null 2>&1 && break
+        sleep 5
+    done
+    kubectl -n "$ns" wait --for=condition=Ready "helmrelease/$name" --timeout="$tmo"
+}
+"""
