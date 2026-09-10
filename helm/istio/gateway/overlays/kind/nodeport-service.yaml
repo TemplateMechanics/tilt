@@ -1,7 +1,7 @@
 ---
 # kind has no load balancer, so the gateway must be reachable on node ports that
-# the kind cluster publishes to the host (see kind/cluster.yaml: 8080->30080,
-# 8443->30443).
+# the kind cluster publishes to the host (see kind/cluster.yaml: 80->30080,
+# 443->30443, or 8080/8443 via kind/cluster-alt-ports.yaml).
 #
 # This is a SECOND Service alongside the one Istio auto-provisions
 # ("localhost-gateway-istio"). It is deliberately not a patch of that Service:

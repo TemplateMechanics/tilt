@@ -7,7 +7,7 @@ inside the service mesh. Four files, all of which you can read in one sitting.
 ./scripts/platform.sh hello        # or: make hello
 ```
 
-Then open <https://hello.localhost:8443>.
+Then open <https://hello.localhost>.
 
 ## What you just deployed
 
@@ -36,12 +36,12 @@ on different pods. Then `kubectl top pods -n hello` to see what they cost.
 ```
 kubectl -n hello rollout restart deploy/hello
 ```
-The page still works. Open <https://kiali.localhost:8443> — the data plane
+The page still works. Open <https://kiali.localhost> — the data plane
 count dropped by one. That is the whole difference between "in the mesh" and
 "not": invisible from the app, visible only from Kiali. Put the label back.
 
 **Route a second hostname.** Add `hi.localhost` to `hostnames:` in
-`httproute.yaml` and apply it. Open <https://hi.localhost:8443>.
+`httproute.yaml` and apply it. Open <https://hi.localhost>.
 
 It fails — and *how* it fails is the lesson. The browser says the certificate is
 wrong. It is not a trust problem; it is a **hostname mismatch**, because
@@ -54,7 +54,7 @@ python scripts/ci/check-route-hostnames.py
 Add `hi.localhost` to `dnsNames` in `helm/istio/gateway/base/certificate.yaml`,
 apply it, wait ~30s for cert-manager to reissue, and reload.
 
-**Watch the logs.** Open <https://grafana.localhost:8443> (admin/admin), the
+**Watch the logs.** Open <https://grafana.localhost> (admin/admin), the
 *AI Ops → Log Review* dashboard, and set the namespace filter to `hello`. Every
 request you made is there.
 

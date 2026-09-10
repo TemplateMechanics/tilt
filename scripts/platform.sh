@@ -21,8 +21,12 @@ CONTEXT="kind-${CLUSTER}"
 # 10350 is Tilt's default. A second Tilt on the same machine (another repo,
 # another cluster) collides silently — override with TILT_PORT.
 TILT_PORT="${TILT_PORT:-10350}"
-# The kind config publishes 8443; a Docker Desktop cluster serves on 443.
-GATEWAY_PORT="${GATEWAY_PORT:-8443}"
+# 443 is the default and gives portless URLs. Set GATEWAY_PORT=8443 together
+# with KIND_CONFIG=kind/cluster-alt-ports.yaml when 443/80 are taken locally.
+GATEWAY_PORT="${GATEWAY_PORT:-443}"
+KIND_CONFIG="${KIND_CONFIG:-kind/cluster.yaml}"
+# ":443" is implicit in https URLs; only print the port when it is non-standard.
+url_port() { [ "$GATEWAY_PORT" = "443" ] && echo "" || echo ":${GATEWAY_PORT}"; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 
@@ -33,13 +37,13 @@ cmd_up() {
     if cluster_exists; then
         echo "kind cluster '$CLUSTER' already exists"
     else
-        echo "creating kind cluster '$CLUSTER' from kind/cluster.yaml"
-        kind create cluster --config kind/cluster.yaml --wait 120s
+        echo "creating kind cluster '$CLUSTER' from $KIND_CONFIG"
+        kind create cluster --config "$KIND_CONFIG" --wait 120s
     fi
     kubectl config use-context "$CONTEXT" >/dev/null
     echo
     echo "starting Tilt on http://localhost:${TILT_PORT}"
-    echo "services will be at https://<name>.localhost:${GATEWAY_PORT}"
+    echo "services will be at https://<name>.localhost$(url_port)"
     echo "first run installs Istio, cert-manager and the observability stack;"
     echo "allow ~10 minutes before hello.localhost answers."
     exec tilt up --port "$TILT_PORT" --context "$CONTEXT"
@@ -57,25 +61,28 @@ cmd_reset() {
         echo "destroying kind cluster '$CLUSTER'"
         kind delete cluster --name "$CLUSTER"
     fi
-    echo "recreating from kind/cluster.yaml"
-    kind create cluster --config kind/cluster.yaml --wait 120s
+    echo "recreating from $KIND_CONFIG"
+    kind create cluster --config "$KIND_CONFIG" --wait 120s
     kubectl config use-context "$CONTEXT" >/dev/null
     echo
     echo "empty cluster ready. run 'up' to bring the platform back."
 }
 
 cmd_check() {
-    need node
-    # browser-check needs playwright resolvable. Install once, locally, outside
-    # the repo tree so node_modules never lands in git.
-    local pw="${HOME}/.cache/tilt-platform/pw"
-    if [ ! -d "$pw/node_modules/playwright" ]; then
-        echo "installing playwright into $pw (one time)"
-        mkdir -p "$pw" && (cd "$pw" && npm init -y >/dev/null && npm install --no-audit --no-fund playwright@1.56.0 >/dev/null)
+    need node; need npm
+    # browser-check.mjs is an ES module, and ESM resolves `import 'playwright'`
+    # by walking up from the importing FILE's directory — NODE_PATH is ignored
+    # entirely. So the dependency has to live beside the script:
+    # scripts/validate/package.json + node_modules (gitignored). A first version
+    # of this set NODE_PATH to a cache dir and failed with ERR_MODULE_NOT_FOUND
+    # on every run; it only ever appeared to work when the script had been
+    # copied next to node_modules by hand.
+    if [ ! -d "scripts/validate/node_modules/playwright" ]; then
+        echo "installing playwright into scripts/validate/node_modules (one time)"
+        (cd scripts/validate && npm install --no-audit --no-fund >/dev/null)
     fi
     local out="${ROOT}/.browser-check"
-    NODE_PATH="$pw/node_modules" node scripts/validate/browser-check.mjs \
-        --services scripts/validate/services.json --port "$GATEWAY_PORT" --out "$out" "$@"
+    node scripts/validate/browser-check.mjs         --services scripts/validate/services.json --port "$GATEWAY_PORT" --out "$out" "$@"
     echo "screenshots: $out/"
 }
 
@@ -101,7 +108,7 @@ cmd_hello() {
     echo "waiting for the pod to be Ready..."
     kubectl --context "$CONTEXT" -n hello rollout status deploy/hello --timeout=120s
     echo
-    echo "https://hello.localhost:${GATEWAY_PORT}"
+    echo "https://hello.localhost$(url_port)"
     echo "proving it in a real browser:"
     cmd_check --only hello
 }

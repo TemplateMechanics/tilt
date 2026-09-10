@@ -13,7 +13,7 @@
  * from a 404 — with ignoreHTTPSErrors they look identical.
  *
  * Usage:
- *   node browser-check.mjs --out <dir> [--port 8443] [host ...]
+ *   node browser-check.mjs --out <dir> [--port 443] [host ...]
  */
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -25,7 +25,9 @@ const getArg = (name, dflt) => {
   return i >= 0 ? args[i + 1] : dflt;
 };
 const outDir = getArg('--out', './browser-check');
-const port = getArg('--port', '8443');
+const port = getArg('--port', '443');
+// ':443' is implicit; only append a non-standard port.
+const portSuffix = port === '443' ? '' : `:${port}`;
 const manifest = getArg('--services', null);
 const only = getArg('--only', null);
 
@@ -63,7 +65,7 @@ const results = [];
 
 for (const svc of targets) {
   const host = svc.host;
-  const url = `https://${host}:${port}${svc.path || '/'}`;
+  const url = `https://${host}${portSuffix}${svc.path || '/'}`;
   const consoleErrors = [];
   const failedRequests = [];
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
