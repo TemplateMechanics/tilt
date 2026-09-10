@@ -8,6 +8,8 @@
 #   ./scripts/platform.sh check   render every enabled service in a real browser
 #   ./scripts/platform.sh ci      run the same checks CI runs, locally
 #   ./scripts/platform.sh hello   deploy examples/hello-world and prove it works
+#   ./scripts/platform.sh lab NN  run the grader for labs/NN-*
+#   ./scripts/platform.sh test    run the steady-state lab graders (01, 03, 07 if wordpress is up)
 #
 #   PROFILE=full ./scripts/platform.sh up      bring up every tier (see Tiltfile)
 #
@@ -119,6 +121,26 @@ cmd_hello() {
     cmd_check --only hello
 }
 
+cmd_lab() {
+    local n="${1:-}"; [ -n "$n" ] || { echo "usage: lab NN"; exit 2; }
+    local dir; dir=$(ls -d "labs/${n}-"* 2>/dev/null | head -1)
+    [ -n "$dir" ] || { echo "no lab matching labs/${n}-*"; exit 2; }
+    CONTEXT="$CONTEXT" GATEWAY_PORT="$GATEWAY_PORT" bash "$dir/check.sh"
+}
+
+cmd_test() {
+    # Only labs that pass in the platform's steady state, with no per-lab
+    # setup. 02, 04, 05 and 06 each stage something first (a second route, a
+    # broken cert, an HPA under load, a Canary) and would fail here by design
+    # — and 06 hands `hello` to Flagger, which breaks 01 and 03 until it is
+    # undone. Run those with `lab NN` after following their README.
+    local labs="01 03" rc=0
+    kubectl --context "$CONTEXT" -n wordpress get deploy mysql >/dev/null 2>&1 && labs="$labs 07"
+    echo "steady-state labs: $labs"
+    for n in $labs; do echo; cmd_lab "$n" || rc=1; done
+    echo; [ "$rc" -eq 0 ] && echo "all graders passed" || { echo "some graders failed"; exit 1; }
+}
+
 case "${1:-}" in
     up)    cmd_up ;;
     down)  cmd_down ;;
@@ -126,5 +148,7 @@ case "${1:-}" in
     check) shift; cmd_check "$@" ;;
     ci)    cmd_ci ;;
     hello) cmd_hello ;;
-    *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    lab)   shift; cmd_lab "$@" ;;
+    test)  cmd_test ;;
+    *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
