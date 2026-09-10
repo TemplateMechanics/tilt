@@ -40,6 +40,7 @@ spec:
     - ghost.localhost
     - grafana.localhost
     - harbor.localhost
+    - hello.localhost
     - jenkins.localhost
     - kiali.localhost
     - jupyterhub.localhost

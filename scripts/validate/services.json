@@ -67,6 +67,14 @@
       "configKey": "crossplane_apps.harbor"
     },
     {
+      "name": "hello",
+      "host": "hello.localhost",
+      "path": "/",
+      "expect": "Hello from the platform",
+      "configKey": null,
+      "note": "examples/hello-world - the first thing a learner deploys. Always on."
+    },
+    {
       "name": "jenkins",
       "host": "jenkins.localhost",
       "path": "/login",

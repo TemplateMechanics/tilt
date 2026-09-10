@@ -656,6 +656,18 @@ local_resource(
 )
 
 local_resource(
+    "hello-world",
+    cmd=sh("""
+        kubectl apply -k ./examples/hello-world
+        kubectl -n hello rollout status deploy/hello --timeout=180s
+        kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
+    """),
+    labels=["Apps"],
+    links=["https://hello.localhost:8443"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
     "dev-ca-trust",
     cmd=sh("""
         # The CA now lives in the cluster, not on disk. Export it rather than
