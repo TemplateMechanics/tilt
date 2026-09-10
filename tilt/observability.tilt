@@ -162,4 +162,21 @@ local_resource(
 )
 
 k8s_yaml(kustomize(ROOT + "/helm/tempo/"), allow_duplicates=True)
-local_resource("tempo", cmd=sh("kubectl get pods -n tracing | head -5"), labels=["Observability"])
+local_resource(
+    "tempo",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/tempo/
+        wait_hr tracing tempo 420s
+        kubectl -n tracing rollout status statefulset/tempo --timeout=300s 2>/dev/null             || kubectl -n tracing rollout status deployment/tempo --timeout=300s
+        # Tempo answers /ready only once its ingester has joined the ring.
+        kubectl -n tracing get pods -l app.kubernetes.io/name=tempo --no-headers
+    """),
+    # Was: cmd="kubectl get pods -n tracing | head -5". That printed
+    # "No resources found in tracing namespace." and PASSED — a check with no
+    # assertion behind it, exactly the configured-but-inert shape the rest of
+    # this file was rewritten to avoid. It was the only always-on resource
+    # whose HelmRelease was not Ready after a full rebuild, and nothing said so.
+    labels=["Observability"],
+    links=["https://grafana.localhost/explore"],
+    resource_deps=["helm-repositories"],
+)
