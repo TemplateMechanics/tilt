@@ -1,0 +1,47 @@
+---
+# Hands the hello Deployment to Flagger. Flagger creates hello-primary (the
+# stable copy that actually serves), rewrites the HTTPRoute to point at it, and
+# treats every change to `hello` as a candidate: shift a slice of traffic,
+# read the metrics, promote or roll back. The app you deployed in lab 01 is
+# unchanged; only who fronts it changes.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: hello
+  namespace: hello
+spec:
+  provider: gatewayapi:v1
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hello
+  progressDeadlineSeconds: 120
+  service:
+    port: 80
+    targetPort: 9898
+    hosts:
+      - hello.localhost
+    gatewayRefs:
+      - name: localhost-gateway
+        namespace: istio-system
+        group: gateway.networking.k8s.io
+        kind: Gateway
+  analysis:
+    interval: 15s
+    threshold: 3          # failed checks before rollback
+    maxWeight: 50
+    stepWeight: 25
+    metrics:
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+        interval: 1m
+    # Flagger generates the load it measures, so a canary with no traffic is
+    # not silently promoted on an empty success rate.
+    webhooks:
+      - name: load
+        type: rollout
+        url: http://flagger-loadtester.hello/
+        timeout: 5s
+        metadata:
+          cmd: "hey -z 1m -q 10 -c 2 http://hello-canary.hello/"
