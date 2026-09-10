@@ -149,5 +149,10 @@ jobs:
         # that produced silently wrong results. shellcheck flags that class.
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: ./scripts
+          # labs/ holds 14 shell scripts (graders and break/fix fixtures) that
+          # learners run directly; they need linting at least as much as the
+          # platform scripts do.
+          scandir: .
+          additional_files: 'labs/*/*.sh labs/lib.sh'
+          ignore_paths: node_modules archive backstage
           severity: warning
