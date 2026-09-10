@@ -27,7 +27,10 @@ except ImportError:
     sys.exit("PyYAML required: pip install pyyaml")
 
 CERT = "helm/istio/gateway/base/certificate.yaml"
-SEARCH = ["helm/**/*.yaml", "apps/**/*.yaml"]
+# examples/ is scanned too. It was not at first, and the check reported OK for
+# examples/hello-world with its hostname absent from the certificate — a false
+# clean, which is worse than no check because it reads as evidence.
+SEARCH = ["helm/**/*.yaml", "apps/**/*.yaml", "examples/**/*.yaml"]
 # The scaffolder skeleton is a Jinja template, not valid YAML.
 SKIP_SUBSTR = ("/skeleton/", "/node_modules/", "archive/")
 

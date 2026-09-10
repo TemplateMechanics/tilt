@@ -5,15 +5,39 @@ A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev
 ## Quick Start
 
 ```bash
-# Prerequisites: Docker Desktop (with Kubernetes), Tilt, Helm, Flux CLI
-
-# Start the environment
-tilt up
-
-# Access services at https://<service>.localhost
-# Access the Tilt dashboard at http://localhost:10350
-# Access the config API at http://tilt-config.localhost/config
+# Prerequisites: Docker, kind, kubectl, Helm, Flux CLI, Tilt
+./scripts/platform.sh up          # or: make up
 ```
+
+That creates a kind cluster from `kind/cluster.yaml` and starts Tilt. The first
+run installs Istio, cert-manager and the observability stack — allow about ten
+minutes. When Tilt shows `hello-world` green:
+
+- **<https://hello.localhost:8443>** — your first app, over HTTPS, in the mesh
+- <https://grafana.localhost:8443> — metrics and logs (admin / admin)
+- <https://kiali.localhost:8443> — the service mesh
+- <http://localhost:10350> — the Tilt dashboard
+
+Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
+files, and its README walks through breaking each one.
+
+```bash
+./scripts/platform.sh hello       # deploy hello-world and prove it in a browser
+./scripts/platform.sh check       # render every service in a real browser
+./scripts/platform.sh ci          # the same checks CI runs
+./scripts/platform.sh reset       # destroy the cluster and rebuild it empty
+```
+
+`reset` is the one to remember. Breaking things is how this is meant to be used,
+and a minute later the cluster is empty again.
+
+Everything beyond the always-on core is off by default — including Backstage,
+whose first build takes 20+ minutes. Turn services on in `tilt-config.json` once
+the platform is up, not before.
+
+> **Ports:** the kind config publishes the gateway on 8443/8080 so it can coexist
+> with anything already on 443/80. On Docker Desktop Kubernetes the gateway
+> binds 443 directly and the `:8443` goes away.
 
 ## Architecture
 
@@ -304,7 +328,7 @@ annotations:
 | Tool | Version | Installation |
 |------|---------|--------------|
 | Docker Desktop | Latest | https://docs.docker.com/get-docker/ |
-| Kubernetes | 1.25+ | Enable in Docker Desktop |
+| kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ (the tested path; Docker Desktop Kubernetes also works via the docker-desktop overlays) |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
