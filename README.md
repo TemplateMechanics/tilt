@@ -19,7 +19,10 @@ minutes. When Tilt shows `hello-world` green:
 - <http://localhost:10350> — the Tilt dashboard
 
 Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
-files, and its README walks through breaking each one.
+files, and its README walks through breaking each one. Then work through
+[`labs/`](labs/README.md): seven graded exercises — routing, TLS, the mesh,
+autoscaling, canaries, stateful rollouts — each with a `check.sh` that proves
+you did it, and a `reset` that makes breaking things cheap.
 
 ```bash
 ./scripts/platform.sh hello       # deploy hello-world and prove it in a browser
