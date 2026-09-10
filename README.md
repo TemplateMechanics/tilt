@@ -31,6 +31,25 @@ files, and its README walks through breaking each one.
 `reset` is the one to remember. Breaking things is how this is meant to be used,
 and a minute later the cluster is empty again.
 
+### Profiles
+
+The platform comes up in tiers. `up` defaults to `minimal`; set `PROFILE` for more:
+
+| Profile | Adds | When |
+|---|---|---|
+| `minimal` | Flux, Gateway API, Istio ambient, cert-manager, hello-world | learning; ~10 min |
+| `observability` | + Prometheus/Grafana, Loki, Tempo, Kiali, metrics-server | seeing what it does |
+| `gitops` | + Crossplane, config API, Flagger, External Secrets, CloudNativePG | how the platform deploys itself |
+| `full` | + every app toggleable in `tilt-config.json` | engagements |
+
+```bash
+PROFILE=observability ./scripts/platform.sh up
+tilt up -- --profile=full            # the same thing, by hand
+```
+
+Each tier is a file under [`tilt/`](tilt/); the root `Tiltfile` is a 39-line
+table of contents.
+
 Everything beyond the always-on core is off by default — including Backstage,
 whose first build takes 20+ minutes. Turn services on in `tilt-config.json` once
 the platform is up, not before.

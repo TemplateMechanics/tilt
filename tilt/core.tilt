@@ -1,0 +1,272 @@
+###############################################################################
+# CORE  (profile: minimal and above)
+#
+# The smallest platform that serves an app over HTTPS in the mesh: Flux,
+# Gateway API, Istio ambient, cert-manager + PKI, the Gateway, OS trust of the
+# CA, and hello-world. Nothing here is optional — remove any one and either
+# nothing routes, nothing has a certificate, or nothing trusts it.
+###############################################################################
+
+load("./lib.tilt", "sh", "get_os_type", "k8s_namespace", "k8s_kustomize_simple", "CONFIG", "PLATFORM", "GATEWAY_API_VERSION", "WAIT_HR", "ROOT")
+
+###############################################################################
+# INFRASTRUCTURE (Always On)
+###############################################################################
+
+# Required namespaces
+k8s_namespace("flux")
+k8s_namespace("monitoring")
+k8s_namespace("logging")
+k8s_namespace("tracing")
+
+# Flux GitOps
+local_resource(
+    "flux-install",
+    cmd=sh("""
+        # Check if Flux CLI is available; install it if not
+        if ! command -v flux >/dev/null 2>&1; then
+            echo "Flux CLI not found — installing..."
+            if command -v brew >/dev/null 2>&1; then
+                brew install fluxcd/tap/flux
+            elif command -v choco >/dev/null 2>&1; then
+                choco install flux -y
+            elif command -v curl >/dev/null 2>&1; then
+                curl -s https://fluxcd.io/install.sh | bash
+            else
+                echo "ERROR: Cannot install Flux CLI. Install it manually:"
+                echo "  https://fluxcd.io/flux/installation/#install-the-flux-cli"
+                exit 1
+            fi
+        fi
+
+        echo "Installing / upgrading Flux on cluster..."
+        flux install
+
+        echo "Waiting for all Flux controllers to be ready..."
+        kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/helm-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/kustomize-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
+        echo "✓ All Flux controllers ready"
+
+        # Detect available Flux API versions and patch YAMLs to match
+        # Prefer GA versions (v2, v1) over beta (v2beta2, v1beta2) — sort by length so shorter (GA) wins
+        echo "Detecting Flux API versions..."
+        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
+        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
+        echo "  HelmRelease API: $HR_API"
+        echo "  HelmRepository API: $SR_API"
+
+        if [ -n "$HR_API" ]; then
+            echo "Patching HelmRelease YAMLs to use $HR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'helm.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|helm.toolkit.fluxcd.io/[a-z0-9]*|$HR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        if [ -n "$SR_API" ]; then
+            echo "Patching HelmRepository YAMLs to use $SR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'source.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|source.toolkit.fluxcd.io/[a-z0-9]*|$SR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        echo "✓ Flux API versions aligned"
+    """),
+    labels=["Infrastructure"]
+)
+
+
+###############################################################################
+# OBSERVABILITY STACK (Always On)
+###############################################################################
+
+# Apply and wait for HelmRepositories to be ready
+# NOTE: We do NOT call k8s_yaml(kustomize(ROOT + "/helm/repositories/")) at load time
+# because Flux CRDs (HelmRepository) may not exist yet on a fresh cluster.
+# Instead, helm-repositories applies them at runtime after flux-install completes.
+local_resource(
+    "helm-repositories",
+    cmd=sh("""
+        EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
+        echo "Expecting $EXPECTED HelmRepositories..."
+
+        echo "Applying HelmRepositories (will retry until all appear)..."
+        for i in $(seq 1 30); do
+            kubectl apply -k ./helm/repositories/ 2>&1 || true
+            sleep 3
+            COUNT=$(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$COUNT" -ge "$EXPECTED" ]; then
+                echo "✓ $COUNT/$EXPECTED HelmRepositories ready"
+                kubectl get helmrepository -n flux-system
+                exit 0
+            fi
+            echo "  Attempt $i/30 ($COUNT/$EXPECTED repositories)..."
+        done
+        echo "Timeout: only $COUNT/$EXPECTED HelmRepositories created"; exit 1
+    """),
+    labels=["Platform"],
+    resource_deps=["flux-install"]
+)
+
+###############################################################################
+# INGRESS: Istio ambient mesh + Gateway API
+#
+# Replaces Traefik, which is archived under archive/traefik/ (still supported for
+# customers running it — see archive/README.md).
+#
+# The layers below MUST run in this order. Each one installs CRDs that the next
+# one creates instances of, so on a fresh cluster an out-of-order apply fails
+# with 'no matches for kind "Gateway"' / '"ClusterIssuer"' / '"Certificate"'.
+# That failure is transient under Flux retry, which is exactly what makes it
+# easy to misread as a flake instead of an ordering bug.
+#
+#   gateway-api-crds  Gateway/HTTPRoute kinds
+#   istio             istio-base -> istiod -> cni -> ztunnel (ambient)
+#   cert-manager      the controller (CRDs come with the chart)
+#   cert-manager-pki  ClusterIssuers + root/intermediate CA Certificates
+#   istio-gateway     the Gateway + the wildcard Certificate it serves
+#   dev-ca-trust      export the root CA and install it in the OS trust store
+###############################################################################
+
+
+local_resource(
+    "gateway-api-crds",
+    cmd=sh("""
+        echo "Installing Gateway API """ + GATEWAY_API_VERSION + """ (standard channel)..."
+        kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/""" + GATEWAY_API_VERSION + """/standard-install.yaml
+        kubectl wait --for=condition=established --timeout=90s \
+            crd/gateways.gateway.networking.k8s.io \
+            crd/httproutes.gateway.networking.k8s.io
+        echo "Gateway API CRDs established"
+    """),
+    labels=["Infrastructure"],
+)
+
+local_resource(
+    "istio",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/istio/overlays/""" + PLATFORM + """
+        wait_hr istio-system istio-base
+        wait_hr istio-system istiod
+        wait_hr istio-system istio-cni
+        wait_hr istio-system ztunnel
+
+        # Ambient capture depends on /run being rshared on every node. If it is
+        # not, istio-cni cannot enter pod netns: pods run, ztunnel runs, and
+        # nothing is actually in the mesh. Checked here because every component
+        # reports healthy in that state.
+        kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
+        kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=180s
+
+        kubectl get gatewayclass istio -o name >/dev/null 2>&1 \
+            && echo "istio GatewayClass registered" \
+            || { echo "ERROR: istio GatewayClass missing - Gateway resources would be accepted and never programmed"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "gateway-api-crds", "helm-repositories"],
+)
+
+local_resource(
+    "cert-manager",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/cert-manager/overlays/""" + PLATFORM + """
+        wait_hr cert-manager cert-manager 420s
+        kubectl -n cert-manager rollout status deployment/cert-manager-webhook --timeout=180s
+        echo "cert-manager ready"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)
+
+local_resource(
+    "cert-manager-pki",
+    cmd=sh("""
+        kubectl apply -k ./helm/cert-manager/pki/overlays/""" + PLATFORM + """
+        kubectl -n cert-manager wait --for=condition=Ready certificate/local-root-ca --timeout=180s
+        kubectl -n cert-manager wait --for=condition=Ready certificate/local-intermediate-ca --timeout=180s
+        # An Issuer can exist and not be usable; assert it verified its signing CA.
+        kubectl wait --for=condition=Ready clusterissuer/local-intermediate-ca --timeout=120s
+        echo "Local CA chain ready (root -> intermediate)"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["cert-manager"],
+)
+
+local_resource(
+    "istio-gateway",
+    cmd=sh("""
+        kubectl apply -k ./helm/istio/gateway/overlays/""" + PLATFORM + """
+        kubectl -n istio-system wait --for=condition=Ready certificate/wildcard-localhost --timeout=180s
+        kubectl -n istio-system wait --for=condition=Programmed gateway/localhost-gateway --timeout=180s
+        kubectl -n istio-system get gateway localhost-gateway
+        echo "Gateway programmed and serving the wildcard certificate"
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["istio", "cert-manager-pki"],
+)
+
+local_resource(
+    "hello-world",
+    cmd=sh("""
+        kubectl apply -k ./examples/hello-world
+        kubectl -n hello rollout status deploy/hello --timeout=180s
+        kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
+    """),
+    labels=["Apps"],
+    links=["https://hello.localhost"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
+    "dev-ca-trust",
+    cmd=sh("""
+        # The CA now lives in the cluster, not on disk. Export it rather than
+        # keeping a copy in the repo, so there is exactly one source of truth
+        # and a rotated CA cannot silently disagree with the trusted copy.
+        CA_FILE="$(mktemp -t dev-root-ca-XXXXXX).crt"
+        # go-template, not jsonpath. Starlark rejects the backslash-dot escape
+        # that jsonpath needs to address the "tls.crt" key, and the Tiltfile
+        # then fails to parse with 'invalid escape sequence'. Note this comment
+        # cannot contain that escape either - it is inside the string literal.
+        kubectl get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d > "$CA_FILE"
+        if [ ! -s "$CA_FILE" ]; then
+            echo "ERROR: exported root CA is empty - refusing to touch the trust store"
+            exit 1
+        fi
+        FP=$(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
+        echo "Root CA fingerprint: $FP"
+
+        case "$(uname -s)" in
+            Darwin)
+                if security verify-cert -c "$CA_FILE" >/dev/null 2>&1; then
+                    echo "Root CA already trusted (macOS)"
+                else
+                    bash ./archive/openssl-certs/sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $CA_FILE"
+                    echo "Root CA trusted in macOS System keychain"
+                fi
+                ;;
+            Linux)
+                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
+                EXISTING=""
+                [ -f "$TARGET" ] && EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
+                if [ "$EXISTING" = "$FP" ]; then
+                    echo "Root CA already trusted (Linux)"
+                else
+                    bash ./archive/openssl-certs/sudo-helper.sh "cp $CA_FILE $TARGET && update-ca-certificates"
+                    echo "Root CA trusted in Linux certificate store"
+                fi
+                ;;
+            MINGW*|MSYS*|CYGWIN*)
+                # certutil compares by content, so re-adding an identical cert is
+                # a no-op; -user avoids needing an elevated shell.
+                certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null \
+                    && echo "Root CA trusted in Windows user Root store" \
+                    || { echo "Could not trust Root CA automatically. Run in an admin PowerShell:"; echo "  certutil -addstore Root $CA_FILE"; }
+                ;;
+            *)
+                echo "Unsupported OS for automatic trust. Trust this file manually: $CA_FILE"
+                ;;
+        esac
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["cert-manager-pki"],
+)

@@ -125,11 +125,17 @@ jobs:
       - name: Install Tilt
         run: curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
-      - name: Tiltfile parses
+      - name: Tiltfile parses at every profile
         # Starlark is picky in ways that only surface at load time — an invalid
         # escape sequence such as the backslash-dot that jsonpath needs will
         # fail the whole file, and nothing else in this repo would catch it.
-        run: tilt alpha tiltfile-result > /dev/null
+        # Every profile is parsed because the default (minimal) only includes
+        # tilt/core.tilt; a broken tilt/apps.tilt would pass unnoticed otherwise.
+        run: |
+          for p in minimal observability gitops full; do
+            echo "== --profile=$p =="
+            tilt alpha tiltfile-result -- --profile=$p > /dev/null
+          done
 
   shell:
     name: Shell scripts

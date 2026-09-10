@@ -9,6 +9,8 @@
 #   ./scripts/platform.sh ci      run the same checks CI runs, locally
 #   ./scripts/platform.sh hello   deploy examples/hello-world and prove it works
 #
+#   PROFILE=full ./scripts/platform.sh up      bring up every tier (see Tiltfile)
+#
 # `reset` is the important one for learning. It makes breaking things cheap:
 # whatever state the cluster is in, a minute later it is empty again.
 set -euo pipefail
@@ -25,6 +27,10 @@ TILT_PORT="${TILT_PORT:-10350}"
 # with KIND_CONFIG=kind/cluster-alt-ports.yaml when 443/80 are taken locally.
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
 KIND_CONFIG="${KIND_CONFIG:-kind/cluster.yaml}"
+# Which tiers Tilt brings up: minimal | observability | gitops | full.
+# minimal is the default on purpose — it is the ten-minute path to a working
+# app, and everything above it can be added later without restarting.
+PROFILE="${PROFILE:-minimal}"
 # ":443" is implicit in https URLs; only print the port when it is non-standard.
 url_port() { [ "$GATEWAY_PORT" = "443" ] && echo "" || echo ":${GATEWAY_PORT}"; }
 
@@ -42,11 +48,11 @@ cmd_up() {
     fi
     kubectl config use-context "$CONTEXT" >/dev/null
     echo
-    echo "starting Tilt on http://localhost:${TILT_PORT}"
+    echo "starting Tilt on http://localhost:${TILT_PORT} with --profile=${PROFILE}"
     echo "services will be at https://<name>.localhost$(url_port)"
     echo "first run installs Istio, cert-manager and the observability stack;"
     echo "allow ~10 minutes before hello.localhost answers."
-    exec tilt up --port "$TILT_PORT" --context "$CONTEXT"
+    exec tilt up --port "$TILT_PORT" --context "$CONTEXT" -- --profile="$PROFILE"
 }
 
 cmd_down() {
