@@ -86,22 +86,29 @@ local_resource(
 local_resource(
     "helm-repositories",
     cmd=sh("""
-        EXPECTED=$(grep -rl 'kind: HelmRepository' ./helm/repositories/ | xargs grep -c 'kind: HelmRepository' | awk -F: '{s+=$2} END{print s}')
-        echo "Expecting $EXPECTED HelmRepositories..."
-
-        echo "Applying HelmRepositories (will retry until all appear)..."
+        # Check exactly the repositories this resource applies, by NAME, taken
+        # from the rendered kustomization. Two earlier versions got the count
+        # wrong in opposite directions: grepping helm/repositories/ gave 23 while
+        # the cluster had 29 (six components ship their own HelmRepository beside
+        # their HelmRelease, applied by other resources), and grepping all of
+        # helm/ gave 69 because it counted mentions in comments and dashboard
+        # JSON. Names from the rendered output are exact, and this resource has
+        # no business counting repositories it did not apply.
+        NAMES=$(kubectl kustomize ./helm/repositories/ | python -c "import sys,yaml; print(' '.join(d['metadata']['name'] for d in yaml.safe_load_all(sys.stdin) if d and d.get('kind')=='HelmRepository'))")
+        EXPECTED=$(echo $NAMES | wc -w | tr -d ' ')
+        echo "Applying $EXPECTED HelmRepositories from helm/repositories/ (will retry until all exist)..."
         for i in $(seq 1 30); do
             kubectl apply -k ./helm/repositories/ 2>&1 || true
             sleep 3
-            COUNT=$(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$COUNT" -ge "$EXPECTED" ]; then
-                echo "✓ $COUNT/$EXPECTED HelmRepositories ready"
-                kubectl get helmrepository -n flux-system
+            MISSING=""
+            for n in $NAMES; do kubectl get helmrepository "$n" -n flux-system >/dev/null 2>&1 || MISSING="$MISSING $n"; done
+            if [ -z "$MISSING" ]; then
+                echo "✓ $EXPECTED/$EXPECTED HelmRepositories from helm/repositories/ exist ($(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ') on the cluster in total)"
                 exit 0
             fi
-            echo "  Attempt $i/30 ($COUNT/$EXPECTED repositories)..."
+            echo "  Attempt $i/30, still missing:$MISSING"
         done
-        echo "Timeout: only $COUNT/$EXPECTED HelmRepositories created"; exit 1
+        echo "Timeout: HelmRepositories still missing:$MISSING"; exit 1
     """),
     labels=["Platform"],
     resource_deps=["flux-install"]

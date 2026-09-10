@@ -27,6 +27,7 @@ local_resource(
         exit 1
     """),
     labels=["Infrastructure"],
+    links=[],
     resource_deps=["flux-install"],
 )
 
@@ -80,7 +81,7 @@ local_resource(
         exit 1
     """),
     labels=["Observability"],
-    links=["https://prometheus.localhost"],
+    links=["https://grafana.localhost"],
     resource_deps=["helm-repositories"],
 )
 
@@ -156,6 +157,7 @@ local_resource(
         fi
     """),
     labels=["Observability"],
+    links=["https://grafana.localhost/d/ai-ops-logs"],
     resource_deps=["helm-repositories"],
 )
 
