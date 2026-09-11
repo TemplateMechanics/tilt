@@ -20,7 +20,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-CLUSTER="tiltdev"
+# The cluster name, and therefore the kube context. Overridable so a second
+# cluster can run beside the first — one on Docker and one on Podman, say —
+# without the two claiming the same context name in your kubeconfig and
+# silently pointing your kubectl at the wrong cluster.
+CLUSTER="${CLUSTER:-tiltdev}"
 CONTEXT="kind-${CLUSTER}"
 # 10350 is Tilt's default. A second Tilt on the same machine (another repo,
 # another cluster) collides silently — override with TILT_PORT.
@@ -40,13 +44,45 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; };
 
 cluster_exists() { kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; }
 
+# Podman only. netavark 2.x builds one `inet netavark` table whose NAT chains
+# open with `fib daddr type local`, so a kernel without nft_fib_inet cannot
+# apply the ruleset and NO bridge network can be created. netavark treats the
+# kernel's "No such file or directory" as "table not created yet" and swallows
+# it, so podman reports `nftables error: "nft" did not return successfully
+# while applying ruleset:` with an EMPTY message and kind dies with nothing to
+# search for. Microsoft's WSL kernel 6.6.87.2 lacked the module; WSL 2.7.13
+# (kernel 6.18.33.2) has it. Checked read-only, and only when podman is chosen.
+podman_preflight() {
+    [ "${KIND_EXPERIMENTAL_PROVIDER:-}" = "podman" ] || return 0
+    need podman
+    local probe='modinfo nft_fib_inet >/dev/null 2>&1 || zcat /proc/config.gz 2>/dev/null | grep -q "^CONFIG_NFT_FIB_INET=y"'
+    local run="sh -c"
+    # On Windows and macOS podman runs in a VM, and it is that VM's kernel that
+    # matters, not the host's.
+    if podman machine list --format '{{.Name}}' 2>/dev/null | grep -q .; then
+        run="podman machine ssh --"
+    fi
+    if $run "$probe" >/dev/null 2>&1; then
+        echo "podman preflight: kernel provides nft_fib_inet"
+    else
+        echo "podman preflight FAILED: this kernel has no nft_fib_inet." >&2
+        echo "  netavark cannot build its nftables ruleset, so no bridge network" >&2
+        echo "  can be created and kind will fail with an EMPTY nftables error." >&2
+        echo "  Windows: run 'wsl --update' (2.7.13 ships kernel 6.18.33.2), then" >&2
+        echo "  'wsl --shutdown'. Elsewhere: use a kernel built with CONFIG_NFT_FIB_INET." >&2
+        exit 1
+    fi
+}
+
+
 cmd_up() {
     need kind; need kubectl; need tilt; need helm; need flux
+    podman_preflight
     if cluster_exists; then
         echo "kind cluster '$CLUSTER' already exists"
     else
         echo "creating kind cluster '$CLUSTER' from $KIND_CONFIG"
-        kind create cluster --config "$KIND_CONFIG" --wait 120s
+        kind create cluster --name "$CLUSTER" --config "$KIND_CONFIG" --wait 120s
     fi
     kubectl config use-context "$CONTEXT" >/dev/null
     echo
@@ -70,7 +106,7 @@ cmd_reset() {
         kind delete cluster --name "$CLUSTER"
     fi
     echo "recreating from $KIND_CONFIG"
-    kind create cluster --config "$KIND_CONFIG" --wait 120s
+    kind create cluster --name "$CLUSTER" --config "$KIND_CONFIG" --wait 120s
     kubectl config use-context "$CONTEXT" >/dev/null
     echo
     echo "empty cluster ready. run 'up' to bring the platform back."

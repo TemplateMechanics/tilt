@@ -350,7 +350,7 @@ annotations:
 
 | Tool | Version | Installation |
 |------|---------|--------------|
-| Docker Desktop | Latest | https://docs.docker.com/get-docker/ |
+| A container daemon | Latest | Docker Desktop is the tested default; Podman also works. See [docs/CONTAINER-RUNTIMES.md](docs/CONTAINER-RUNTIMES.md) |
 | kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ (the tested path; Docker Desktop Kubernetes also works via the docker-desktop overlays) |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
