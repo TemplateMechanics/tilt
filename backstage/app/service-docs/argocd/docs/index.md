@@ -70,7 +70,7 @@ Key settings in this deployment:
 ```yaml
 configs:
   params:
-    server.insecure: true        # TLS handled by Traefik
+    server.insecure: true        # TLS handled by Istio
   cm:
     admin.enabled: "true"        # Admin user enabled
     exec.enabled: "true"         # Pod exec from UI

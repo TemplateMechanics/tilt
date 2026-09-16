@@ -75,7 +75,7 @@ Provides event-driven architecture primitives:
 └─────────────────────┘
          │
   ┌──────▼──────┐
-  │  Traefik    │
+  │  Istio    │
   │  (Ingress)  │
   └─────────────┘
 ```
@@ -124,9 +124,9 @@ spec:
 | `autoscaling.knative.dev/metric` | Scaling metric (`concurrency`, `rps`, `cpu`) | `concurrency` |
 | `autoscaling.knative.dev/scale-down-delay` | Delay before scaling down | `0s` |
 
-## Integration with Traefik
+## Integration with Istio
 
-Knative is configured to use Traefik as the ingress controller. Knative Services are automatically routed through Traefik with URLs in the format:
+Knative is configured to use Istio as the ingress controller. Knative Services are automatically routed through Istio with URLs in the format:
 
 ```
 https://<service>.<namespace>.knative.localhost
@@ -136,7 +136,7 @@ https://<service>.<namespace>.knative.localhost
 
 | Service | Relationship |
 |---------|-------------|
-| **Traefik** | Ingress controller for Knative Services |
+| **Istio** | Ingress controller for Knative Services |
 | **Prometheus** | Scrapes Knative autoscaler and activator metrics |
 | **Grafana** | Visualizes request latency, concurrency, and scaling metrics |
 

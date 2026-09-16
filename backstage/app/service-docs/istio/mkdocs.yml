@@ -1,0 +1,5 @@
+site_name: Istio
+nav:
+  - Home: index.md
+plugins:
+  - techdocs-core

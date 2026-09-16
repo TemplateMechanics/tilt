@@ -1,5 +1,5 @@
-certificates/intermediateCA
-certificates/rootCA
+archive/openssl-certs/intermediateCA
+archive/openssl-certs/rootCA
 
 # Azurite runtime data
 azurite-data/
@@ -8,3 +8,8 @@ azurite-data/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# browser-check dependencies (installed by scripts/platform.sh check)
+scripts/validate/node_modules/
+scripts/validate/package-lock.json
+.browser-check/

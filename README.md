@@ -5,15 +5,62 @@ A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev
 ## Quick Start
 
 ```bash
-# Prerequisites: Docker Desktop (with Kubernetes), Tilt, Helm, Flux CLI
-
-# Start the environment
-tilt up
-
-# Access services at https://<service>.localhost
-# Access the Tilt dashboard at http://localhost:10350
-# Access the config API at http://tilt-config.localhost/config
+# Prerequisites: Docker, kind, kubectl, Helm, Flux CLI, Tilt
+./scripts/platform.sh up          # or: make up
 ```
+
+That creates a kind cluster from `kind/cluster.yaml` and starts Tilt. The first
+run installs Istio, cert-manager and the observability stack — allow about ten
+minutes. When Tilt shows `hello-world` green:
+
+- **<https://hello.localhost>** — your first app, over HTTPS, in the mesh
+- <https://grafana.localhost> — metrics and logs (admin / admin)
+- <https://kiali.localhost> — the service mesh
+- <http://localhost:10350> — the Tilt dashboard
+
+Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
+files, and its README walks through breaking each one. Then work through
+[`labs/`](labs/README.md): seven graded exercises — routing, TLS, the mesh,
+autoscaling, canaries, stateful rollouts — each with a `check.sh` that proves
+you did it, and a `reset` that makes breaking things cheap.
+
+```bash
+./scripts/platform.sh hello       # deploy hello-world and prove it in a browser
+./scripts/platform.sh check       # render every service in a real browser
+./scripts/platform.sh ci          # the same checks CI runs
+./scripts/platform.sh reset       # destroy the cluster and rebuild it empty
+```
+
+`reset` is the one to remember. Breaking things is how this is meant to be used,
+and a minute later the cluster is empty again.
+
+### Profiles
+
+The platform comes up in tiers. `up` defaults to `minimal`; set `PROFILE` for more:
+
+| Profile | Adds | When |
+|---|---|---|
+| `minimal` | Flux, Gateway API, Istio ambient, cert-manager, hello-world | learning; ~10 min |
+| `observability` | + Prometheus/Grafana, Loki, Tempo, Kiali, metrics-server | seeing what it does |
+| `gitops` | + Crossplane, config API, Flagger, External Secrets, CloudNativePG | how the platform deploys itself |
+| `full` | + every app toggleable in `tilt-config.json` | engagements |
+
+```bash
+PROFILE=observability ./scripts/platform.sh up
+tilt up -- --profile=full            # the same thing, by hand
+```
+
+Each tier is a file under [`tilt/`](tilt/); the root `Tiltfile` is a 39-line
+table of contents.
+
+Everything beyond the always-on core is off by default — including Backstage,
+whose first build takes 20+ minutes. Turn services on in `tilt-config.json` once
+the platform is up, not before.
+
+> **Ports:** services are on 443/80 by default. If something on your machine
+> already owns those (another kind cluster, a local web server), use the
+> alternate config and every URL gains `:8443`:
+> `KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up`
 
 ## Architecture
 
@@ -145,7 +192,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 
 **Access paths:**
 - **From Backstage** — Routed via the Backstage proxy plugin (`/api/proxy/tilt-config/...`)
-- **Direct (Traefik)** — `http://tilt-config.localhost/config`
+- **Direct (Istio gateway)** — `http://tilt-config.localhost/config`
 - **Port-forward** — `kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351`
 
 | Method | Endpoint | Description |
@@ -161,7 +208,8 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 ### Always-On Infrastructure
 | Service | Description | URL |
 |---------|-------------|-----|
-| Traefik | Ingress controller | https://traefik.localhost |
+| Istio | Ambient mesh + Gateway API ingress | (no UI; see Grafana) |
+| cert-manager | Issues the local CA chain and wildcard TLS cert | (no UI) |
 | Prometheus | Metrics & alerting | https://prometheus.localhost |
 | Loki | Log aggregation | - |
 | Tempo | Distributed tracing | - |
@@ -292,7 +340,8 @@ annotations:
 │   ├── loki/
 │   ├── tempo/
 │   ├── <service>/              # Service-specific configs
-│   └── traefik.yaml            # Ingress values
+│   ├── istio/                  # Ambient control plane + Gateway (base/overlays)
+│   └── cert-manager/           # CA chain + PKI (base/overlays/components)
 ├── certificates/               # TLS certificate generation
 └── docs/                       # Additional documentation
 ```
@@ -301,12 +350,12 @@ annotations:
 
 | Tool | Version | Installation |
 |------|---------|--------------|
-| Docker Desktop | Latest | https://docs.docker.com/get-docker/ |
-| Kubernetes | 1.25+ | Enable in Docker Desktop |
+| A container daemon | Latest | Docker Desktop is the tested default; Podman also works. See [docs/CONTAINER-RUNTIMES.md](docs/CONTAINER-RUNTIMES.md) |
+| kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ (the tested path; Docker Desktop Kubernetes also works via the docker-desktop overlays) |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
-| kubectl | 1.25+ | https://kubernetes.io/docs/tasks/tools/ |
+| kubectl | within one minor of the cluster | https://kubernetes.io/docs/tasks/tools/ — kind here runs Kubernetes 1.36, and an older kubectl prints a version-skew warning on *every* command, which students will chase |
 
 ## TLS Certificates
 
@@ -363,8 +412,38 @@ kubectl get providerrevision
 # Check IngressRoute
 kubectl get ingressroute -A
 
-# Check Traefik logs
-kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+### Backstage takes a long time on a cold build
+
+`backstage` is enabled by default and `docker_build` compiles it from source
+(`yarn tsc && yarn build:backend` on node:22). On a cold cache this regularly
+exceeds 20 minutes, during which the resource sits at
+`backstage:runtime waiting-for-pod` with no error.
+
+`tilt ci` will fail against the default timeout:
+
+```
+Error: Timeout after 22m0s: 1 resources waiting (backstage:runtime waiting-for-pod)
+```
+
+That is the build being slow, not the platform being broken — everything else
+reaches ready. Either allow for it (`tilt ci --timeout 45m`) or set
+`raw_apps.backstage.enabled: false` in `tilt-config.json` when you only need the
+infrastructure. Subsequent builds reuse the Docker layer cache and are far
+quicker.
+
+```bash
+# Watch the build rather than guessing
+kubectl get pods -n backstage
+```
+
+# Check the Istio gateway logs
+kubectl logs -n istio-system -l gateway.networking.k8s.io/gateway-name=localhost-gateway
+
+# Is a route actually attached to the Gateway?
+kubectl get httproute -A
+
+# Gateway programmed, and is the cert Ready?
+kubectl get gateway,certificate -n istio-system
 ```
 
 ### Config server not responding

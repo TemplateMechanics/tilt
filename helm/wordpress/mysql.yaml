@@ -8,6 +8,18 @@ metadata:
     app: mysql
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate. This is a single-replica database on one
+  # ReadWriteOnce PVC. With RollingUpdate every rollout starts the NEW pod
+  # before stopping the old one, and the new pod can never take InnoDB's file
+  # lock on the shared volume:
+  #   [ERROR] [MY-012574] [InnoDB] Unable to lock ./ibdata1 error: 11
+  # The old pod keeps serving, readyReplicas stays 1, everything reports
+  # healthy, and the new pod CrashLoopBackOffs forever — observed at 733
+  # restarts after a routine `rollout restart`. Recreate stops the old pod
+  # first, so the lock is free. (A StatefulSet is the fuller answer; Recreate
+  # is the smallest correct change.)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mysql

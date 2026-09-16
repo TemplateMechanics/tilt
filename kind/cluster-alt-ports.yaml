@@ -1,0 +1,20 @@
+# Same cluster as kind/cluster.yaml, but the gateway is published on 8443/8080.
+#
+# Use this ONLY when 443/80 are already taken on your machine. Nothing inside
+# the cluster changes — Istio still listens on 443 — only the host-side port.
+# Every URL then needs the port: https://<name>.localhost:8443.
+#
+#   KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tiltdev
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30443
+        hostPort: 8443
+        protocol: TCP
+  - role: worker

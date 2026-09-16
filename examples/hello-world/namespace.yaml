@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hello
+  labels:
+    # Puts this namespace in the Istio ambient mesh. Try removing it, restarting
+    # the pod, and watching Kiali's "Data planes" count drop by one — the app
+    # keeps working, it is just no longer getting mTLS or L4 telemetry.
+    istio.io/dataplane-mode: ambient

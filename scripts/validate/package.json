@@ -1,0 +1,9 @@
+{
+  "name": "tilt-platform-validate",
+  "private": true,
+  "description": "Browser-based service validation. `npm install` here once; platform.sh does it for you.",
+  "type": "module",
+  "dependencies": {
+    "playwright": "1.56.0"
+  }
+}

@@ -8,16 +8,52 @@ spec:
   domain: localstack.localhost
   chart:
     name: localstack
-    version: ">=0.6.0"
+    # Pinned. A range re-resolves on every Flux reconcile, so the platform
+    # rebuilt later is not the one built today. langfuse below is the worked
+    # example: ">=0.1.0" jumped to chart 2.x and stopped installing.
+    version: "0.7.0"
     repository: localstack
     values:
+      # The chart defaults to localstack/localstack-pro, which requires a paid
+      # licence and exits 55 on startup without one:
+      #   Please check that your credentials are set up correctly and that you
+      #   have an active license.
+      #   LocalStack supervisor: localstack process returned with exit code 55
+      # The pod then CrashLoopBackOffs and the route serves 503. Naming the
+      # community image explicitly means a chart default change cannot
+      # silently reintroduce it.
+      image:
+        repository: localstack/localstack
+        # Pin the tag too. The chart defaults to `latest`, which is now the
+        # unified image: it runs licence activation at start-up and exits 55
+        # with "License activation failed! No credentials were found in the
+        # environment", so the pod CrashLoopBackOffs and the route serves 503.
+        # Naming the community repository alone was not enough - the tag is
+        # the gate, and this is what makes it run without an account.
+        tag: "3.8"
       # Service configuration
       service:
         type: ClusterIP
-      # Persistence for local state
+      # KNOWN BLOCKER: localstack cannot start without a LocalStack account.
+      # As of chart 0.7.0 the chart's own values say:
+      #   "REQUIRED: LocalStack requires an auth token for all installations."
+      # and the container exits 55 without one:
+      #   License activation failed! No credentials were found in the environment
+      #   LocalStack supervisor: localstack process returned with exit code 55
+      # so the pod CrashLoopBackOffs and the route serves 503.
+      #
+      # Verified this is not fixable by configuration: it fails identically on
+      # localstack/localstack and localstack/localstack-pro, and with
+      # persistence both on and off. The token is the gate.
+      #
+      # To use it, supply a token from https://app.localstack.cloud:
+      #   extraEnvVars:
+      #     - name: LOCALSTACK_AUTH_TOKEN
+      #       valueFrom:
+      #         secretKeyRef: {name: localstack-auth, key: token}
+      # Persistence is additionally Pro-only, so it stays off here.
       persistence:
-        enabled: true
-        size: 10Gi
+        enabled: false
       # Enable commonly used services
       startServices: "s3,sqs,sns,dynamodb,lambda,iam,secretsmanager"
       # Debug mode for development (bool not string)

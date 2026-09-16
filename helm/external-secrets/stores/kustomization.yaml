@@ -1,0 +1,9 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Depends on the external-secrets CRDs. Apply only after the operator's
+# HelmRelease reports Ready, or every apply fails with
+# 'no matches for kind "ClusterSecretStore"'.
+resources:
+  - cluster-secret-store.yaml
+  - example-externalsecret.yaml

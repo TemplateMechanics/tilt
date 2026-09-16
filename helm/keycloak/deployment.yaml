@@ -37,6 +37,11 @@ spec:
           value: "postgres"
         - name: KC_DB_URL
           value: "jdbc:postgresql://keycloak-postgresql:5432/kc_db"
+        # Cap the heap below the container limit. Left unset the JVM sizes itself
+        # from the cgroup limit, and the start-up build can then push the whole
+        # container past it and be killed again.
+        - name: JAVA_OPTS_KC_HEAP
+          value: "-Xms512m -Xmx1536m"
         - name: KC_DB_USERNAME
           value: "kc_user"
         - name: KC_DB_PASSWORD
@@ -44,10 +49,13 @@ spec:
         resources:
           requests:
             cpu: 500m
-            memory: 512Mi
+            memory: 1Gi
+          # 2Gi was not enough: the container was OOMKilled with exit 137 on
+          # every start, eight restarts deep, while Keycloak 24 ran its Quarkus
+          # augmentation build. The build peaks well above the steady state.
           limits:
             cpu: 2000m
-            memory: 2Gi
+            memory: 3Gi
         readinessProbe:
           httpGet:
             path: /health/ready

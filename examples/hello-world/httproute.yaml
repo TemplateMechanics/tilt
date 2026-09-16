@@ -1,0 +1,28 @@
+---
+# Attaches this app to the shared Gateway. No TLS secret is named here: the
+# Gateway holds the certificate, so every app gets HTTPS by attaching a route.
+#
+# The hostname must ALSO appear in helm/istio/gateway/base/certificate.yaml.
+# Forget that and the route works but TLS fails with a hostname mismatch — the
+# CI check scripts/ci/check-route-hostnames.py exists to catch exactly this.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hello
+  namespace: hello
+spec:
+  hostnames:
+    - hello.localhost
+  parentRefs:
+    - name: localhost-gateway
+      namespace: istio-system
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: hello
+          port: 80

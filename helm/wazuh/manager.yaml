@@ -65,12 +65,18 @@ spec:
               mountPath: /etc/filebeat/filebeat.yml
               subPath: filebeat.yml
           resources:
+            # 1Gi was not enough. This one container runs the ossec daemons,
+            # the Wazuh API and filebeat together. The API never finished
+            # starting, so the liveness probe on 55000 got "connection
+            # refused", killed the container, and s6 tore filebeat down with
+            # it - which surfaced as a filebeat Go stack dump and made this
+            # look like a filebeat bug rather than a starved API.
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: "2"
+              memory: 4Gi
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: 500m
+              memory: 1Gi
           livenessProbe:
             tcpSocket:
               port: 55000

@@ -16,11 +16,11 @@ kubectl get crd <crd-name> -o yaml
 ## Service Not Accessible
 
 ```bash
-# Check IngressRoute exists
+# Check HTTPRoute exists
 kubectl get ingressroute -A
 
-# Check Traefik logs
-kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+# Check Istio logs
+kubectl logs -n istio-system -l gateway.networking.k8s.io/gateway-name=localhost-gateway
 
 # Verify the service is running
 kubectl get pods -n <service-namespace>
@@ -38,7 +38,7 @@ kubectl logs -n tilt-system -l app=tilt-config-server
 # Verify ConfigMap exists
 kubectl get configmap tilt-config -n tilt-system
 
-# Health check via IngressRoute
+# Health check via HTTPRoute
 curl http://tilt-config.localhost/health
 
 # Direct port-forward access

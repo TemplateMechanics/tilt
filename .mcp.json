@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "grafana": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--entrypoint",
+        "/app/mcp-grafana",
+        "--add-host=grafana.localhost:host-gateway",
+        "-e",
+        "GRAFANA_URL",
+        "-e",
+        "GRAFANA_SERVICE_ACCOUNT_TOKEN",
+        "mcp/grafana",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "GRAFANA_URL": "http://grafana.localhost",
+        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
+      }
+    }
+  }
+}

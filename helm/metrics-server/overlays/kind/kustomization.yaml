@@ -1,0 +1,22 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  # kind (and Docker Desktop) issue kubelet serving certificates that are not
+  # signed by the cluster CA and do not carry the node IP as a SAN. metrics-server
+  # verifies them by default and every scrape fails with:
+  #   x509: cannot validate certificate for 172.18.0.x because it doesn't
+  #   contain any IP SANs
+  # The deployment stays Running and Ready throughout while the Metrics API
+  # returns nothing, so it looks installed and does nothing.
+  - target:
+      kind: HelmRelease
+      name: metrics-server
+    patch: |
+      - op: add
+        path: /spec/values/args
+        value:
+          - --kubelet-insecure-tls
+          - --kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP

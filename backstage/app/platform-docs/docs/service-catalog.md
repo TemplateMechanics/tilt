@@ -6,7 +6,7 @@ These services are deployed automatically and cannot be toggled off:
 
 | Service | Description | URL |
 |---------|-------------|-----|
-| Traefik | Ingress controller | [traefik.localhost](https://traefik.localhost) |
+| Istio | Ingress controller | [grafana.localhost](https://grafana.localhost) |
 | Prometheus | Metrics & alerting | [prometheus.localhost](https://prometheus.localhost) |
 | Loki | Log aggregation | — |
 | Tempo | Distributed tracing | — |

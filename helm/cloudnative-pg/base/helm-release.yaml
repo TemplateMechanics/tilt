@@ -1,0 +1,44 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg
+  namespace: cnpg-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: "0.29.0"
+      sourceRef:
+        kind: HelmRepository
+        name: cnpg
+        namespace: flux-system
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+  values:
+    # Why this exists: the platform currently runs FIVE separate PostgreSQL
+    # deployments across FOUR image versions — postgres:13, postgres:15,
+    # postgres:15-alpine and postgres:17.6-alpine — for airflow, backstage,
+    # keycloak, langfuse and a standalone. Each is a bare Deployment or a
+    # sub-chart with its own credentials, no backups and no failover, and each
+    # has to be patched separately for a CVE.
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 25m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    monitoring:
+      # The operator exposes controller metrics; the PodMonitor for individual
+      # clusters is created per Cluster, not here.
+      podMonitorEnabled: false
+      grafanaDashboard:
+        create: false

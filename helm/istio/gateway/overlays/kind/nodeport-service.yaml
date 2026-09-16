@@ -1,0 +1,34 @@
+---
+# kind has no load balancer, so the gateway must be reachable on node ports that
+# the kind cluster publishes to the host (see kind/cluster.yaml: 80->30080,
+# 443->30443, or 8080/8443 via kind/cluster-alt-ports.yaml).
+#
+# This is a SECOND Service alongside the one Istio auto-provisions
+# ("localhost-gateway-istio"). It is deliberately not a patch of that Service:
+# Istio creates and owns it, assigns node ports at random, and kustomize cannot
+# patch a resource it does not generate. Selecting the same pods with our own
+# Service gives fixed, declarative node ports without fighting the controller.
+#
+# Docker Desktop does not need this — its LoadBalancer binds host 80/443 directly.
+apiVersion: v1
+kind: Service
+metadata:
+  name: localhost-gateway-nodeport
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/part-of: istio-gateway
+spec:
+  type: NodePort
+  selector:
+    gateway.networking.k8s.io/gateway-name: localhost-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30443
+      protocol: TCP

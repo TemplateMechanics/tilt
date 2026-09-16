@@ -8,7 +8,10 @@ spec:
   domain: qdrant.localhost
   chart:
     name: qdrant
-    version: ">=0.8.0"
+    # Pinned. A range re-resolves on every Flux reconcile, so the platform
+    # rebuilt later is not the one built today. langfuse below is the worked
+    # example: ">=0.1.0" jumped to chart 2.x and stopped installing.
+    version: "1.19.1"
     repository: qdrant
     values:
       # Single replica for local dev
