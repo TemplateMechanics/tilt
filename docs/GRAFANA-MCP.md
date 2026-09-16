@@ -93,3 +93,32 @@ non-interactively for every service in `services.json`; the MCP servers are for
 poking at one service by hand when a check fails and you want to know why.
 
 Neither needs configuration. Both are fetched by `npx` on first use.
+
+## What `up` now does for you
+
+`grafana-mcp-token` (Observability tier) creates a Grafana service account named
+`mcp` and writes its token to `.local/grafana-mcp.env`, which is gitignored.
+`.mcp.json` passes that file to `docker run --env-file`, so **nothing needs to be
+set in your shell**. The previous config read `${GRAFANA_SERVICE_ACCOUNT_TOKEN}`
+from the environment, and an unset variable expands to empty: the server then
+starts, reaches Grafana, gets a 401 and reports "failed to discover tools" -
+which reads like a broken server rather than a missing token.
+
+The script is idempotent on the *token*, not on the account. Grafana shows a
+service-account token once, at creation, so checking only whether the account
+exists would happily leave you with an account whose token nobody has. It tests
+the stored token against `/api/org` and issues a new one only if that fails.
+
+To pick it up, **restart Claude Code in this directory and approve the servers**
+when prompted - `.mcp.json` is read at startup. Verify with `/mcp`; the grafana
+server exposes 65 tools.
+
+If you want to check it without Claude Code:
+
+```bash
+./scripts/grafana-mcp-token.sh          # prints "existing MCP token still valid"
+printf '%s
+%s
+%s
+'   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"p","version":"1"}}}'   '{"jsonrpc":"2.0","method":"notifications/initialized"}'   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | docker run -i --rm --network host --add-host=grafana.localhost:127.0.0.1     -v "$PWD/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro"     --env-file "$PWD/.local/grafana-mcp.env" -e GRAFANA_URL=https://grafana.localhost     --entrypoint /app/mcp-grafana mcp/grafana --transport stdio --tls-ca-file /ca/dev-root-ca.crt
+```
