@@ -40,9 +40,9 @@
       "name": "backstage",
       "host": "backstage.localhost",
       "path": "/",
-      "expect": "Backstage",
+      "expect": "Dev Portal",
       "configKey": "raw_apps.backstage",
-      "note": "Image is built from source in-cluster; allow 20+ minutes cold."
+      "note": "App is branded 'Dev Portal'; expecting 'Backstage' failed a working page."
     },
     {
       "name": "dapr",
@@ -132,8 +132,10 @@
       "name": "ollama",
       "host": "ollama.localhost",
       "path": "/",
-      "expect": "Ollama",
-      "configKey": "flux_apps.ollama"
+      "expect": "Ollama is running",
+      "configKey": "flux_apps.ollama",
+      "minChars": 10,
+      "note": "Root returns the plain string 'Ollama is running' - 17 chars, no HTML."
     },
     {
       "name": "opencost",
@@ -177,7 +179,9 @@
       "host": "wazuh.localhost",
       "path": "/",
       "expect": "Wazuh",
-      "configKey": "raw_apps.wazuh"
+      "configKey": "raw_apps.wazuh",
+      "minChars": 5,
+      "note": "Dashboard boots as a JS shell; the title is the only early signal."
     },
     {
       "name": "wordpress",

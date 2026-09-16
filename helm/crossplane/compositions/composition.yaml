@@ -33,6 +33,13 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.name
           toFieldPath: spec.forProvider.manifest.metadata.name
+        # Overrides the "ambient" default above. Without this patch the XRD
+        # field would exist and change nothing - a setting accepted and
+        # silently ignored, which is the failure shape this repo keeps
+        # tripping over.
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.dataplaneMode
+          toFieldPath: spec.forProvider.manifest.metadata.labels["istio.io/dataplane-mode"]
     
     # 2. Deploy Helm Release via Flux
     - name: helmrelease

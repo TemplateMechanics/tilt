@@ -116,7 +116,13 @@ for (const svc of targets) {
   rec.verdict =
     rec.error ? 'FAIL(load)' :
     rec.status !== 200 ? `FAIL(http ${rec.status})` :
-    rec.visibleChars < 20 ? 'FAIL(blank page)' :
+    // 20 chars is the default floor for "rendered nothing". Some services
+    // legitimately answer with less - ollama's entire root response is the
+    // 17-character string "Ollama is running" - so a service may lower it
+    // with minChars. It is per-service and must be justified in services.json,
+    // because a check that reports a false failure gets ignored, and then the
+    // real failures get ignored with it.
+    rec.visibleChars < (svc.minChars ?? 20) ? 'FAIL(blank page)' :
     !contentOk ? `FAIL(missing "${svc.expect}")` :
     consoleErrors.length ? 'WARN(console errors)' :
     'OK';

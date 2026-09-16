@@ -11,7 +11,11 @@ spec:
   chart:
     repository: harbor
     name: harbor
-    version: "1.15.1"
+    # 1.19.2 = Harbor 2.15.2. 1.15.1 was Harbor 2.11, which does not recognise
+    # cosign signatures stored through the OCI 1.1 referrers API - the default
+    # in cosign v3. Harbor shows such an image as unsigned while the signature
+    # is sitting right there, which reads as "never signed".
+    version: "1.19.2"
     values:
       expose:
         type: clusterIP
@@ -22,8 +26,9 @@ spec:
         enabled: false
       trivy:
         enabled: false
-      notary:
-        enabled: false
+      # No `notary:` key: Harbor removed Notary in 2.12, and Helm ignores unknown
+      # values without complaint, so disabling it read like a deliberate control
+      # while doing precisely nothing.
       metrics:
         enabled: true
   

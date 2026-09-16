@@ -6,6 +6,16 @@ metadata:
 spec:
   name: langfuse
   domain: langfuse.localhost
+
+  # Out of the ambient mesh. Every internal TCP connection langfuse makes - web
+  # to postgres:5432, worker to redis:6379, clickhouse to zookeeper:2181 - hung
+  # under ambient. ztunnel logged `bytes_sent=0 bytes_recv=0 ... connection timed
+  # out` against the HBONE port and postgres logged no connection at all: the
+  # request never arrived. A `nc -z` to the service still succeeded, because what
+  # answered was ztunnel and not the database, so the port looked open while
+  # nothing worked. Excluding the namespace fixed it immediately. The cause
+  # inside ztunnel is not established; this is the fix, not the explanation.
+  dataplaneMode: none
   chart:
     name: langfuse
     # PREREQUISITE, and the reason this does not install out of the box:
@@ -25,11 +35,29 @@ spec:
     # Pinned rather than ranged: ">=0.1.0" resolved to 2.1.0, a major version
     # whose values are shaped completely differently, and the app silently
     # stopped installing.
-    version: "2.1.0"
+    # 1.5.41 (app 3.224.1), not 2.1.0 (app 4.24.0). Both still require
+    # ClickHouse - correcting an earlier note here that claimed 1.5.x was a
+    # Postgres-only line. It is not: every published langfuse chart, back to
+    # 0.12.x, is app v3 or later. The chart bundles its own ClickHouse, so no
+    # external operator is needed; 2.x was the version that wanted one.
+    version: "1.5.41"
     repository: langfuse
     values:
       # Langfuse configuration
       langfuse:
+        # The web container was killed with SIGTERM (exit 143) on every start. It
+        # was not crashing: the liveness probe fires 20s in with a 3-failure
+        # threshold, and langfuse-web needs longer than that to finish its Postgres
+        # and ClickHouse migrations on a laptop-sized cluster. Its log showed a
+        # clean start-up right to the moment it was killed, which reads as a crash
+        # and is not one.
+        web:
+          livenessProbe:
+            initialDelaySeconds: 180
+            failureThreshold: 10
+          readinessProbe:
+            initialDelaySeconds: 60
+            failureThreshold: 20
         # Salt for hashing - use value subkey
         salt:
           value: "changeme-random-salt-value-here-32ch"

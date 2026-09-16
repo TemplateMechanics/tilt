@@ -24,6 +24,13 @@ spec:
       # silently reintroduce it.
       image:
         repository: localstack/localstack
+        # Pin the tag too. The chart defaults to `latest`, which is now the
+        # unified image: it runs licence activation at start-up and exits 55
+        # with "License activation failed! No credentials were found in the
+        # environment", so the pod CrashLoopBackOffs and the route serves 503.
+        # Naming the community repository alone was not enough - the tag is
+        # the gate, and this is what makes it run without an account.
+        tag: "3.8"
       # Service configuration
       service:
         type: ClusterIP
