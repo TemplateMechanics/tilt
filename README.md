@@ -508,8 +508,11 @@ MIT
 >   - `helm/backstage/postgresql.yaml` — Postgres password (`bstage-dev-password`)
 >   - `helm/keycloak/deployment.yaml` / `postgresql.yaml` — Keycloak admin & DB passwords (`kc-dev-password`)
 >   - `helm/mssql/values.yaml` — SA password (`P@ssw0rd`)
->   - `helm/jenkins/helm-release.yaml` — Admin password (`P@ssw0rd`)
->   - `helm/harbor/helm-release.yaml` — Harbor admin password (`P@ssw0rd`)
+>   - `apps/jenkins.yaml` — Admin password (`P@ssw0rd`, user `user`)
+>   - `apps/harbor.yaml` — **no password is set**, so Harbor runs on the chart
+>     default `Harbor12345` with user `admin`. That is a published vendor
+>     default and therefore worse than the made-up ones above. This entry used
+>     to claim `P@ssw0rd`, which was never true for Harbor.
 >   - `helm/mongodb/manifests/secret.yaml` — Root password (`mongo-dev-password`)
 >   - `helm/rabbitmq/manifests/secret.yaml` — RabbitMQ password (`rmq-dev-password`)
 >   - `helm/redis/manifests/secret.yaml` — Redis password (`redis-dev-password`)

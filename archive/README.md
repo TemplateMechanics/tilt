@@ -10,17 +10,17 @@ is applied by the Tiltfile — these files are reference material, not live conf
 
 ## traefik/
 
-- `traefik-values.yaml` — the chart values (~1000 lines), including the
+- `traefik/traefik-values.yaml` — the chart values (~1000 lines), including the
   `tlsStore.default.defaultCertificate` and the `security` CORS Middleware.
-- `dashboards/traefik-dashboard.yaml` — Grafana dashboard ConfigMap.
-- `ingress/<app>.yaml` — one per app, as they existed before migration.
+- `traefik/dashboards/traefik-dashboard.yaml` — Grafana dashboard ConfigMap.
+- `traefik/ingress/<app>.yaml` — one per app, as they existed before migration.
   `_backstage-skeleton-ingress.yaml` is the scaffolder template's version.
 - `tiltfile-traefik-and-openssl-certs.txt` — the Tiltfile block that installed
   Traefik via `helm_remote` and generated/installed certs.
 
 ### To run Traefik again
 
-Restore `traefik-values.yaml` to `helm/traefik.yaml`, re-add the `helm_remote`
+Restore `traefik/traefik-values.yaml` to `helm/traefik.yaml`, re-add the `helm_remote`
 block from the Tiltfile snippet, and put the `ingress/` manifests back into each
 app directory (referencing them from that app's `kustomization.yaml` instead of
 `httproute.yaml`).
