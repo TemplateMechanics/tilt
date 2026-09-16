@@ -22,3 +22,7 @@ resources:
   - thanos.yaml
   - knative.yaml
   - ai-ops-logs.yaml
+
+  - istio.yaml
+
+  - argocd.yaml

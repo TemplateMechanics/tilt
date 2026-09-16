@@ -6,21 +6,43 @@
         "run",
         "-i",
         "--rm",
-        "--entrypoint",
-        "/app/mcp-grafana",
-        "--add-host=grafana.localhost:host-gateway",
+        "--network",
+        "host",
+        "--add-host=grafana.localhost:127.0.0.1",
+        "-v",
+        "${PWD}/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro",
         "-e",
         "GRAFANA_URL",
         "-e",
         "GRAFANA_SERVICE_ACCOUNT_TOKEN",
         "mcp/grafana",
         "--transport",
-        "stdio"
+        "stdio",
+        "--tls-ca-file",
+        "/ca/dev-root-ca.crt"
       ],
       "env": {
-        "GRAFANA_URL": "http://grafana.localhost",
+        "GRAFANA_URL": "https://grafana.localhost",
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--browser",
+        "chrome"
+      ],
+      "env": {}
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": {}
     }
   }
 }

@@ -1,0 +1,40 @@
+---
+# Ambient splits L4 from L7. ztunnel gives you mTLS and TCP telemetry for free,
+# but NOT per-request metrics: with no waypoint, `istio_requests_total` exists
+# only with reporter="source" from the ingress gateway, and nothing at all for
+# service-to-service traffic inside the namespace.
+#
+# Flagger's canary analysis asks for request-success-rate on the destination
+# side. Without this waypoint it finds no series and halts with "no values found
+# ... probably hello.hello is not receiving traffic" — then rolls back a
+# perfectly healthy release. The traffic was real; nobody was measuring it.
+#
+# This is also the clearest demonstration of what a waypoint is for, which is
+# why it belongs to the lab rather than to examples/hello-world: labs 01-03
+# should show ambient with nothing extra in the path.
+# The namespace is repeated in full, not patched. `kubectl apply` of a partial
+# Namespace would drop istio.io/dataplane-mode and silently take hello out of
+# the mesh - which labs 01 and 03 would then fail on, for a reason nobody would
+# connect to this file.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hello
+  labels:
+    istio.io/dataplane-mode: ambient
+    # Send this namespace's service traffic through the waypoint below.
+    istio.io/use-waypoint: waypoint
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: hello
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE

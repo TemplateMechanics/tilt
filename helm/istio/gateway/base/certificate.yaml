@@ -40,6 +40,7 @@ spec:
     - ghost.localhost
     - grafana.localhost
     - harbor.localhost
+    - headlamp.localhost
     - hello.localhost
     - jenkins.localhost
     - kiali.localhost
