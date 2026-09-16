@@ -196,7 +196,7 @@ Service configuration is stored in `tilt-config.json` at the project root. Each 
 
 You can edit this file directly, or toggle services through:
 - **Backstage UI** — Infrastructure Dashboard at https://backstage.localhost/infrastructure
-- **Config API** — `curl -X PATCH http://tilt-config.localhost/config -H 'Content-Type: application/json' -d '{"raw_apps":{"redis":{"enabled":true}}}'`
+- **Config API** — `curl -X PATCH https://tilt-config.localhost/config -H 'Content-Type: application/json' -d '{"raw_apps":{"redis":{"enabled":true}}}'`
 - **Manual edit** — Edit `tilt-config.json`; Tilt auto-reloads via `watch_file()`
 
 Changes made via the Backstage UI or Config API are written to the `tilt-config` ConfigMap in the `tilt-system` namespace. A sync loop on the host polls the ConfigMap every 3 seconds and writes changes back to `tilt-config.json`, which triggers Tilt reload.
@@ -207,7 +207,7 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 
 **Access paths:**
 - **From Backstage** — Routed via the Backstage proxy plugin (`/api/proxy/tilt-config/...`)
-- **Direct (Istio gateway)** — `http://tilt-config.localhost/config`
+- **Direct (Istio gateway)** — `https://tilt-config.localhost/config`
 - **Port-forward** — `kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351`
 
 | Method | Endpoint | Description |
@@ -230,7 +230,8 @@ The config server runs as a K8s Deployment in the `tilt-system` namespace. It re
 | Tempo | Distributed tracing | - |
 | Crossplane | Infrastructure as Code | - |
 | Flux | GitOps engine | - |
-| Config Server | Tilt config REST API (K8s pod) | http://tilt-config.localhost |
+| Config Server | Tilt config REST API (K8s pod) | https://tilt-config.localhost |
+| Headlamp | Cluster UI for humans - what is in this namespace, and why is that pod unhappy | https://headlamp.localhost |
 
 ### Crossplane-Managed Apps
 | Service | Image | Description |
@@ -474,7 +475,7 @@ kubectl logs -n tilt-system -l app=tilt-config-server
 kubectl get configmap tilt-config -n tilt-system
 
 # Health check via IngressRoute
-curl http://tilt-config.localhost/health
+curl https://tilt-config.localhost/health
 
 # Direct port-forward access
 kubectl port-forward -n tilt-system svc/tilt-config-server 10351:10351

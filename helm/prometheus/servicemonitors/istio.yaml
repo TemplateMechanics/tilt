@@ -1,0 +1,61 @@
+---
+# Nothing scraped Istio. The observability stack shipped monitors for a dozen
+# components and none for the mesh itself, so `istio_requests_total` had zero
+# series in Prometheus. That is not only a missing dashboard: Flagger's canary
+# analysis queries request-success-rate from exactly that metric, so lab 06's
+# "good version" could never be promoted. It halted with "no values found for
+# gatewayapi:v1 metric request-success-rate probably hello.hello is not
+# receiving traffic" and rolled back a perfectly healthy release. The request
+# rate was fine; nobody was recording it.
+#
+# The gateway serves the same metrics on 15020 and 15090; 15090 is Envoy's own
+# prometheus port and is what Istio's docs scrape.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-proxies
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchExpressions:
+      - key: istio-prometheus-ignore
+        operator: DoesNotExist
+  podMetricsEndpoints:
+    - path: /stats/prometheus
+      interval: 15s
+      relabelings:
+        # Only the proxy container. Without this every container in a matched
+        # pod is scraped and most of them serve nothing on that path.
+        - action: keep
+          sourceLabels: [__meta_kubernetes_pod_container_name]
+          regex: "istio-proxy"
+        - action: keep
+          sourceLabels: [__meta_kubernetes_pod_container_port_name]
+          regex: "http-envoy-prom|metrics|ztunnel-stats"
+        - action: replace
+          sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+---
+# istiod's own control-plane metrics: xDS pushes, config validation, cert
+# issuance. Separate port, separate service, so a separate monitor.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: istiod
+  namespaceSelector:
+    matchNames:
+      - istio-system
+  endpoints:
+    - port: http-monitoring
+      path: /metrics
+      interval: 30s

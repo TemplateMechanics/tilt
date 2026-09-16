@@ -61,7 +61,35 @@ unaffected.
 
 ## Port note
 
-`GRAFANA_URL` uses `http://grafana.localhost` — plain HTTP on the kind host-port
+`GRAFANA_URL` uses `https://grafana.localhost` — the gateway redirects plaintext, so the MCP verifies TLS against the platform CA (see below)
 mapping (append `:8080` if you run the alternate-ports kind config). HTTPS would need the local root CA mounted into the container.
 Traffic stays on the loopback interface of the developer's own machine, and the
 token is a Viewer credential on a local dev cluster. This is also the Docker Desktop address.
+
+## Networking, and why it is `--network host`
+
+The container previously used `--add-host=grafana.localhost:host-gateway` over
+plain HTTP. Both halves of that stopped being true:
+
+- The platform now redirects port 80 to 443, so the MCP must speak HTTPS and
+  must therefore trust the platform CA. `dev-ca-trust` writes it to
+  `.local/dev-root-ca.crt` on every `up`, and the container mounts that file
+  and is pointed at it with `--tls-ca-file`. A `mktemp` path would work once
+  and then silently break, which is why the export has a stable home.
+- `host-gateway` resolves to an IPv6 address on this machine that cannot reach
+  the kind port mappings. Measured: every request from the container failed to
+  connect, on port 80 as well as 443, while the identical URL worked from the
+  host. `--network host` puts the container on the Docker VM's network, where
+  kind publishes 80 and 443, and `--add-host=grafana.localhost:127.0.0.1` gives
+  it the name. Verified end to end: the MCP starts, resolves, completes the TLS
+  handshake against the platform CA, and reaches the Grafana API.
+
+## The other two servers
+
+`playwright` and `chrome-devtools` are there to QA deployed services: render a
+page in a real browser, read the console and the failed requests, and look at
+what a user would see. `scripts/validate/browser-check.mjs` already does this
+non-interactively for every service in `services.json`; the MCP servers are for
+poking at one service by hand when a check fails and you want to know why.
+
+Neither needs configuration. Both are fetched by `npx` on first use.

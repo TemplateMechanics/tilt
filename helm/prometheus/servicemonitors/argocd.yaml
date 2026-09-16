@@ -13,6 +13,9 @@ spec:
     matchLabels:
       app.kubernetes.io/part-of: argocd
   endpoints:
-    - port: metrics
+    # http-metrics, not metrics. Every argocd *-metrics service names its port
+    # http-metrics; with the wrong name the monitor selected the services and
+    # scraped nothing, and the Argo CD dashboard was empty in all 18 panels.
+    - port: http-metrics
       interval: 30s
       path: /metrics

@@ -5,7 +5,9 @@ resources:
   - loki.yaml
   - qdrant.yaml
   - tempo.yaml
-  - traefik.yaml
+  - istio.yaml
+  - cert-manager.yaml
+  - argocd.yaml
   - falco.yaml
   - trivy.yaml
   - nats.yaml

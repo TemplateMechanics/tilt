@@ -121,6 +121,12 @@
       "description": "Long-term Prometheus storage",
       "category": "Observability",
       "tested": false
+    },
+    "headlamp": {
+      "enabled": true,
+      "description": "Cluster UI for humans (kubernetes-sigs, replaces the archived Dashboard)",
+      "category": "Developer Portal",
+      "tested": true
     }
   },
   "raw_apps": {

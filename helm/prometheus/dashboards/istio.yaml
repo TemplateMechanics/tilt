@@ -1,0 +1,68 @@
+---
+# Service mesh golden signals. These panels were dead until a PodMonitor for
+# istio-proxy existed: istio_requests_total had zero series, so this would have
+# rendered as a silent mesh rather than an unscraped one.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-istio
+  namespace: monitoring
+  labels:
+    grafana_dashboard: '1'
+  annotations:
+    grafana_folder: Observability
+data:
+  istio.json: "{\n  \"title\": \"Istio - service mesh\",\n  \"uid\": \"istio-mesh\",\n  \"schemaVersion\"\
+    : 39,\n  \"version\": 1,\n  \"refresh\": \"30s\",\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"\
+    to\": \"now\"\n  },\n  \"tags\": [\n    \"istio\",\n    \"mesh\",\n    \"platform\"\n  ],\n  \"panels\"\
+    : [\n    {\n      \"title\": \"Traffic\",\n      \"type\": \"row\",\n      \"gridPos\": {\n      \
+    \  \"h\": 1,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 0\n      },\n      \"collapsed\"\
+    : false\n    },\n    {\n      \"title\": \"Request rate by destination service\",\n      \"type\"\
+    : \"timeseries\",\n      \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\": \"\
+    Prometheus\"\n      },\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\": 12,\n        \"x\"\
+    : 0,\n        \"y\": 1\n      },\n      \"targets\": [\n        {\n          \"datasource\": {\n \
+    \           \"type\": \"prometheus\",\n            \"uid\": \"Prometheus\"\n          },\n       \
+    \   \"expr\": \"sum by (destination_service_name) (rate(istio_requests_total[5m]))\",\n          \"\
+    legendFormat\": \"{{destination_service_name}}\",\n          \"refId\": \"A\"\n        }\n      ],\n\
+    \      \"fieldConfig\": {\n        \"defaults\": {\n          \"unit\": \"reqps\",\n          \"custom\"\
+    : {\n            \"lineWidth\": 2,\n            \"fillOpacity\": 8\n          }\n        },\n    \
+    \    \"overrides\": []\n      }\n    },\n    {\n      \"title\": \"Error rate (5xx share)\",\n   \
+    \   \"type\": \"timeseries\",\n      \"datasource\": {\n        \"type\": \"prometheus\",\n      \
+    \  \"uid\": \"Prometheus\"\n      },\n      \"gridPos\": {\n        \"h\": 8,\n        \"w\": 12,\n\
+    \        \"x\": 12,\n        \"y\": 1\n      },\n      \"targets\": [\n        {\n          \"datasource\"\
+    : {\n            \"type\": \"prometheus\",\n            \"uid\": \"Prometheus\"\n          },\n  \
+    \        \"expr\": \"sum by (destination_service_name) (rate(istio_requests_total{response_code=~\\\
+    \"5..\\\"}[5m])) / clamp_min(sum by (destination_service_name) (rate(istio_requests_total[5m])), 0.001)\"\
+    ,\n          \"legendFormat\": \"{{destination_service_name}}\",\n          \"refId\": \"A\"\n   \
+    \     }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"unit\": \"percentunit\"\
+    ,\n          \"min\": 0,\n          \"custom\": {\n            \"lineWidth\": 2,\n            \"fillOpacity\"\
+    : 8\n          }\n        },\n        \"overrides\": []\n      }\n    },\n    {\n      \"title\":\
+    \ \"Latency\",\n      \"type\": \"row\",\n      \"gridPos\": {\n        \"h\": 1,\n        \"w\":\
+    \ 24,\n        \"x\": 0,\n        \"y\": 9\n      },\n      \"collapsed\": false\n    },\n    {\n\
+    \      \"title\": \"p95 latency by destination service\",\n      \"type\": \"timeseries\",\n     \
+    \ \"datasource\": {\n        \"type\": \"prometheus\",\n        \"uid\": \"Prometheus\"\n      },\n\
+    \      \"gridPos\": {\n        \"h\": 8,\n        \"w\": 24,\n        \"x\": 0,\n        \"y\": 10\n\
+    \      },\n      \"targets\": [\n        {\n          \"datasource\": {\n            \"type\": \"\
+    prometheus\",\n            \"uid\": \"Prometheus\"\n          },\n          \"expr\": \"histogram_quantile(0.95,\
+    \ sum by (destination_service_name, le) (rate(istio_request_duration_milliseconds_bucket[5m])))\"\
+    ,\n          \"legendFormat\": \"{{destination_service_name}}\",\n          \"refId\": \"A\"\n   \
+    \     }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"unit\": \"ms\",\n\
+    \          \"custom\": {\n            \"lineWidth\": 2,\n            \"fillOpacity\": 0\n        \
+    \  }\n        },\n        \"overrides\": []\n      }\n    },\n    {\n      \"title\": \"Mesh health\"\
+    ,\n      \"type\": \"row\",\n      \"gridPos\": {\n        \"h\": 1,\n        \"w\": 24,\n       \
+    \ \"x\": 0,\n        \"y\": 18\n      },\n      \"collapsed\": false\n    },\n    {\n      \"title\"\
+    : \"Workloads ztunnel is proxying\",\n      \"type\": \"stat\",\n      \"datasource\": {\n       \
+    \ \"type\": \"prometheus\",\n        \"uid\": \"Prometheus\"\n      },\n      \"gridPos\": {\n   \
+    \     \"h\": 5,\n        \"w\": 8,\n        \"x\": 0,\n        \"y\": 19\n      },\n      \"targets\"\
+    : [\n        {\n          \"datasource\": {\n            \"type\": \"prometheus\",\n            \"\
+    uid\": \"Prometheus\"\n          },\n          \"expr\": \"count(count by (destination_workload) (istio_requests_total))\"\
+    ,\n          \"legendFormat\": \"workloads\",\n          \"refId\": \"A\"\n        }\n      ]\n  \
+    \  },\n    {\n      \"title\": \"istiod xDS pushes\",\n      \"type\": \"timeseries\",\n      \"datasource\"\
+    : {\n        \"type\": \"prometheus\",\n        \"uid\": \"Prometheus\"\n      },\n      \"gridPos\"\
+    : {\n        \"h\": 5,\n        \"w\": 16,\n        \"x\": 8,\n        \"y\": 19\n      },\n     \
+    \ \"targets\": [\n        {\n          \"datasource\": {\n            \"type\": \"prometheus\",\n\
+    \            \"uid\": \"Prometheus\"\n          },\n          \"expr\": \"sum by (type) (rate(pilot_xds_pushes[5m]))\"\
+    ,\n          \"legendFormat\": \"{{type}}\",\n          \"refId\": \"A\"\n        }\n      ],\n  \
+    \    \"fieldConfig\": {\n        \"defaults\": {\n          \"custom\": {\n            \"lineWidth\"\
+    : 2\n          }\n        },\n        \"overrides\": []\n      }\n    }\n  ],\n  \"annotations\":\
+    \ {\n    \"list\": []\n  },\n  \"templating\": {\n    \"list\": []\n  }\n}"
