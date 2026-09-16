@@ -11,20 +11,17 @@
         "--add-host=grafana.localhost:127.0.0.1",
         "-v",
         "${PWD}/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro",
+        "--env-file",
+        "${PWD}/.local/grafana-mcp.env",
         "-e",
-        "GRAFANA_URL",
-        "-e",
-        "GRAFANA_SERVICE_ACCOUNT_TOKEN",
+        "GRAFANA_URL=https://grafana.localhost",
         "mcp/grafana",
         "--transport",
         "stdio",
         "--tls-ca-file",
         "/ca/dev-root-ca.crt"
       ],
-      "env": {
-        "GRAFANA_URL": "https://grafana.localhost",
-        "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
-      }
+      "env": {}
     },
     "playwright": {
       "command": "npx",

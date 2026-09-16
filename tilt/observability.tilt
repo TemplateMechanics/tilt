@@ -86,6 +86,18 @@ local_resource(
 )
 
 # Apply ServiceMonitors/PodMonitors after Prometheus Operator CRDs are available
+# The Grafana MCP server authenticates with a service-account token, and Grafana
+# shows that token exactly once, at creation. Provisioning it here means `up`
+# leaves the MCP ready instead of leaving you to create an account by hand and
+# paste a secret into your shell profile - and a token nobody kept is the same
+# as no token at all.
+local_resource(
+    "grafana-mcp-token",
+    cmd=sh("./scripts/grafana-mcp-token.sh"),
+    labels=["Observability"],
+    resource_deps=["prometheus"],
+)
+
 local_resource(
     "prometheus-monitors",
     cmd=sh("""
