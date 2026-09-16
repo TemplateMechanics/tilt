@@ -68,6 +68,23 @@ spec:
     # =========================================================================
     grafana:
       adminPassword: admin
+      # Grafana 13 moved its core datasources - prometheus, loki, tempo, and
+      # several others - to a background installer that runs at startup. The
+      # chart runs Grafana with readOnlyRootFilesystem, so every one of those
+      # installs failed with:
+      #   Failed to install plugin pluginId=prometheus
+      #   error="unlinkat /usr/share/grafana/data/plugins-bundled/prometheus:
+      #          read-only file system"
+      # and Grafana came up with NO prometheus, loki or tempo plugin. Every
+      # dashboard in the platform rendered blank, the datasources listed fine in
+      # the UI, and /api/ds/query answered 404 "Plugin not registered". Querying
+      # Prometheus directly still worked perfectly, which is exactly why this hid
+      # for so long: the data was there and Grafana could not read it.
+      #
+      # Disabling the preinstaller makes Grafana use the plugins already bundled
+      # in the image, which is also the right answer for an offline cluster.
+      env:
+        GF_PLUGINS_PREINSTALL_DISABLED: "true"
       ingress:
       # Disabled: routing is owned by a Gateway API HTTPRoute now.
       # Left enabled, the chart renders an Ingress that no controller

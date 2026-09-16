@@ -4,328 +4,59 @@ metadata:
   name: grafana-dashboard-thanos
   namespace: monitoring
   labels:
-    grafana_dashboard: "1"
+    grafana_dashboard: '1'
   annotations:
-    grafana_folder: "Observability"
+    grafana_folder: Observability
 data:
-  thanos.json: |
-    {
-      "annotations": {
-        "list": [
-          {
-            "builtIn": 1,
-            "datasource": "-- Grafana --",
-            "enable": true,
-            "hide": true,
-            "iconColor": "rgba(0, 211, 255, 1)",
-            "name": "Annotations & Alerts",
-            "type": "dashboard"
-          }
-        ]
-      },
-      "editable": true,
-      "fiscalYearStartMonth": 0,
-      "graphTooltip": 1,
-      "id": null,
-      "links": [],
-      "panels": [
-        {
-          "title": "Query Overview",
-          "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-          "collapsed": false
-        },
-        {
-          "title": "Query Gate In-Flight",
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
-          "targets": [
-            {
-              "expr": "sum(thanos_query_gate_queries_in_flight) or vector(0)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "yellow", "value": 5 },
-                  { "color": "red", "value": 10 }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": { "calcs": ["lastNotNull"] },
-            "colorMode": "background"
-          }
-        },
-        {
-          "title": "Store Blocks Loaded",
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
-          "targets": [
-            {
-              "expr": "sum(thanos_store_blocks_loaded) or vector(0)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "blue", "value": null }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": { "calcs": ["lastNotNull"] },
-            "colorMode": "background"
-          }
-        },
-        {
-          "title": "Compactor Runs Total",
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
-          "targets": [
-            {
-              "expr": "sum(thanos_compactor_group_compactions_total) or vector(0)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "green", "value": null }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": { "calcs": ["lastNotNull"] },
-            "colorMode": "background"
-          }
-        },
-        {
-          "title": "Compactor Halted",
-          "type": "stat",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
-          "targets": [
-            {
-              "expr": "sum(thanos_compactor_halted) or vector(0)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "thresholds" },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  { "color": "green", "value": null },
-                  { "color": "red", "value": 1 }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": { "calcs": ["lastNotNull"] },
-            "colorMode": "background"
-          }
-        },
-        {
-          "title": "Query Performance",
-          "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
-          "collapsed": false
-        },
-        {
-          "title": "Query Latency (p50 / p95 / p99)",
-          "type": "timeseries",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-          "targets": [
-            {
-              "expr": "histogram_quantile(0.50, sum by (le) (rate(thanos_query_duration_seconds_bucket[5m])))",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "p50"
-            },
-            {
-              "expr": "histogram_quantile(0.95, sum by (le) (rate(thanos_query_duration_seconds_bucket[5m])))",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "p95"
-            },
-            {
-              "expr": "histogram_quantile(0.99, sum by (le) (rate(thanos_query_duration_seconds_bucket[5m])))",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "p99"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "palette-classic" },
-              "unit": "s",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 15,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": { "mode": "multi" },
-            "legend": { "displayMode": "list", "placement": "bottom" }
-          }
-        },
-        {
-          "title": "Query Gate In-Flight Over Time",
-          "type": "timeseries",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-          "targets": [
-            {
-              "expr": "sum(thanos_query_gate_queries_in_flight)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "In-Flight Queries"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "fixed", "fixedColor": "orange" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 15,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": { "mode": "multi" },
-            "legend": { "displayMode": "list", "placement": "bottom" }
-          }
-        },
-        {
-          "title": "Store & Compactor",
-          "type": "row",
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
-          "collapsed": false
-        },
-        {
-          "title": "Object Store Operations Rate",
-          "type": "timeseries",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
-          "targets": [
-            {
-              "expr": "sum by (operation) (rate(thanos_objstore_bucket_operations_total[5m]))",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "{{operation}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "palette-classic" },
-              "unit": "ops",
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 15,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": { "mode": "multi" },
-            "legend": { "displayMode": "list", "placement": "bottom" }
-          }
-        },
-        {
-          "title": "Store Blocks Loaded Over Time",
-          "type": "timeseries",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
-          "targets": [
-            {
-              "expr": "sum(thanos_store_blocks_loaded)",
-              "datasource": { "type": "prometheus", "uid": "prometheus" },
-              "legendFormat": "Loaded Blocks"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "color": { "mode": "fixed", "fixedColor": "blue" },
-              "custom": {
-                "lineWidth": 2,
-                "fillOpacity": 15,
-                "showPoints": "never"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": { "mode": "multi" },
-            "legend": { "displayMode": "list", "placement": "bottom" }
-          }
-        }
-      ],
-      "refresh": "30s",
-      "schemaVersion": 39,
-      "tags": [
-        "thanos",
-        "prometheus",
-        "long-term-storage",
-        "observability"
-      ],
-      "templating": {
-        "list": [
-          {
-            "current": {
-              "selected": false,
-              "text": "Prometheus",
-              "value": "prometheus"
-            },
-            "hide": 0,
-            "includeAll": false,
-            "name": "DS_PROMETHEUS",
-            "query": "prometheus",
-            "type": "datasource"
-          }
-        ]
-      },
-      "time": {
-        "from": "now-1h",
-        "to": "now"
-      },
-      "timepicker": {},
-      "timezone": "",
-      "title": "Thanos",
-      "uid": "thanos-dashboard",
-      "version": 1
-    }
+  thanos.json: "{\n  \"annotations\": {\n    \"list\": [\n      {\n        \"builtIn\": 1,\n        \"datasource\": \"-- Grafana --\",\n        \"enable\": true,\n        \"hide\": true,\n        \"iconColor\"\
+    : \"rgba(0, 211, 255, 1)\",\n        \"name\": \"Annotations & Alerts\",\n        \"type\": \"dashboard\"\n      }\n    ]\n  },\n  \"editable\": true,\n  \"fiscalYearStartMonth\": 0,\n  \"graphTooltip\"\
+    : 1,\n  \"id\": null,\n  \"links\": [],\n  \"panels\": [\n    {\n      \"title\": \"Query Overview\",\n      \"type\": \"row\",\n      \"gridPos\": { \"h\": 1, \"w\": 24, \"x\": 0, \"y\": 0 },\n   \
+    \   \"collapsed\": false\n    },\n    {\n      \"title\": \"Query Gate In-Flight\",\n      \"type\": \"stat\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"\
+    gridPos\": { \"h\": 4, \"w\": 6, \"x\": 0, \"y\": 1 },\n      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_query_gate_queries_in_flight) or vector(0)\",\n          \"datasource\": { \"\
+    type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"instant\": true,\n          \"range\": false\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\"\
+    : { \"mode\": \"thresholds\" },\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              { \"color\": \"green\", \"value\": null },\n              {\
+    \ \"color\": \"yellow\", \"value\": 5 },\n              { \"color\": \"red\", \"value\": 10 }\n            ]\n          }\n        },\n        \"overrides\": []\n      },\n      \"options\": {\n   \
+    \     \"reduceOptions\": { \"calcs\": [\"lastNotNull\"] },\n        \"colorMode\": \"background\"\n      }\n    },\n    {\n      \"title\": \"Store Blocks Loaded\",\n      \"type\": \"stat\",\n    \
+    \  \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\": 4, \"w\": 6, \"x\": 6, \"y\": 1 },\n      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_store_blocks_loaded)\
+    \ or vector(0)\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"instant\": true,\n          \"range\": false\n        }\n      ],\n      \"fieldConfig\"\
+    : {\n        \"defaults\": {\n          \"color\": { \"mode\": \"thresholds\" },\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              { \"color\"\
+    : \"blue\", \"value\": null }\n            ]\n          }\n        },\n        \"overrides\": []\n      },\n      \"options\": {\n        \"reduceOptions\": { \"calcs\": [\"lastNotNull\"] },\n     \
+    \   \"colorMode\": \"background\"\n      }\n    },\n    {\n      \"title\": \"Compactor Runs Total\",\n      \"type\": \"stat\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\"\
+    \ },\n      \"gridPos\": { \"h\": 4, \"w\": 6, \"x\": 12, \"y\": 1 },\n      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_compactor_group_compactions_total) or vector(0)\",\n        \
+    \  \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"instant\": true,\n          \"range\": false\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\"\
+    : {\n          \"color\": { \"mode\": \"thresholds\" },\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              { \"color\": \"green\", \"value\":\
+    \ null }\n            ]\n          }\n        },\n        \"overrides\": []\n      },\n      \"options\": {\n        \"reduceOptions\": { \"calcs\": [\"lastNotNull\"] },\n        \"colorMode\": \"background\"\
+    \n      }\n    },\n    {\n      \"title\": \"Compactor Halted\",\n      \"type\": \"stat\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\"\
+    : 4, \"w\": 6, \"x\": 18, \"y\": 1 },\n      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_compactor_halted) or vector(0)\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\"\
+    : \"prometheus\" },\n          \"instant\": true,\n          \"range\": false\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": { \"mode\": \"thresholds\"\
+    \ },\n          \"thresholds\": {\n            \"mode\": \"absolute\",\n            \"steps\": [\n              { \"color\": \"green\", \"value\": null },\n              { \"color\": \"red\", \"value\"\
+    : 1 }\n            ]\n          }\n        },\n        \"overrides\": []\n      },\n      \"options\": {\n        \"reduceOptions\": { \"calcs\": [\"lastNotNull\"] },\n        \"colorMode\": \"background\"\
+    \n      }\n    },\n    {\n      \"title\": \"Query Performance\",\n      \"type\": \"row\",\n      \"gridPos\": { \"h\": 1, \"w\": 24, \"x\": 0, \"y\": 5 },\n      \"collapsed\": false\n    },\n   \
+    \ {\n      \"title\": \"Query Latency (p50 / p95 / p99)\",\n      \"type\": \"timeseries\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\"\
+    : 8, \"w\": 12, \"x\": 0, \"y\": 6 },\n      \"targets\": [\n        {\n          \"expr\": \"histogram_quantile(0.50, sum by (le) (rate(thanos_query_concurrent_gate_queries_duration_seconds_bucket[5m])))\"\
+    ,\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"legendFormat\": \"p50\"\n        },\n        {\n          \"expr\": \"histogram_quantile(0.95, sum by\
+    \ (le) (rate(thanos_query_concurrent_gate_queries_duration_seconds_bucket[5m])))\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"legendFormat\": \"\
+    p95\"\n        },\n        {\n          \"expr\": \"histogram_quantile(0.99, sum by (le) (rate(thanos_query_concurrent_gate_queries_duration_seconds_bucket[5m])))\",\n          \"datasource\": { \"\
+    type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"legendFormat\": \"p99\"\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": { \"mode\": \"palette-classic\"\
+    \ },\n          \"unit\": \"s\",\n          \"custom\": {\n            \"lineWidth\": 2,\n            \"fillOpacity\": 15,\n            \"showPoints\": \"never\"\n          }\n        },\n        \"\
+    overrides\": []\n      },\n      \"options\": {\n        \"tooltip\": { \"mode\": \"multi\" },\n        \"legend\": { \"displayMode\": \"list\", \"placement\": \"bottom\" }\n      }\n    },\n    {\n\
+    \      \"title\": \"Query Gate In-Flight Over Time\",\n      \"type\": \"timeseries\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\": 8, \"\
+    w\": 12, \"x\": 12, \"y\": 6 },\n      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_query_gate_queries_in_flight)\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"\
+    prometheus\" },\n          \"legendFormat\": \"In-Flight Queries\"\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": { \"mode\": \"fixed\", \"fixedColor\"\
+    : \"orange\" },\n          \"custom\": {\n            \"lineWidth\": 2,\n            \"fillOpacity\": 15,\n            \"showPoints\": \"never\"\n          }\n        },\n        \"overrides\": []\n\
+    \      },\n      \"options\": {\n        \"tooltip\": { \"mode\": \"multi\" },\n        \"legend\": { \"displayMode\": \"list\", \"placement\": \"bottom\" }\n      }\n    },\n    {\n      \"title\"\
+    : \"Store & Compactor\",\n      \"type\": \"row\",\n      \"gridPos\": { \"h\": 1, \"w\": 24, \"x\": 0, \"y\": 14 },\n      \"collapsed\": false\n    },\n    {\n      \"title\": \"Object Store Operations\
+    \ Rate\",\n      \"type\": \"timeseries\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\": 8, \"w\": 12, \"x\": 0, \"y\": 15 },\n      \"targets\"\
+    : [\n        {\n          \"expr\": \"sum by (operation) (rate(thanos_objstore_bucket_operations_total[5m]))\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n  \
+    \        \"legendFormat\": \"{{operation}}\"\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": { \"mode\": \"palette-classic\" },\n          \"unit\": \"\
+    ops\",\n          \"custom\": {\n            \"lineWidth\": 2,\n            \"fillOpacity\": 15,\n            \"showPoints\": \"never\"\n          }\n        },\n        \"overrides\": []\n      },\n\
+    \      \"options\": {\n        \"tooltip\": { \"mode\": \"multi\" },\n        \"legend\": { \"displayMode\": \"list\", \"placement\": \"bottom\" }\n      }\n    },\n    {\n      \"title\": \"Store Blocks\
+    \ Loaded Over Time\",\n      \"type\": \"timeseries\",\n      \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n      \"gridPos\": { \"h\": 8, \"w\": 12, \"x\": 12, \"y\": 15 },\n\
+    \      \"targets\": [\n        {\n          \"expr\": \"sum(thanos_store_blocks_loaded)\",\n          \"datasource\": { \"type\": \"prometheus\", \"uid\": \"prometheus\" },\n          \"legendFormat\"\
+    : \"Loaded Blocks\"\n        }\n      ],\n      \"fieldConfig\": {\n        \"defaults\": {\n          \"color\": { \"mode\": \"fixed\", \"fixedColor\": \"blue\" },\n          \"custom\": {\n      \
+    \      \"lineWidth\": 2,\n            \"fillOpacity\": 15,\n            \"showPoints\": \"never\"\n          }\n        },\n        \"overrides\": []\n      },\n      \"options\": {\n        \"tooltip\"\
+    : { \"mode\": \"multi\" },\n        \"legend\": { \"displayMode\": \"list\", \"placement\": \"bottom\" }\n      }\n    }\n  ],\n  \"refresh\": \"30s\",\n  \"schemaVersion\": 39,\n  \"tags\": [\n   \
+    \ \"thanos\",\n    \"prometheus\",\n    \"long-term-storage\",\n    \"observability\"\n  ],\n  \"templating\": {\n    \"list\": [\n      {\n        \"current\": {\n          \"selected\": false,\n \
+    \         \"text\": \"Prometheus\",\n          \"value\": \"prometheus\"\n        },\n        \"hide\": 0,\n        \"includeAll\": false,\n        \"name\": \"DS_PROMETHEUS\",\n        \"query\": \"\
+    prometheus\",\n        \"type\": \"datasource\"\n      }\n    ]\n  },\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"timepicker\": {},\n  \"timezone\": \"\",\n  \"title\"\
+    : \"Thanos\",\n  \"uid\": \"thanos-dashboard\",\n  \"version\": 1\n}\n"
