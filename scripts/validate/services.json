@@ -146,6 +146,13 @@
       "note": "Expect the page heading, not the product name: 'OpenCost' appears only in the logo image and the version footer, outside the text sample."
     },
     {
+      "name": "prometheus",
+      "host": "prometheus.localhost",
+      "path": "/",
+      "expect": "Prometheus",
+      "note": "Routed since the README had listed this URL for months while nothing served it."
+    },
+    {
       "name": "qdrant",
       "host": "qdrant.localhost",
       "path": "/dashboard",
