@@ -29,8 +29,11 @@ spec:
         requests:
           cpu: 100m
           memory: 128Mi
-      persistence:
-        archive: false
+      # No `persistence:` block on purpose. Any controller.persistence value
+      # renders a persistence section into the controller configmap, and
+      # argo-server then exits with `fatal msg="no databases are configured"`
+      # because there is no database under it. `archive: false` did not turn
+      # archiving off, it turned on a half-configured one.
     server:
       enabled: true
       authMode: server

@@ -5,7 +5,9 @@ metadata:
   name: wazuh-indexer-data
   namespace: wazuh
 spec:
-  storageClassName: hostpath
+  # No storageClassName on purpose: use the cluster default. It used to say
+  # "hostpath", which is Docker Desktop's class; on kind that class does not
+  # exist, the claim stayed Pending and wazuh never started.
   accessModes:
     - ReadWriteOnce
   resources:
@@ -18,7 +20,6 @@ metadata:
   name: wazuh-manager-data
   namespace: wazuh
 spec:
-  storageClassName: hostpath
   accessModes:
     - ReadWriteOnce
   resources:

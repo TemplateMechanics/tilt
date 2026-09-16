@@ -20,6 +20,17 @@ spec:
       labels:
         app: airflow-scheduler
     spec:
+      # Same node as postgres, which is what puts scheduler and webserver on
+      # one node. Required because dags and logs are ReadWriteOnce and kind
+      # has no ReadWriteMany provisioner; without this the two deployments
+      # can land on different nodes and the second one can never mount.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: airflow-postgresql
+              topologyKey: kubernetes.io/hostname
       initContainers:
       - name: wait-for-db
         image: postgres:13

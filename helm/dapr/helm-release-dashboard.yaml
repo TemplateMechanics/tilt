@@ -1,0 +1,33 @@
+---
+# The dashboard is NOT part of the dapr chart any more. The main release still
+# carries `dapr_dashboard.enabled: true`, which the chart accepts and ignores:
+# no Deployment, no Service, and the HTTPRoute reporting BackendNotFound while
+# every dapr component looked healthy. A value that is accepted and does nothing
+# is the worst kind of bug, so the dashboard is now an explicit release of its
+# own chart, and its absence would fail loudly.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dapr-dashboard
+  namespace: dapr-system
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: dapr-dashboard
+      version: "0.15.0"
+      sourceRef:
+        kind: HelmRepository
+        name: dapr
+        namespace: flux-system
+  values:
+    # The HTTPRoute sends traffic to Service dapr-dashboard:8080, which is what
+    # this chart creates by default. Keep the two in step.
+    fullnameOverride: dapr-dashboard
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi

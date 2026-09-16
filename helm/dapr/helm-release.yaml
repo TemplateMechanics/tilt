@@ -23,9 +23,10 @@ spec:
         enabled: true
         port: 9090
       logAsJson: true
-    dapr_dashboard:
-      enabled: true
-      runAsNonRoot: true
+    # dapr_dashboard is deliberately absent. This chart no longer ships the
+    # dashboard and accepted the key while creating nothing, so the HTTPRoute
+    # reported BackendNotFound while every dapr component looked healthy. The
+    # dashboard is now its own release: helm-release-dashboard.yaml.
     dapr_sidecar_injector:
       enabled: true
       sidecarRunAsNonRoot: true
