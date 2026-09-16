@@ -125,8 +125,17 @@ assert_browser() { # <service-name from services.json>
 }
 
 wait_for() { # wait_for <seconds> <description> <command...>
-    local t=$1 d=$2; shift 2; local end=$((SECONDS+t))
-    until "$@" >/dev/null 2>&1 || [ $SECONDS -gt $end ]; do sleep 5; done
+    # The description used to be accepted and thrown away, so a lab could sit
+    # silent for two minutes waiting on a certificate reissue and look hung.
+    # It is printed once, on the first iteration that actually has to wait, so
+    # a condition that is already true stays quiet.
+    local t=$1 d=$2; shift 2; local end=$((SECONDS+t)) announced=0
+    until "$@" >/dev/null 2>&1 || [ "$SECONDS" -gt "$end" ]; do
+        [ "$announced" -eq 0 ] && printf '        waiting for %s (up to %ss)...
+' "$d" "$t"
+        announced=1
+        sleep 5
+    done
     "$@" >/dev/null 2>&1
 }
 
