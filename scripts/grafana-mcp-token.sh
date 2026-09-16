@@ -9,7 +9,7 @@
 # has, which is what happens if you only check whether the account exists.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || { echo "ERROR: cannot cd to $ROOT"; exit 1; }
 
 GRAFANA="${GRAFANA_URL:-https://grafana.localhost}"
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
