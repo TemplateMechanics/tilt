@@ -8,6 +8,13 @@ metadata:
     app: mongodb
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate: single replica on a ReadWriteOnce PVC. With
+  # RollingUpdate a rollout starts the new pod before the old one stops, both
+  # contend for the one volume, and the new pod can never start — seen as
+  # 733 restarts of `InnoDB: Unable to lock ./ibdata1` on wordpress/mysql
+  # while readyReplicas stayed 1 and everything reported healthy.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mongodb

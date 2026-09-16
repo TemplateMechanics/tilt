@@ -39,7 +39,7 @@ helm/crossplane/
 The `DevApplication` is a custom resource that simplifies deploying applications with:
 
 - Helm chart deployment via Flux HelmRelease
-- Automatic Traefik IngressRoute with TLS
+- Automatic Gateway API HTTPRoute with TLS
 - Prometheus ServiceMonitor (optional)
 - Namespace creation
 - Consistent naming and labeling
@@ -85,7 +85,7 @@ When you create a `DevApplication`, Crossplane automatically provisions:
 
 1. **Namespace** — `spec.name` namespace
 2. **HelmRelease** — Flux HelmRelease deploying your chart
-3. **IngressRoute** — Traefik ingress at `spec.domain` with HTTPS
+3. **HTTPRoute** — Istio ingress at `spec.domain` with HTTPS
 4. **ServiceMonitor** — Prometheus scraping (if `monitoring.enabled: true`)
 
 ## How It Works with Tilt
@@ -108,7 +108,7 @@ When you run `tilt up`:
 
 ## Adding New Services
 
-Instead of creating HelmRelease + IngressRoute + ServiceMonitor manually:
+Instead of creating HelmRelease + HTTPRoute + ServiceMonitor manually:
 
 ```bash
 cat <<EOF > apps/my-new-service.yaml
@@ -148,7 +148,7 @@ echo "  - my-new-service.yaml" >> apps/kustomization.yaml
 
 - **Less YAML** — One resource instead of 3-4
 - **Consistency** — All services follow the same pattern
-- **Abstraction** — Hide Flux, Traefik, Prometheus complexity
+- **Abstraction** — Hide Flux, Istio, Prometheus complexity
 - **Composability** — Easy to add features (e.g., auto-create Harbor projects)
 - **Self-service** — Developers just need the DevApplication API
 

@@ -1,0 +1,162 @@
+k8s_namespace("tracing")
+
+# Local TLS Certificates
+os_type = get_os_type()
+cert_path = "./certificates"
+
+cert_exists = str(local(sh("test -f {}/intermediateCA/certs/localhost-chain.cert.pem && echo 'yes' || echo 'no'".format(cert_path)), quiet=True)).strip()
+
+local_resource(
+    "dev-certificate-generate",
+    cmd=sh("""
+        cd {cert_path}
+        # Fix root-owned CA dirs via macOS GUI sudo prompt
+        for d in rootCA intermediateCA; do
+            if [ -d "$d" ]; then
+                TEST_FILE="$d/index.txt"
+                if [ -f "$TEST_FILE" ] && ! [ -w "$TEST_FILE" ]; then
+                    echo "$d has root-owned files — requesting admin privileges to fix..."
+                    bash ./sudo-helper.sh "chown -R $(whoami) $(pwd)/rootCA $(pwd)/intermediateCA"
+                    echo "✓ Fixed ownership on CA directories"
+                    break
+                fi
+            fi
+        done
+        SKIP_CERT_TRUST=true bash ./generate-certs.sh
+    """.format(cert_path=cert_path)),
+    labels=["Infrastructure"],
+    auto_init=(cert_exists != "yes")
+)
+
+local_resource(
+    "dev-certificate-trust",
+    cmd=sh("""
+        cd {cert_path}
+        ROOT_CERT="rootCA/certs/ca.cert.pem"
+        if [ ! -f "$ROOT_CERT" ]; then
+            echo "No root CA cert found — skipping trust"
+            exit 0
+        fi
+        FULL_CERT_PATH="$(pwd)/$ROOT_CERT"
+        OS_TYPE="$(uname -s)"
+
+        case "$OS_TYPE" in
+            Darwin)
+                if security verify-cert -c "$ROOT_CERT" 2>/dev/null; then
+                    echo "✓ Root CA is already trusted (macOS)"
+                    exit 0
+                fi
+                echo "Installing Root CA into macOS System keychain..."
+                bash ./sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $FULL_CERT_PATH"
+                echo "✓ Root CA trusted in macOS System keychain"
+                ;;
+            Linux)
+                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
+                if [ -f "$TARGET" ]; then
+                    EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null || echo "")
+                    CURRENT=$(openssl x509 -in "$FULL_CERT_PATH" -noout -fingerprint -sha256 2>/dev/null || echo "none")
+                    if [ "$EXISTING" = "$CURRENT" ]; then
+                        echo "✓ Root CA is already trusted (Linux)"
+                        exit 0
+                    fi
+                fi
+                echo "Installing Root CA into Linux trusted certificates..."
+                bash ./sudo-helper.sh "cp $FULL_CERT_PATH $TARGET && update-ca-certificates"
+                echo "✓ Root CA trusted in Linux certificate store"
+                ;;
+            MINGW*|MSYS*|CYGWIN*)
+                if certutil -verify "$FULL_CERT_PATH" 2>/dev/null | grep -q "UNTRUSTED"; then
+                    echo "Installing Root CA into Windows certificate store..."
+                    certutil -addstore -user Root "$FULL_CERT_PATH" || {{
+                        echo "ERROR: Could not trust Root CA. Run in an admin PowerShell:"
+                        echo "  certutil -addstore Root $FULL_CERT_PATH"
+                        exit 1
+                    }}
+                    echo "✓ Root CA trusted in Windows certificate store"
+                else
+                    echo "✓ Root CA is already trusted (Windows)"
+                fi
+                ;;
+            *)
+                echo "Unsupported OS for automatic trust: $OS_TYPE"
+                echo "Manually trust: $FULL_CERT_PATH"
+                ;;
+        esac
+    """.format(cert_path=cert_path)),
+    labels=["Infrastructure"],
+    resource_deps=["dev-certificate-generate"]
+)
+
+local_resource(
+    "dev-certificate-install",
+    cmd=sh("cd {} && kubectl create namespace traefik --dry-run=client -o yaml | kubectl apply -f - && kubectl delete secret wildcard-tls-dev --ignore-not-found -n traefik && kubectl create secret tls wildcard-tls-dev -n traefik --key ./intermediateCA/private/localhost.key.pem --cert ./intermediateCA/certs/localhost-chain.cert.pem".format(cert_path)),
+    labels=["Infrastructure"],
+)
+
+# Flux GitOps
+local_resource(
+    "flux-install",
+    cmd=sh("""
+        # Check if Flux CLI is available; install it if not
+        if ! command -v flux >/dev/null 2>&1; then
+            echo "Flux CLI not found — installing..."
+            if command -v brew >/dev/null 2>&1; then
+                brew install fluxcd/tap/flux
+            elif command -v choco >/dev/null 2>&1; then
+                choco install flux -y
+            elif command -v curl >/dev/null 2>&1; then
+                curl -s https://fluxcd.io/install.sh | bash
+            else
+                echo "ERROR: Cannot install Flux CLI. Install it manually:"
+                echo "  https://fluxcd.io/flux/installation/#install-the-flux-cli"
+                exit 1
+            fi
+        fi
+
+        echo "Installing / upgrading Flux on cluster..."
+        flux install
+
+        echo "Waiting for all Flux controllers to be ready..."
+        kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/helm-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/kustomize-controller --timeout=120s
+        kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
+        echo "✓ All Flux controllers ready"
+
+        # Detect available Flux API versions and patch YAMLs to match
+        # Prefer GA versions (v2, v1) over beta (v2beta2, v1beta2) — sort by length so shorter (GA) wins
+        echo "Detecting Flux API versions..."
+        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
+        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
+        echo "  HelmRelease API: $HR_API"
+        echo "  HelmRepository API: $SR_API"
+
+        if [ -n "$HR_API" ]; then
+            echo "Patching HelmRelease YAMLs to use $HR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'helm.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|helm.toolkit.fluxcd.io/[a-z0-9]*|$HR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        if [ -n "$SR_API" ]; then
+            echo "Patching HelmRepository YAMLs to use $SR_API..."
+            find ./helm -name '*.yaml' -exec grep -l 'source.toolkit.fluxcd.io' {} \\; | while read f; do
+                sed -i.bak "s|source.toolkit.fluxcd.io/[a-z0-9]*|$SR_API|g" "$f" && rm -f "$f.bak"
+            done
+        fi
+        echo "✓ Flux API versions aligned"
+    """),
+    labels=["Infrastructure"]
+)
+
+# Traefik Ingress
+helm_remote(
+    repo_name="traefik",
+    repo_url="https://helm.traefik.io/traefik",
+    values="./helm/traefik.yaml",
+    namespace="traefik",
+    release_name="traefik",
+    chart="traefik",
+)
+k8s_resource("traefik", labels=["Infrastructure"])
+watch_file("./helm/traefik.yaml")
+

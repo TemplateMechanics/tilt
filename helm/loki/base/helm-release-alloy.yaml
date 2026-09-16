@@ -1,0 +1,121 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: logging
+spec:
+  interval: 1h
+  dependsOn:
+    - name: loki
+  chart:
+    spec:
+      # Replaces Promtail, which reached end of life in March 2026. Alloy is
+      # Grafana's supported collector; the promtail chart still installs but
+      # receives no fixes.
+      chart: alloy
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+  values:
+    controller:
+      # DaemonSet: log files live on each node, so the collector has to run on
+      # every node rather than being scheduled somewhere convenient.
+      type: daemonset
+      # Without this toleration the DaemonSet skips control-plane nodes entirely
+      # (desiredNumberScheduled drops to 1 on a 2-node kind cluster) and every
+      # pod running there — kube-apiserver, etcd, and whichever mesh components
+      # landed on it — is silently absent from Loki. Nothing reports an error;
+      # the logs simply are not there.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+    alloy:
+      resources:
+        requests:
+          cpu: 25m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      configMap:
+        content: |-
+          // Discover every pod in the cluster.
+          discovery.kubernetes "pods" {
+            role = "pod"
+          }
+
+          // Map Kubernetes metadata onto the label names the dashboards query.
+          // These label names are load-bearing: helm/prometheus/dashboards/
+          // ai-ops-logs.yaml filters on `namespace` and groups by `pod`, so
+          // renaming or dropping them here empties every panel while Alloy still
+          // reports healthy and Loki still ingests.
+          discovery.relabel "pods" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_node_name"]
+              target_label  = "node_name"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              target_label  = "app"
+            }
+            // Only collect from pods that are actually running; pending and
+            // completed pods have no readable log stream and produce a steady
+            // drip of collector errors that look like a real fault.
+            rule {
+              source_labels = ["__meta_kubernetes_pod_phase"]
+              regex         = "Pending|Succeeded|Failed"
+              action        = "drop"
+            }
+          }
+
+          loki.source.kubernetes "pods" {
+            targets    = discovery.relabel.pods.output
+            forward_to = [loki.process.label_job.receiver]
+          }
+
+          // Tags every stream with a stable `job` label so ad-hoc queries have
+          // something coarse to filter on.
+          //
+          // Note: unlike the promtail setup this replaces, there is no `stream`
+          // label separating stdout from stderr — loki.source.kubernetes reads
+          // via the Kubernetes API rather than the on-disk CRI files and does
+          // not expose it. Do not write dashboard queries that filter on
+          // `stream`; they will match nothing rather than error.
+          loki.process "label_job" {
+            stage.static_labels {
+              values = {
+                job = "kubernetes-pods",
+              }
+            }
+            forward_to = [loki.write.default.receiver]
+          }
+
+          loki.write "default" {
+            endpoint {
+              url = "http://loki.logging.svc.cluster.local:3100/loki/api/v1/push"
+            }
+          }

@@ -348,10 +348,10 @@ data:
     apiVersion: backstage.io/v1alpha1
     kind: Resource
     metadata:
-      name: traefik
-      description: Ingress Controller & Load Balancer
+      name: istio
+      description: Ambient service mesh & Gateway API ingress
       annotations:
-        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=traefik'
+        backstage.io/kubernetes-label-selector: 'app.kubernetes.io/part-of=istio'
     spec:
       type: kubernetes-cluster
       owner: platform-team

@@ -27,7 +27,16 @@ spec:
       prometheus:
         internal:
           enabled: true
-          serviceName: prometheus-server
+          # "prometheus-server" is the service name the standalone prometheus
+          # chart creates. This platform runs kube-prometheus-stack, whose
+          # service is prometheus-kube-prometheus-prometheus, so the old value
+          # resolved to nothing:
+          #   dial tcp: lookup prometheus-server.monitoring.svc.cluster.local
+          #   on 10.96.0.10:53: no such host
+          # OpenCost starts, serves its UI and returns HTTP 200 regardless — the
+          # only symptom is "Failed to load report data" inside the page and an
+          # empty cost report, which no status-code check would catch.
+          serviceName: prometheus-kube-prometheus-prometheus
           namespaceName: monitoring
           port: 9090
       ui:

@@ -1,0 +1,49 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  interval: 1h
+  dependsOn:
+    - name: istio-base
+  chart:
+    spec:
+      chart: istiod
+      version: "1.28.3"
+      sourceRef:
+        kind: HelmRepository
+        name: istio
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+  values:
+    # Ambient: mTLS and L4 policy via ztunnel, no sidecar injection. Must match
+    # the profile used by istio-cni and ztunnel or the data plane half-works.
+    profile: ambient
+    # Gateway API support is what replaces Traefik here. Without this, Gateway
+    # and HTTPRoute resources are accepted by the API server and then silently
+    # never programmed — the exact configured-but-inert failure to avoid.
+    pilot:
+      env:
+        PILOT_ENABLE_ALPHA_GATEWAY_API: "true"
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi

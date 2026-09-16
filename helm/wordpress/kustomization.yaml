@@ -6,4 +6,4 @@ resources:
   - pvc.yaml
   - mysql.yaml
   - deployment.yaml
-  - ingress.yaml
+  - httproute.yaml

@@ -29,6 +29,16 @@ spec:
                 domain:
                   type: string
                   description: "Domain for ingress (e.g., myapp.localhost)"
+
+                # Ambient membership, stated rather than assumed. "none" is an
+                # explicit Istio value, not the absence of a label: an app that is
+                # out of the mesh should say so, because a missing label and a
+                # deliberate exclusion look identical on a cluster.
+                dataplaneMode:
+                  type: string
+                  enum: ["ambient", "none"]
+                  default: "ambient"
+                  description: "istio.io/dataplane-mode for the app namespace. Use none for apps whose internal TCP breaks under ambient."
                 
                 # Helm chart configuration
                 chart:

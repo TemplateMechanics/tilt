@@ -6,4 +6,4 @@ resources:
   - manifests/deployment.yaml
   - manifests/service.yaml
   - manifests/configmap.yaml
-  - manifests/ingress.yaml
+  - manifests/httproute.yaml

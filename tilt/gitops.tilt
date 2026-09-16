@@ -1,0 +1,399 @@
+###############################################################################
+# GITOPS + PLATFORM SERVICES  (profile: gitops and above)
+#
+# The control-plane API Backstage talks to, auto-cleanup of disabled apps,
+# Crossplane and its DevApplication pattern, plus Flagger, External Secrets
+# and CloudNativePG. This is how the platform deploys itself. Learn core and
+# observability first; this tier is about operating, not about Kubernetes.
+###############################################################################
+
+load("./lib.tilt", "sh", "get_os_type", "k8s_namespace", "k8s_kustomize_simple", "CONFIG", "PLATFORM", "GATEWAY_API_VERSION", "WAIT_HR", "ROOT")
+
+###############################################################################
+# CONFIG SERVER (K8s-native control plane API)
+#
+# Config is stored in a ConfigMap (tilt-config) in the tilt-system namespace.
+# The config-server pod reads/writes it via the K8s API. Backstage reaches
+# the config-server through its backend proxy plugin (in-cluster routing).
+# A sync loop on the host watches for Backstage-initiated changes and writes
+# them back to tilt-config.json, which triggers Tilt reload via watch_file().
+###############################################################################
+
+# Bootstrap: create namespace, seed ConfigMap from local file, deploy app script
+local_resource(
+    "tilt-config-seed",
+    cmd=sh(" && ".join([
+        "kubectl create namespace tilt-system --dry-run=client -o yaml | kubectl apply -f -",
+        "kubectl create configmap tilt-config -n tilt-system"
+          + " --from-file=config.json=./tilt-config.json"
+          + " --dry-run=client -o yaml | kubectl apply -f -",
+        "kubectl create configmap tilt-config-server-app -n tilt-system"
+          + " --from-file=config-server.py=./scripts/config-server.py"
+          + " --dry-run=client -o yaml | kubectl apply -f -",
+    ])),
+    deps=["./scripts/config-server.py", "./tilt-config.json"],
+    labels=["Platform"],
+    auto_init=True,
+)
+
+# Deploy config server (Deployment + Service + RBAC + IngressRoute)
+k8s_yaml(kustomize(ROOT + "/helm/tilt-config-server/"), allow_duplicates=True)
+k8s_resource(
+    "tilt-config-server",
+    labels=["Platform"],
+    links=["http://tilt-config.localhost/config"],
+    resource_deps=["tilt-config-seed"],
+)
+
+# Sync loop: watches ConfigMap for Backstage-initiated changes and writes
+# them to tilt-config.json so watch_file() triggers a Tilt reload.
+local_resource(
+    "tilt-config-sync",
+    serve_cmd=sh("""
+        echo "Watching ConfigMap tilt-config for Backstage changes..."
+        LAST_HASH=""
+        while true; do
+            DATA=$(kubectl get configmap tilt-config -n tilt-system \
+                -o jsonpath='{.data.config\\.json}' 2>/dev/null || echo "")
+            if [ -n "$DATA" ]; then
+                HASH=$(echo "$DATA" | shasum -a 256 | cut -d' ' -f1)
+                if [ -n "$LAST_HASH" ] && [ "$HASH" != "$LAST_HASH" ]; then
+                    echo "$DATA" > ./tilt-config.json
+                    echo "[$(date +%T)] ConfigMap change detected -> synced to tilt-config.json"
+                fi
+                LAST_HASH="$HASH"
+            fi
+            sleep 3
+        done
+    """),
+    labels=["Platform"],
+    resource_deps=["tilt-config-server"],
+)
+
+
+###############################################################################
+# AUTO-CLEANUP: Delete resources for disabled apps
+#
+# Order matters for proper teardown:
+# 1. Delete Crossplane DevApplication CRs first (lets Crossplane cascade-
+#    delete namespace, HelmRelease, IngressRoute, ServiceMonitor).
+# 2. Wait briefly for Crossplane to process the cascade.
+# 3. Delete any remaining namespaces that weren't fully cleaned up.
+# 4. Force-clear Terminating namespaces whose finalizers are stuck.
+# 5. Handle special cases (Kyverno webhooks, azure cluster-scoped resources).
+###############################################################################
+
+# ── Phase 1: Crossplane DevApplication CR cleanup ──────────────────────
+# The DevApplication CRs live in the default namespace, NOT in the app
+# namespace. Deleting just the namespace leaves the CR behind, which causes
+# Crossplane to keep trying to recreate resources.
+disabled_crossplane_apps = []
+for app, enabled in CONFIG["crossplane_apps"].items():
+    if not enabled:
+        disabled_crossplane_apps.append(app)
+
+# ── Phase 2: Build namespace lists for each group ─────────────────────
+disabled_namespaces = []
+
+# Crossplane apps (namespace = app name)
+for app in disabled_crossplane_apps:
+    disabled_namespaces.append(app)
+
+# Flux apps (check namespace map)
+FLUX_NS_MAP = {
+    "policy-reporter": "policy-reporter",
+    "1pass": "1password-system",
+    "trivy": "trivy-system",
+    "otel-collector": "opentelemetry",
+    "dapr": "dapr-system",
+    "argo-workflows": "argo",
+    "argocd": "argocd",
+}
+for app, enabled in CONFIG["flux_apps"].items():
+    if not enabled:
+        ns = FLUX_NS_MAP.get(app, app)
+        disabled_namespaces.append(ns)
+
+# Raw apps (check namespace map — must match RAW_NAMESPACE_MAP below)
+RAW_NS_MAP = {
+    "backstage": "backstage",
+    "gcp-emulators": "gcp-emulators",
+    "mailhog": "mailhog",
+    "azurite": "azurite",
+    "kubevirt": "kubevirt",
+    "macos": "macos",
+    "eyeos": "eyeos",
+    "mongodb": "mongodb",
+    "postgresql": "postgres",  # NOTE: actual namespace is "postgres", not "postgresql"
+    "redis": "redis",
+    "rabbitmq": "rabbitmq",
+    "mssql": "mssql",
+    "keycloak": "keycloak",
+    "airflow": "airflow",
+    "jupyterhub": "jupyterhub",
+    "wordpress": "wordpress",
+    "wazuh": "wazuh",
+    "knative": "knative-serving",
+}
+# Knative creates additional namespaces beyond its primary one
+RAW_EXTRA_NS_MAP = {
+    "knative": ["knative-operator", "knative-eventing"],
+}
+for app, enabled in CONFIG["raw_apps"].items():
+    if not enabled:
+        ns = RAW_NS_MAP.get(app)
+        if ns:
+            disabled_namespaces.append(ns)
+        for extra_ns in RAW_EXTRA_NS_MAP.get(app, []):
+            disabled_namespaces.append(extra_ns)
+
+# ── Phase 3: Build cleanup script arguments ───────────────────────────
+# Instead of inlining the entire cleanup command (which exceeds Windows/Git
+# Bash command-length limits), we call an external script and pass the
+# dynamic lists as arguments.
+
+# Collect disabled raw apps (only those with cluster-scoped cleanup logic)
+disabled_raw_apps = []
+for app, enabled in CONFIG["raw_apps"].items():
+    if not enabled:
+        disabled_raw_apps.append(app)
+
+# Collect disabled flux apps
+disabled_flux_apps = []
+for app, enabled in CONFIG["flux_apps"].items():
+    if not enabled:
+        disabled_flux_apps.append(app)
+
+if disabled_namespaces or disabled_crossplane_apps:
+    cleanup_args = []
+    if disabled_crossplane_apps:
+        cleanup_args.append('--crossplane-apps "' + " ".join(disabled_crossplane_apps) + '"')
+    if disabled_namespaces:
+        cleanup_args.append('--namespaces "' + " ".join(disabled_namespaces) + '"')
+    if disabled_raw_apps:
+        cleanup_args.append('--disabled-raw "' + " ".join(disabled_raw_apps) + '"')
+    if disabled_flux_apps:
+        cleanup_args.append('--disabled-flux "' + " ".join(disabled_flux_apps) + '"')
+
+    # resource_deps on crossplane-compositions ensures Crossplane CRDs exist
+    # before we try to `kubectl delete devapplication`.  For non-Crossplane-only
+    # cleanup the commands already use --ignore-not-found so ordering is safe.
+    local_resource(
+        "cleanup-disabled-apps",
+        cmd=sh("bash scripts/cleanup-disabled-apps.sh " + " ".join(cleanup_args)),
+        labels=["Infrastructure"],
+        auto_init=True,
+        resource_deps=["crossplane-compositions"],
+    )
+
+
+###############################################################################
+# CROSSPLANE PLATFORM
+###############################################################################
+
+k8s_yaml(kustomize(ROOT + "/helm/crossplane/"), allow_duplicates=True)
+
+# Wait for Crossplane to be fully ready (HelmRelease + Pods + Webhooks)
+local_resource(
+    "crossplane-core-ready",
+    cmd=sh("""
+        echo "Applying Crossplane manifests..."
+        kubectl apply -k ./helm/crossplane/ 2>&1
+        
+        echo "Verifying resources..."
+        kubectl get helmrelease -A 2>&1
+        kubectl get helmrepository -n flux-system 2>&1 | head -5
+        
+        echo "Waiting for Crossplane to be fully ready..."
+        echo "(This can take 3-5 minutes on cold start)"
+        
+        # Phase 1: Wait for HelmRelease to exist and be ready (up to 5 min)
+        echo "Phase 1: Waiting for HelmRelease..."
+        HR_READY="false"
+        for i in $(seq 1 150); do
+            if kubectl get helmrelease crossplane -n crossplane-system >/dev/null 2>&1; then
+                HR_STATUS=$(kubectl get helmrelease crossplane -n crossplane-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                if [ "$HR_STATUS" = "True" ]; then
+                    echo "✓ HelmRelease ready"; HR_READY="true"; break
+                fi
+                HR_MSG=$(kubectl get helmrelease crossplane -n crossplane-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
+                echo "  Attempt $i/150 (status: ${HR_STATUS:-pending}, msg: ${HR_MSG:-n/a})..."; sleep 2
+            else
+                echo "  Attempt $i/150 (waiting for HelmRelease)..."; sleep 2
+            fi
+        done
+        if [ "$HR_READY" != "true" ]; then
+            echo "Timeout: HelmRelease never became Ready"
+            kubectl get helmrelease -n crossplane-system -o yaml 2>/dev/null | tail -30
+            exit 1
+        fi
+        
+        # Phase 2: Wait for pods and webhooks (up to 3 min)
+        echo "Phase 2: Waiting for pods and webhooks..."
+        for i in $(seq 1 90); do
+            CP_READY=$(kubectl get pods -n crossplane-system -l app=crossplane -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+            WEBHOOK_EP=$(kubectl get endpoints crossplane-webhooks -n crossplane-system -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || echo "")
+            if [ "$CP_READY" = "True" ] && [ -n "$WEBHOOK_EP" ]; then
+                echo "✓ Crossplane fully ready!"; exit 0
+            fi
+            echo "  Attempt $i/90 (pod: $CP_READY, webhook: ${WEBHOOK_EP:-none})..."; sleep 2
+        done
+        echo "Timeout waiting for Crossplane pods"
+        kubectl get pods -n crossplane-system 2>/dev/null
+        kubectl describe pods -n crossplane-system -l app=crossplane 2>/dev/null | tail -20
+        exit 1
+    """),
+    labels=["Platform"],
+    resource_deps=["helm-repositories"]
+)
+
+local_resource(
+    "crossplane-providers",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/providers.yaml && echo '✓ Providers applied'"),
+    labels=["Platform"],
+    resource_deps=["crossplane-core-ready"]
+)
+
+local_resource(
+    "crossplane-providers-ready",
+    cmd=sh("""
+        echo "Waiting for providers..."
+        for i in $(seq 1 120); do
+            HELM_OK=$(kubectl get providers.pkg.crossplane.io provider-helm -o jsonpath='{.status.conditions[?(@.type=="Healthy")].status}' 2>/dev/null || echo "False")
+            K8S_OK=$(kubectl get providers.pkg.crossplane.io provider-kubernetes -o jsonpath='{.status.conditions[?(@.type=="Healthy")].status}' 2>/dev/null || echo "False")
+            HELM_CRD=$(kubectl get crd providerconfigs.helm.crossplane.io -o name 2>/dev/null || echo "")
+            K8S_CRD=$(kubectl get crd providerconfigs.kubernetes.crossplane.io -o name 2>/dev/null || echo "")
+            
+            # Fix CRD ownership if needed
+            if [ "$HELM_OK" = "False" ] && [ -n "$HELM_CRD" ]; then
+                HELM_REV=$(kubectl get providers.pkg.crossplane.io provider-helm -o jsonpath='{.status.currentRevision}' 2>/dev/null)
+                HELM_UID=$(kubectl get providerrevision "$HELM_REV" -o jsonpath='{.metadata.uid}' 2>/dev/null)
+                if [ -n "$HELM_UID" ]; then
+                    for crd in releases.helm.crossplane.io providerconfigs.helm.crossplane.io providerconfigusages.helm.crossplane.io; do
+                        kubectl patch crd "$crd" --type=json -p="[{\\"op\\": \\"replace\\", \\"path\\": \\"/metadata/ownerReferences/0/uid\\", \\"value\\": \\"$HELM_UID\\"}]" 2>/dev/null || true
+                    done
+                fi
+            fi
+            
+            if [ "$HELM_OK" = "True" ] && [ "$K8S_OK" = "True" ] && [ -n "$HELM_CRD" ] && [ -n "$K8S_CRD" ]; then
+                echo "✓ Providers healthy"; kubectl get providers.pkg.crossplane.io; exit 0
+            fi
+            echo "Attempt $i/120: helm=$HELM_OK k8s=$K8S_OK"; sleep 3
+        done
+        exit 1
+    """),
+    labels=["Platform"],
+    resource_deps=["crossplane-providers"]
+)
+
+local_resource(
+    "crossplane-rbac",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/rbac.yaml && echo '✓ RBAC applied'"),
+    labels=["Platform"],
+    resource_deps=["crossplane-providers-ready"]
+)
+
+local_resource(
+    "crossplane-provider-configs",
+    cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/provider-configs.yaml && echo '✓ ProviderConfigs applied'"),
+    labels=["Platform"],
+    resource_deps=["crossplane-rbac"]
+)
+
+local_resource(
+    "crossplane-compositions",
+    cmd=sh("kubectl apply -k ./helm/crossplane/compositions/ && echo '✓ Compositions applied'"),
+    labels=["Platform"],
+    resource_deps=["crossplane-provider-configs"]
+)
+
+###############################################################################
+# CROSSPLANE APPLICATIONS (Pattern 1: DevApplication XRD)
+###############################################################################
+
+# Only apply ENABLED crossplane apps (not the whole kustomize directory,
+# which would recreate disabled CRs and fight with the cleanup resource).
+enabled_crossplane = [app for app, en in CONFIG["crossplane_apps"].items() if en]
+if enabled_crossplane:
+    watch_file("./apps/")
+    apply_cmds = " && ".join(
+        ["kubectl apply -f ./apps/{}.yaml".format(app) for app in enabled_crossplane]
+    )
+    local_resource(
+        "crossplane-applications",
+        cmd=sh(apply_cmds + " && echo '✓ DevApplications applied'"),
+        labels=["Applications"],
+        resource_deps=["crossplane-compositions"]
+    )
+    
+    # Create watchers for enabled apps
+    for app in enabled_crossplane:
+        local_resource(
+            "{}-app".format(app),
+            serve_cmd=sh("""
+                echo "Waiting for {} pods..."
+                while true; do
+                    POD=$(kubectl get pods -n {} -l app.kubernetes.io/name={} -o jsonpath='{{.items[0].metadata.name}}' 2>/dev/null)
+                    if [ -n "$POD" ]; then
+                        echo "Streaming logs from $POD..."
+                        kubectl logs -n {} -f "$POD" --all-containers 2>/dev/null || sleep 5
+                    else
+                        sleep 5
+                    fi
+                done
+            """.format(app, app, app, app)),
+            labels=["Applications"],
+            links=["https://{}.localhost".format(app)],
+            resource_deps=["crossplane-applications"],
+            allow_parallel=True
+        )
+
+
+local_resource(
+    "flagger",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/flagger/overlays/""" + PLATFORM + """
+        wait_hr istio-system flagger
+        # Assert the provider actually initialised as gatewayapi. With the wrong
+        # provider Flagger writes VirtualServices that Istio never applies, and
+        # canaries stall with no error.
+        kubectl logs -n istio-system -l app.kubernetes.io/name=flagger --tail=50 2>/dev/null             | grep -q "mesh provider gatewayapi"             && echo "Flagger running with the Gateway API provider"             || { echo "ERROR: Flagger did not start with the gatewayapi provider"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
+    "external-secrets",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/external-secrets/overlays/""" + PLATFORM + """
+        wait_hr external-secrets external-secrets
+        kubectl -n external-secrets rollout status deployment/external-secrets-webhook --timeout=180s
+
+        # The stores layer needs the CRDs the release above installs.
+        kubectl apply -k ./helm/external-secrets/stores
+
+        # An operator with no working store reconciles nothing while reporting
+        # healthy. Assert a Secret actually materialises.
+        kubectl -n external-secrets wait --for=condition=Ready             externalsecret/demo-credentials --timeout=120s
+        kubectl -n external-secrets get secret demo-credentials >/dev/null             && echo "External Secrets is materialising Secrets"             || { echo "ERROR: ExternalSecret Ready but no Secret was created"; exit 1; }
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)
+
+local_resource(
+    "cloudnative-pg",
+    cmd=sh(WAIT_HR + """
+        kubectl apply -k ./helm/cloudnative-pg/overlays/""" + PLATFORM + """
+        wait_hr cnpg-system cloudnative-pg
+        kubectl -n cnpg-system rollout status deployment/cloudnative-pg --timeout=180s
+        kubectl apply -k ./helm/cloudnative-pg/clusters
+        # A Cluster can exist and never reach a usable state; wait for the
+        # operator's own readiness condition rather than for pods.
+        kubectl -n cnpg-system wait --for=condition=Ready cluster/demo-pg --timeout=300s
+        kubectl -n cnpg-system get cluster demo-pg
+    """),
+    labels=["Infrastructure"],
+    resource_deps=["flux-install", "helm-repositories"],
+)

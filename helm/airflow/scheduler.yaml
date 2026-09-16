@@ -5,6 +5,13 @@ metadata:
   namespace: airflow
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate: single replica on a ReadWriteOnce PVC. With
+  # RollingUpdate a rollout starts the new pod before the old one stops, both
+  # contend for the one volume, and the new pod can never start — seen as
+  # 733 restarts of `InnoDB: Unable to lock ./ibdata1` on wordpress/mysql
+  # while readyReplicas stayed 1 and everything reported healthy.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: airflow-scheduler
@@ -13,6 +20,17 @@ spec:
       labels:
         app: airflow-scheduler
     spec:
+      # Same node as postgres, which is what puts scheduler and webserver on
+      # one node. Required because dags and logs are ReadWriteOnce and kind
+      # has no ReadWriteMany provisioner; without this the two deployments
+      # can land on different nodes and the second one can never mount.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: airflow-postgresql
+              topologyKey: kubernetes.io/hostname
       initContainers:
       - name: wait-for-db
         image: postgres:13

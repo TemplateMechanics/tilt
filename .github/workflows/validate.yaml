@@ -1,0 +1,158 @@
+name: validate
+
+# The repo had no CI at all. Every check below exists because the corresponding
+# failure actually happened during the Istio/cert-manager migration and was
+# caught by hand — which is the expensive way to find them.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manifests:
+    name: Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Build every kustomization
+        # Catches broken resource lists, bad patches, and files referenced after
+        # being renamed or deleted. The skeleton/ directory is excluded because
+        # it is a Jinja scaffolder template with placeholder-named dirs, not valid
+        # YAML — kustomize cannot parse it and is not meant to.
+        run: |
+          set -uo pipefail
+          pass=0; fail=0
+          while IFS= read -r k; do
+            d=$(dirname "$k")
+            if out=$(kubectl kustomize "$d" 2>&1 >/dev/null); then
+              pass=$((pass+1))
+            else
+              fail=$((fail+1))
+              echo "::error file=$k::kustomize build failed"
+              echo "$out" | head -5
+            fi
+          done < <(find . -name kustomization.yaml \
+                     -not -path "./backstage/app/node_modules/*" \
+                     -not -path "*/skeleton/*" | sort)
+          echo "kustomize build: $pass passed, $fail failed"
+          [ "$fail" -eq 0 ]
+
+      - name: Routed hostnames have matching certificate SANs
+        run: python scripts/ci/check-route-hostnames.py
+
+      - name: Helm charts are pinned
+        run: python scripts/ci/check-chart-pins.py
+
+      - name: TechDocs references resolve
+        # A dangling techdocs-ref does not fail any build; it produces a broken
+        # doc page in the Backstage portal at runtime. Deleting a service's docs
+        # directory without updating the catalog is exactly how that happens.
+        run: |
+          python - <<'PY'
+          import os, sys, yaml
+          p = "backstage/app/service-docs/catalog.yaml"
+          base = os.path.dirname(p)
+          docs = [d for d in yaml.safe_load_all(open(p, encoding="utf-8")) if d]
+          missing = []
+          checked = 0
+          for d in docs:
+              ann = (d.get("metadata") or {}).get("annotations") or {}
+              ref = ann.get("backstage.io/techdocs-ref", "")
+              if not ref.startswith("dir:"):
+                  continue
+              checked += 1
+              target = os.path.normpath(os.path.join(base, ref[4:]))
+              if not os.path.isdir(target):
+                  missing.append((d["metadata"]["name"], ref))
+          print("techdocs refs checked: %d" % checked)
+          for name, ref in missing:
+              print("::error::%s points at %s which does not exist" % (name, ref))
+          sys.exit(1 if missing else 0)
+          PY
+
+      - name: Catalog and template YAML parses
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+          bad = 0
+          for p in ["backstage/app/service-docs/catalog.yaml",
+                    "helm/backstage/catalog.yaml",
+                    "helm/backstage/templates.yaml",
+                    "backstage/templates/dev-application/template.yaml",
+                    "tilt-config.json"]:
+              try:
+                  if p.endswith(".json"):
+                      import json; json.load(open(p, encoding="utf-8"))
+                  else:
+                      list(yaml.safe_load_all(open(p, encoding="utf-8")))
+                  print("  OK", p)
+              except Exception as e:
+                  bad += 1
+                  print("::error file=%s::%s" % (p, e))
+          sys.exit(1 if bad else 0)
+          PY
+
+  tiltfile:
+    name: Tiltfile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create a kind cluster
+        # tilt alpha tiltfile-result EXECUTES the Tiltfile, which calls
+        # kubectl to derive the gateway platform overlay. Without a reachable
+        # cluster it fails for the wrong reason and tells you nothing about
+        # whether the Tiltfile is valid.
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: tiltfile-check
+
+      - name: Install Tilt
+        run: curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - name: Tiltfile parses at every profile
+        # Starlark is picky in ways that only surface at load time — an invalid
+        # escape sequence such as the backslash-dot that jsonpath needs will
+        # fail the whole file, and nothing else in this repo would catch it.
+        # Every profile is parsed because the default (minimal) only includes
+        # tilt/core.tilt; a broken tilt/apps.tilt would pass unnoticed otherwise.
+        run: |
+          for p in minimal observability gitops full; do
+            echo "== --profile=$p =="
+            tilt alpha tiltfile-result -- --profile=$p > /dev/null
+          done
+
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        # The cleanup script had a variable-shadowing bug (a helper looping over
+        # `w` without declaring it local, clobbering its caller's loop variable)
+        # that produced silently wrong results. shellcheck flags that class.
+        uses: ludeeus/action-shellcheck@master
+        with:
+          # labs/ holds 14 shell scripts (graders and break/fix fixtures) that
+          # learners run directly; they need linting at least as much as the
+          # platform scripts do.
+          scandir: .
+          additional_files: 'labs/*/*.sh labs/lib.sh'
+          ignore_paths: node_modules archive backstage
+          severity: warning

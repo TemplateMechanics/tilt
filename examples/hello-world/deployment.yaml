@@ -1,0 +1,54 @@
+---
+# podinfo: a small Go web app built for exactly this. It has a UI, /healthz,
+# /metrics for Prometheus, /env to show its environment, and it is the app the
+# Flagger project uses for its own canary tutorials — so the same Deployment
+# carries through to the later labs unchanged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello
+  namespace: hello
+  labels:
+    app.kubernetes.io/name: hello
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello
+    spec:
+      containers:
+        - name: podinfo
+          image: ghcr.io/stefanprodan/podinfo:6.9.1
+          ports:
+            - name: http
+              containerPort: 9898
+          env:
+            - name: PODINFO_UI_MESSAGE
+              value: "Hello from the platform"
+          # Probes are what turn "the container started" into "the app is
+          # ready". Without readinessProbe, the Service sends traffic the moment
+          # the process exists, and a slow-starting app returns errors for its
+          # first few seconds.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

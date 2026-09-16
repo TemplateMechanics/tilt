@@ -4,8 +4,12 @@ metadata:
   name: airflow-dags
   namespace: airflow
 spec:
+  # ReadWriteOnce, not ReadWriteMany: kind's local-path provisioner supports
+  # RWO only and rejects an RWX claim with "NodePath only supports
+  # ReadWriteOnce". Both airflow pods mount this, so they are pinned to one
+  # node by the podAffinity in scheduler.yaml and webserver.yaml.
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 5Gi
@@ -17,7 +21,7 @@ metadata:
   namespace: airflow
 spec:
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi

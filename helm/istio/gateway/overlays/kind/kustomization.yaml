@@ -1,0 +1,21 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - nodeport-service.yaml
+patches:
+  # Istio auto-provisions a Service for the Gateway, defaulting to LoadBalancer.
+  # kind has no load balancer, so that Service never gets an address and the
+  # Gateway sits at Programmed=False forever — even though traffic flows fine
+  # through the pinned NodePort Service below. Anything waiting on
+  # condition=Programmed (the Tiltfile does) then blocks until it times out.
+  # NodePort makes Istio assign node addresses and the condition go True.
+  - target:
+      kind: Gateway
+      name: localhost-gateway
+    patch: |
+      - op: add
+        path: /metadata/annotations
+        value:
+          networking.istio.io/service-type: NodePort

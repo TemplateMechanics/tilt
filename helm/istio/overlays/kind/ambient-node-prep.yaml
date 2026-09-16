@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: istio-ambient-node-prep
+  namespace: istio-system
+  labels:
+    app: istio-ambient-node-prep
+spec:
+  selector:
+    matchLabels:
+      app: istio-ambient-node-prep
+  template:
+    metadata:
+      labels:
+        app: istio-ambient-node-prep
+    spec:
+      hostPID: true
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: node-prep
+          image: alpine:3.22
+          securityContext:
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              # kind nodes start with /run private. istio-cni needs it rshared
+              # to enter pod netns; without this ambient capture silently no-ops.
+              nsenter --target 1 --mount -- mount --make-rshared /run
+              # Best effort: on some hosts /var/run is a symlink to /run and the
+              # first call already did the work.
+              nsenter --target 1 --mount -- mount --make-rshared /var/run || true
+              echo "mount propagation set; istio-cni can enter pod netns"
+              # Stay alive so the DaemonSet does not churn; re-runs on restart.
+              while true; do sleep 3600; done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

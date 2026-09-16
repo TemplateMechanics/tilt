@@ -1,113 +1,90 @@
 # TLS Certificates
 
-## Overview
+Certificates are issued by **cert-manager** inside the cluster. Nothing is
+generated on the host and no key material is stored in the repo.
 
-The development environment uses a self-signed CA chain to provide TLS for all `*.localhost` services. Certificates are generated locally and trusted in the system certificate store.
-
-## Certificate Chain
+## The chain
 
 ```
-Root CA
-  └── Intermediate CA
-        └── Wildcard Certificate (*.localhost)
+ClusterIssuer/selfsigned-bootstrap        (bootstrap only)
+  -> Certificate/local-root-ca            10y, ECDSA P-256, cert-manager ns
+       -> ClusterIssuer/local-root-ca
+            -> Certificate/local-intermediate-ca   5y
+                 -> ClusterIssuer/local-intermediate-ca
+                      -> Certificate/wildcard-localhost   90d, istio-system ns
+                           -> Secret/wildcard-localhost-tls
 ```
 
-## Generation
+The Gateway (`istio-system/localhost-gateway`) references that Secret through
+`certificateRefs`, so every service gets TLS without naming a Secret of its own.
 
-Certificates are generated automatically by Tilt via the `dev-certificate-generate` resource:
+Leaf certs are signed by the intermediate, never the root, so rotating a leaf
+never touches the CA installed in your OS trust store.
+
+## Renewal
+
+`renewBefore: 720h` (30 days) on a 90-day certificate. cert-manager renews
+unattended and `rotationPolicy: Always` issues a fresh key each time.
+
+This is the main reason the OpenSSL scripts were retired: they regenerated only
+when the chain file was *missing*, never when it had expired, so an expired
+certificate was never noticed until TLS simply broke.
+
+## Adding a hostname
+
+Add it to `dnsNames` in `helm/istio/gateway/base/certificate.yaml`.
+
+**The `*.localhost` wildcard is not enough on its own.** Verified on this
+platform: both OpenSSL and Windows schannel reject `*.localhost` as a match for
+`myapp.localhost`, because a wildcard directly beneath a single-label parent
+(`localhost` behaves as a TLD) is not accepted.
+
+```
+openssl:  Verify return code: 62 (hostname mismatch)
+schannel: CertGetNameString() failed to match connection hostname
+```
+
+Adding the explicit hostname makes the same request verify cleanly. The list
+looks redundant and is not - deleting an entry breaks TLS for that service with
+a hostname-mismatch error, which reads like a CA problem and sends you down the
+wrong path.
+
+## Trusting the CA
+
+The `dev-ca-trust` Tilt resource exports the root CA from the cluster Secret and
+installs it in the OS trust store (macOS keychain, Linux
+`/usr/local/share/ca-certificates`, Windows user Root store). It refuses to touch
+the trust store if the export comes back empty, and prints the fingerprint.
+
+Verify it took, rather than trusting the log line:
 
 ```bash
-# Or manually:
-cd certificates
-bash generate-certs.sh
-```
-
-The script:
-
-1. Creates root and intermediate CA directories with proper permissions
-2. Generates a root CA key and self-signed certificate
-3. Generates an intermediate CA signed by the root
-4. Creates a wildcard certificate for `*.localhost` signed by the intermediate CA
-
-## Trust Installation
-
-The `dev-certificate-trust` Tilt resource automatically installs the root CA into the system trust store:
-
-### macOS
-
-Uses `osascript` to prompt for administrator privileges, then runs:
-
-```bash
-security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain \
-  certificates/rootCA/certs/ca.cert.pem
-```
-
-### Linux
-
-Copies the root CA to the system certificates directory and updates the trust store:
-
-```bash
-sudo cp certificates/rootCA/certs/ca.cert.pem /usr/local/share/ca-certificates/dev-root-ca.crt
-sudo update-ca-certificates
-```
-
-### Windows
-
-Uses `certutil` to add the certificate to the trusted root store:
-
-```cmd
-certutil -addstore -f "Root" certificates\rootCA\certs\ca.cert.pem
-```
-
-## File Locations
-
-| File | Description |
-|------|-------------|
-| `certificates/rootCA/certs/ca.cert.pem` | Root CA certificate |
-| `certificates/rootCA/private/ca.key.pem` | Root CA private key |
-| `certificates/intermediateCA/certs/intermediate.cert.pem` | Intermediate CA certificate |
-| `certificates/intermediateCA/certs/ca-chain.cert.pem` | Full certificate chain |
-| `certificates/intermediateCA/certs/localhost.cert.pem` | Wildcard server certificate |
-| `certificates/intermediateCA/private/localhost.key.pem` | Wildcard server private key |
-
-## Kubernetes Secret
-
-The `dev-certificate-install` resource creates a TLS secret from the generated certificates:
-
-```bash
-kubectl create secret tls wildcard-tls-dev \
-  --cert=certificates/intermediateCA/certs/localhost.cert.pem \
-  --key=certificates/intermediateCA/private/localhost.key.pem \
-  --namespace=traefik \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-This secret is used by Traefik for HTTPS termination on all `*.localhost` ingress routes.
-
-## Troubleshooting
-
-### Browser still shows "Not Secure"
-
-- Ensure the root CA is trusted (check Keychain Access on macOS)
-- Restart the browser after trusting the certificate
-- Clear browser TLS cache
-
-### Permission denied during generation
-
-The script handles root-owned directories from previous runs by prompting for admin privileges via a GUI dialog. If issues persist:
-
-```bash
+# Windows
+powershell "Get-ChildItem Cert:\CurrentUser\Root | Where-Object { $_.Subject -like '*Tilt Local Development Root CA*' }"
 # macOS
-sudo rm -rf certificates/rootCA certificates/intermediateCA
-bash certificates/generate-certs.sh
+security find-certificate -c "Tilt Local Development Root CA" /Library/Keychains/System.keychain
+# Linux
+ls -l /usr/local/share/ca-certificates/dev-root-ca.crt
 ```
 
-### Certificate expired
+**Known gap:** if cert-manager is reinstalled, a new root CA is generated and the
+OS store keeps the old one until `dev-ca-trust` runs again. Nothing currently
+detects that mismatch; the symptom is a browser trust warning on a platform that
+otherwise looks healthy. Re-trigger `dev-ca-trust` in Tilt to resolve it.
 
-Regenerate by deleting old certs and re-running:
+## Inspecting what is actually served
 
 ```bash
-rm -rf certificates/rootCA/certs certificates/intermediateCA/certs
-tilt trigger dev-certificate-generate
+# Chain and SANs on the wire
+echo | openssl s_client -connect localhost:443 -servername grafana.localhost | \
+  openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+
+# Certificate resources and their readiness
+kubectl get certificate -A
+kubectl get clusterissuer
 ```
+
+## Legacy
+
+The previous OpenSSL scripts are kept in `archive/openssl-certs/` for customers
+still running them. See `archive/README.md`.

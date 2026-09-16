@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - helm-release.yaml
-  - ingress.yaml
+  - helm-release-dashboard.yaml
+  - httproute.yaml

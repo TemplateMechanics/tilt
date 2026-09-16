@@ -90,7 +90,7 @@ spec:
         createIngress:
           title: Create Ingress
           type: boolean
-          description: Create a Traefik IngressRoute for this application
+          description: Create a Gateway API HTTPRoute for this application
           default: true
         ingressPort:
           title: Service Port

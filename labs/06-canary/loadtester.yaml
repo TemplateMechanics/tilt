@@ -1,0 +1,58 @@
+---
+# Flagger's load tester. The Canary's `rollout` webhook asks this pod to hit the
+# canary Service with `hey` during analysis, so the success-rate metric has
+# traffic to measure. Without it the webhook URL points at nothing, the
+# webhook fails, and every canary is marked Failed before any traffic shifts —
+# a rollback that looks like a bad release and is actually missing tooling.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flagger-loadtester
+  namespace: hello
+  labels:
+    app: flagger-loadtester
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flagger-loadtester
+  template:
+    metadata:
+      labels:
+        app: flagger-loadtester
+    spec:
+      containers:
+        - name: loadtester
+          image: ghcr.io/fluxcd/flagger-loadtester:0.35.0
+          ports:
+            - name: http
+              containerPort: 8080
+          command:
+            - ./loadtester
+            - -port=8080
+            - -log-level=info
+            - -timeout=1h
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flagger-loadtester
+  namespace: hello
+spec:
+  selector:
+    app: flagger-loadtester
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

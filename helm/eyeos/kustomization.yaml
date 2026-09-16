@@ -19,4 +19,4 @@ resources:
   # - service.yaml
   
   # Ingress & Service (works with both approaches — KubeVirt service is in virtualmachine.yaml)
-  - ingress.yaml
+  - httproute.yaml

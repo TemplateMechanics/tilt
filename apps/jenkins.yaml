@@ -11,7 +11,10 @@ spec:
   chart:
     repository: jenkins
     name: jenkins
-    version: "*"
+    # Pinned. A range re-resolves on every Flux reconcile, so the platform
+    # rebuilt later is not the one built today. langfuse below is the worked
+    # example: ">=0.1.0" jumped to chart 2.x and stopped installing.
+    version: "5.9.56"
     values:
       controller:
         admin:

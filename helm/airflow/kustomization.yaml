@@ -8,4 +8,4 @@ resources:
   - redis.yaml
   - webserver.yaml
   - scheduler.yaml
-  - ingress.yaml
+  - httproute.yaml

@@ -1,0 +1,194 @@
+{
+  "_comment": [
+    "Services to validate in a browser, and where their real UI lives.",
+    "",
+    "`path` matters: several services 404 on / while working perfectly on their",
+    "actual entry point. tilt-config-server is the example \u2014 / returns",
+    "{\"error\":\"Not found\"} and /config returns 200. Checking / and calling it a",
+    "failure would have sent someone hunting a routing bug that does not exist.",
+    "",
+    "`expect` is a case-insensitive substring that must appear in the rendered",
+    "page text. A 200 with an empty shell is the failure this whole harness is",
+    "for, so asserting on content is the point, not a nicety.",
+    "",
+    "`configKey` is the tilt-config.json flag that enables the service, so a run",
+    "can report 'not enabled' distinctly from 'enabled and broken'."
+  ],
+  "services": [
+    {
+      "name": "airflow",
+      "host": "airflow.localhost",
+      "path": "/",
+      "expect": "Airflow",
+      "configKey": "raw_apps.airflow"
+    },
+    {
+      "name": "argo-workflows",
+      "host": "argo.localhost",
+      "path": "/",
+      "expect": "Argo",
+      "configKey": "flux_apps.argo-workflows"
+    },
+    {
+      "name": "argocd",
+      "host": "argocd.localhost",
+      "path": "/",
+      "expect": "Argo CD",
+      "configKey": "flux_apps.argocd"
+    },
+    {
+      "name": "backstage",
+      "host": "backstage.localhost",
+      "path": "/",
+      "expect": "Dev Portal",
+      "configKey": "raw_apps.backstage",
+      "note": "App is branded 'Dev Portal'; expecting 'Backstage' failed a working page."
+    },
+    {
+      "name": "dapr",
+      "host": "dapr.localhost",
+      "path": "/",
+      "expect": "Dapr",
+      "configKey": "flux_apps.dapr"
+    },
+    {
+      "name": "grafana",
+      "host": "grafana.localhost",
+      "path": "/login",
+      "expect": "Welcome to Grafana",
+      "configKey": null,
+      "note": "Always-on observability stack."
+    },
+    {
+      "name": "harbor",
+      "host": "harbor.localhost",
+      "path": "/",
+      "expect": "Harbor",
+      "configKey": "crossplane_apps.harbor"
+    },
+    {
+      "name": "hello",
+      "host": "hello.localhost",
+      "path": "/",
+      "expect": "Hello from the platform",
+      "configKey": null,
+      "note": "examples/hello-world - the first thing a learner deploys. Always on."
+    },
+    {
+      "name": "jenkins",
+      "host": "jenkins.localhost",
+      "path": "/login",
+      "expect": "Sign in to Jenkins",
+      "configKey": "crossplane_apps.jenkins",
+      "note": "Jenkins returns HTTP 403 on / when unauthenticated while still serving the login page, so / looks like a failure when it is not. /login returns 200."
+    },
+    {
+      "name": "jupyterhub",
+      "host": "jupyterhub.localhost",
+      "path": "/",
+      "expect": "Jupyter",
+      "configKey": "raw_apps.jupyterhub"
+    },
+    {
+      "name": "keycloak",
+      "host": "auth.localhost",
+      "path": "/",
+      "expect": "Keycloak",
+      "configKey": "raw_apps.keycloak",
+      "note": "Route host is auth.localhost, not keycloak.localhost."
+    },
+    {
+      "name": "kiali",
+      "host": "kiali.localhost",
+      "path": "/",
+      "expect": "Kiali",
+      "configKey": null,
+      "note": "Istio mesh observability. auth.strategy is anonymous - local dev only."
+    },
+    {
+      "name": "langfuse",
+      "host": "langfuse.localhost",
+      "path": "/",
+      "expect": "Langfuse",
+      "configKey": "crossplane_apps.langfuse"
+    },
+    {
+      "name": "localstack",
+      "host": "localstack.localhost",
+      "path": "/_localstack/health",
+      "expect": "services",
+      "configKey": "crossplane_apps.localstack",
+      "note": "BLOCKED: chart 0.7.0 requires a LOCALSTACK_AUTH_TOKEN for all installations. Without one the container exits 55 and the route serves 503. Not a routing or migration fault."
+    },
+    {
+      "name": "mailhog",
+      "host": "mailhog.localhost",
+      "path": "/",
+      "expect": "MailHog",
+      "configKey": "raw_apps.mailhog",
+      "note": "The /api/v2/jim 404 is MailHog's optional chaos monkey, not a fault."
+    },
+    {
+      "name": "ollama",
+      "host": "ollama.localhost",
+      "path": "/",
+      "expect": "Ollama is running",
+      "configKey": "flux_apps.ollama",
+      "minChars": 10,
+      "note": "Root returns the plain string 'Ollama is running' - 17 chars, no HTML."
+    },
+    {
+      "name": "opencost",
+      "host": "opencost.localhost",
+      "path": "/",
+      "expect": "Cost Allocation",
+      "configKey": "flux_apps.opencost",
+      "note": "Expect the page heading, not the product name: 'OpenCost' appears only in the logo image and the version footer, outside the text sample."
+    },
+    {
+      "name": "qdrant",
+      "host": "qdrant.localhost",
+      "path": "/dashboard",
+      "expect": "Qdrant",
+      "configKey": "crossplane_apps.qdrant"
+    },
+    {
+      "name": "rabbitmq",
+      "host": "rabbitmq.localhost",
+      "path": "/",
+      "expect": "RabbitMQ",
+      "configKey": "raw_apps.rabbitmq"
+    },
+    {
+      "name": "thanos",
+      "host": "thanos.localhost",
+      "path": "/",
+      "expect": "Thanos",
+      "configKey": "flux_apps.thanos"
+    },
+    {
+      "name": "tilt-config-server",
+      "host": "tilt-config.localhost",
+      "path": "/config",
+      "expect": "crossplane_apps",
+      "configKey": null,
+      "note": "Serves JSON, not HTML. / has no handler and returns 404 by design."
+    },
+    {
+      "name": "wazuh",
+      "host": "wazuh.localhost",
+      "path": "/",
+      "expect": "Wazuh",
+      "configKey": "raw_apps.wazuh",
+      "minChars": 5,
+      "note": "Dashboard boots as a JS shell; the title is the only early signal."
+    },
+    {
+      "name": "wordpress",
+      "host": "wordpress.localhost",
+      "path": "/",
+      "expect": "WordPress",
+      "configKey": "raw_apps.wordpress"
+    }
+  ]
+}
