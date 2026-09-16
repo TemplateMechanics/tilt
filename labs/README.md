@@ -1,5 +1,8 @@
 # Labs
 
+Every script here is bash. On macOS and Linux that is your shell already; on
+Windows run them from Git Bash, not PowerShell.
+
 Numbered exercises, each with a README that explains one thing and a
 `check.sh` that proves you did it. Run a grader with
 `./scripts/platform.sh lab NN`.

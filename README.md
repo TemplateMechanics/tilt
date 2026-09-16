@@ -5,9 +5,24 @@ A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev
 ## Quick Start
 
 ```bash
-# Prerequisites: Docker, kind, kubectl, Helm, Flux CLI, Tilt
-./scripts/platform.sh up          # or: make up
+# Prerequisites: a container daemon, kind, kubectl, Helm, Flux CLI, Tilt
+./scripts/platform.sh up
 ```
+
+**Run that from bash.** On macOS and Linux that is your normal shell. On
+Windows use Git Bash, which ships with Git for Windows — the same Git you
+used to clone this repo. The script is bash, not POSIX sh: it uses
+`BASH_SOURCE` and process substitution. Where `/bin/sh` is a real POSIX
+shell — dash on Debian and Ubuntu — running it as `sh scripts/platform.sh`
+fails with `Syntax error: redirection unexpected`. Where `sh` is bash
+wearing a different name, as in Git Bash, it happens to work; do not rely on
+that. PowerShell and cmd.exe cannot run it at all.
+
+Tilt itself is fine either way. The Tiltfile locates Git Bash on Windows
+deliberately and avoids WSL's bash, which is frequently broken.
+
+If you have `make`, `make up` does the same thing. It is not installed by
+default on Windows, so the script is the documented path.
 
 That creates a kind cluster from `kind/cluster.yaml` and starts Tilt. The first
 run installs Istio, cert-manager and the observability stack — allow about ten
@@ -355,6 +370,7 @@ annotations:
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
+| bash | 4+ | Built in on macOS/Linux. On Windows, Git Bash from https://git-scm.com/download/win — `platform.sh` and the lab scripts are bash, and do not run in PowerShell or cmd.exe |
 | kubectl | within one minor of the cluster | https://kubernetes.io/docs/tasks/tools/ — kind here runs Kubernetes 1.36, and an older kubectl prints a version-skew warning on *every* command, which students will chase |
 
 ## TLS Certificates
@@ -492,8 +508,11 @@ MIT
 >   - `helm/backstage/postgresql.yaml` — Postgres password (`bstage-dev-password`)
 >   - `helm/keycloak/deployment.yaml` / `postgresql.yaml` — Keycloak admin & DB passwords (`kc-dev-password`)
 >   - `helm/mssql/values.yaml` — SA password (`P@ssw0rd`)
->   - `helm/jenkins/helm-release.yaml` — Admin password (`P@ssw0rd`)
->   - `helm/harbor/helm-release.yaml` — Harbor admin password (`P@ssw0rd`)
+>   - `apps/jenkins.yaml` — Admin password (`P@ssw0rd`, user `user`)
+>   - `apps/harbor.yaml` — **no password is set**, so Harbor runs on the chart
+>     default `Harbor12345` with user `admin`. That is a published vendor
+>     default and therefore worse than the made-up ones above. This entry used
+>     to claim `P@ssw0rd`, which was never true for Harbor.
 >   - `helm/mongodb/manifests/secret.yaml` — Root password (`mongo-dev-password`)
 >   - `helm/rabbitmq/manifests/secret.yaml` — RabbitMQ password (`rmq-dev-password`)
 >   - `helm/redis/manifests/secret.yaml` — Redis password (`redis-dev-password`)
