@@ -4,6 +4,12 @@ kind: Service
 metadata:
   name: hello
   namespace: hello
+  # The Service needs labels of its own, not just a pod selector. A
+  # ServiceMonitor selects SERVICES by their labels; with none here it
+  # matches nothing, creates no scrape target, and reports no error -
+  # which is the trap lab 08 is built on.
+  labels:
+    app.kubernetes.io/name: hello
 spec:
   selector:
     app.kubernetes.io/name: hello
