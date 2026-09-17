@@ -94,31 +94,41 @@ poking at one service by hand when a check fails and you want to know why.
 
 Neither needs configuration. Both are fetched by `npx` on first use.
 
-## What `up` now does for you
+## Authentication: basic auth, not a service-account token
 
-`grafana-mcp-token` (Observability tier) creates a Grafana service account named
-`mcp` and writes its token to `.local/grafana-mcp.env`, which is gitignored.
-`.mcp.json` passes that file to `docker run --env-file`, so **nothing needs to be
-set in your shell**. The previous config read `${GRAFANA_SERVICE_ACCOUNT_TOKEN}`
-from the environment, and an unset variable expands to empty: the server then
-starts, reaches Grafana, gets a 401 and reports "failed to discover tools" -
-which reads like a broken server rather than a missing token.
+The MCP authenticates as `admin/admin`, the same credentials the README gives
+for the Grafana UI. That is deliberate, and it replaced a service-account token
+that could not survive this platform.
 
-The script is idempotent on the *token*, not on the account. Grafana shows a
-service-account token once, at creation, so checking only whether the account
-exists would happily leave you with an account whose token nobody has. It tests
-the stored token against `/api/org` and issues a new one only if that fails.
+kube-prometheus-stack runs Grafana with `persistence` off, so its storage is an
+`emptyDir`. **Every Grafana restart wipes all Grafana-side state**, including
+service accounts and their tokens. Applying any chart change restarts the pod,
+and the MCP then fails with:
 
-To pick it up, **restart Claude Code in this directory and approve the servers**
-when prompted - `.mcp.json` is read at startup. Verify with `/mcp`; the grafana
-server exposes 65 tools.
+```
+level=WARN  msg="Frontend settings request returned non-OK status" status=401
+level=ERROR msg="failed to initialize proxied tools for stdio"
+            error="... [GET /datasources][401] getDataSourcesUnauthorized"
+```
 
-If you want to check it without Claude Code:
+That is exactly how it failed: a token was provisioned and verified, Grafana was
+restarted hours later to fix its plugins, and the token died with it. Grafana
+reported zero service accounts afterwards. Re-issuing on every restart would
+have meant a provisioning step that silently expires; basic auth against a
+password fixed in `helm/prometheus/helm-release.yaml` cannot expire.
+
+No new secret is introduced - `adminPassword: admin` is already in that values
+file and in the README. It is a local development platform; do not copy this
+arrangement to a shared Grafana.
+
+## Verifying it
 
 ```bash
-./scripts/grafana-mcp-token.sh          # prints "existing MCP token still valid"
 printf '%s
 %s
 %s
-'   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"p","version":"1"}}}'   '{"jsonrpc":"2.0","method":"notifications/initialized"}'   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | docker run -i --rm --network host --add-host=grafana.localhost:127.0.0.1     -v "$PWD/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro"     --env-file "$PWD/.local/grafana-mcp.env" -e GRAFANA_URL=https://grafana.localhost     --entrypoint /app/mcp-grafana mcp/grafana --transport stdio --tls-ca-file /ca/dev-root-ca.crt
+'   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"p","version":"1"}}}'   '{"jsonrpc":"2.0","method":"notifications/initialized"}'   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | docker run -i --rm --network host --add-host=grafana.localhost:127.0.0.1     -v "$PWD/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro"     -e GRAFANA_URL=https://grafana.localhost     -e GRAFANA_USERNAME=admin -e GRAFANA_PASSWORD=admin     --entrypoint /app/mcp-grafana mcp/grafana --transport stdio     --tls-ca-file /ca/dev-root-ca.crt
 ```
+
+65 tools. `.local/dev-root-ca.crt` is written by `dev-ca-trust` on every `up`;
+without it the container cannot verify the platform's TLS and nothing connects.
