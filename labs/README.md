@@ -8,7 +8,7 @@ Numbered exercises, each with a README that explains one thing and a
 `./scripts/platform.sh lab NN`.
 
 `./scripts/platform.sh test` runs the graders that hold in the platform's
-steady state — 01, 03, and 07 when wordpress is up. The others stage
+steady state — 01, 03, and 07 once its fixture is applied. The others stage
 something first (a second route, a broken cert, an HPA under load, a Canary)
 and are run by hand after their README; 06 in particular hands `hello` to
 Flagger and must be exited before 01 and 03 pass again.
@@ -21,7 +21,7 @@ Flagger and must be exited before 01 and 03 pass again.
 | [04 Break TLS](04-break-tls/) | minimal | 62 vs 20: same browser error, opposite fixes |
 | [05 Scale it](05-scale-it/) | observability | an HPA with no Metrics API is installed and inert |
 | [06 Canary](06-canary/) | gitops | Flagger promotes a good version and rolls back a bad one, on the Gateway you built |
-| [07 Stateful rollout](07-stateful-rollout/) | minimal + wordpress | RollingUpdate on one PVC can never finish; Recreate can |
+| [07 Stateful rollout](07-stateful-rollout/) | minimal | RollingUpdate on one PVC can never finish; Recreate can |
 
 ## Every grader has been made to fail
 

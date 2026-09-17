@@ -1,31 +1,31 @@
 {
   "crossplane_apps": {
     "harbor": {
-      "enabled": true,
+      "enabled": false,
       "description": "Container registry",
       "category": "CI/CD",
       "tested": true
     },
     "jenkins": {
-      "enabled": true,
+      "enabled": false,
       "description": "CI/CD automation",
       "category": "CI/CD",
       "tested": true
     },
     "langfuse": {
-      "enabled": true,
+      "enabled": false,
       "description": "LLM observability",
       "category": "AI/ML",
       "tested": true
     },
     "qdrant": {
-      "enabled": true,
+      "enabled": false,
       "description": "Vector database",
       "category": "AI/ML",
       "tested": true
     },
     "localstack": {
-      "enabled": true,
+      "enabled": false,
       "description": "AWS services emulator",
       "category": "Cloud Emulators",
       "tested": true
@@ -33,7 +33,7 @@
   },
   "flux_apps": {
     "ollama": {
-      "enabled": true,
+      "enabled": false,
       "description": "Local LLM runner",
       "category": "AI/ML",
       "tested": true
@@ -93,31 +93,31 @@
       "tested": false
     },
     "dapr": {
-      "enabled": true,
+      "enabled": false,
       "description": "Distributed application runtime",
       "category": "Infrastructure",
       "tested": false
     },
     "argo-workflows": {
-      "enabled": true,
+      "enabled": false,
       "description": "Kubernetes-native workflow engine",
       "category": "CI/CD",
       "tested": false
     },
     "argocd": {
-      "enabled": true,
+      "enabled": false,
       "description": "GitOps continuous delivery for Kubernetes",
       "category": "CI/CD",
       "tested": false
     },
     "opencost": {
-      "enabled": true,
+      "enabled": false,
       "description": "Kubernetes cost monitoring",
       "category": "Observability",
       "tested": false
     },
     "thanos": {
-      "enabled": true,
+      "enabled": false,
       "description": "Long-term Prometheus storage",
       "category": "Observability",
       "tested": false
@@ -131,7 +131,7 @@
   },
   "raw_apps": {
     "backstage": {
-      "enabled": true,
+      "enabled": false,
       "description": "Developer Portal (20+ min cold build; enable once the platform is up)",
       "category": "Developer Portal",
       "tested": true
@@ -155,7 +155,7 @@
       "tested": true
     },
     "rabbitmq": {
-      "enabled": true,
+      "enabled": false,
       "description": "RabbitMQ broker",
       "category": "Databases",
       "tested": true
@@ -167,31 +167,31 @@
       "tested": true
     },
     "keycloak": {
-      "enabled": true,
+      "enabled": false,
       "description": "Identity management",
       "category": "Identity & Workflow",
       "tested": true
     },
     "airflow": {
-      "enabled": true,
+      "enabled": false,
       "description": "Workflow orchestration",
       "category": "Identity & Workflow",
       "tested": true
     },
     "jupyterhub": {
-      "enabled": true,
+      "enabled": false,
       "description": "Jupyter notebooks",
       "category": "Identity & Workflow",
       "tested": true
     },
     "wordpress": {
-      "enabled": true,
+      "enabled": false,
       "description": "WordPress blog",
       "category": "Demo Apps",
       "tested": true
     },
     "mailhog": {
-      "enabled": true,
+      "enabled": false,
       "description": "Email testing SMTP server",
       "category": "Dev Tools",
       "tested": true
@@ -233,7 +233,7 @@
       "tested": false
     },
     "wazuh": {
-      "enabled": true,
+      "enabled": false,
       "description": "Security monitoring and SIEM",
       "category": "Security & Policy",
       "tested": true

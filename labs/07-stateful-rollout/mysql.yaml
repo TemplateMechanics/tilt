@@ -1,0 +1,107 @@
+---
+# A single MySQL on a ReadWriteOnce volume. That is the entire subject of this
+# lab, and it is deliberately the whole fixture: the lab used to stand up
+# WordPress as well, which meant a blog, a second Deployment, a second PVC and
+# an app toggle - all so the check could assert one HTTP 302. The lesson is
+# about one field on one Deployment, so the fixture is now one Deployment.
+#
+# It also makes the lab self-contained. Nothing needs enabling in
+# tilt-config.json, and it runs on the `minimal` profile like labs 01, 02 and 04.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab07
+  labels:
+    # In the mesh, like any app namespace, so the lab behaves like the rest of
+    # the platform rather than being a special case.
+    istio.io/dataplane-mode: ambient
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: lab07
+type: Opaque
+stringData:
+  # Local development only, and a throwaway namespace at that.
+  MYSQL_ROOT_PASSWORD: lab07-dev-password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: lab07
+spec:
+  # ReadWriteOnce is the point of the lab, not an oversight: one volume that
+  # exactly one pod can mount. kind's local-path provisioner supports only this
+  # mode anyway, which is what makes the deadlock reproducible here at all.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: lab07
+spec:
+  replicas: 1
+  # Recreate is the fixed state the lab restores to. break.sh patches this to
+  # RollingUpdate, which starts the replacement pod before stopping the old one;
+  # both then mount the same RWO volume, the newcomer can never take InnoDB's
+  # file lock, and the rollout hangs forever while readyReplicas stays 1 and
+  # every dashboard stays green.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+              name: mysql
+          envFrom:
+            - secretRef:
+                name: mysql-secret
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 10
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: lab07
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  type: ClusterIP
