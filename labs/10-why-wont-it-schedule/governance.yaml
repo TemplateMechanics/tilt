@@ -1,0 +1,68 @@
+---
+# A namespace with the two admission-time controls most teams meet only after
+# something has already gone wrong: a quota that refuses work, and a LimitRange
+# that silently rewrites it.
+#
+# Both act at admission. Neither leaves a mark on the object you are looking at,
+# which is why they are so confusing the first time: you asked for five pods,
+# the Deployment cheerfully says five, and two exist.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab10
+  labels:
+    istio.io/dataplane-mode: ambient
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lab10-quota
+  namespace: lab10
+spec:
+  hard:
+    # Deliberately small. Three pods is enough to run the lab and small enough
+    # to hit in one command.
+    pods: "3"
+    requests.memory: 384Mi
+    limits.memory: 768Mi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: lab10-defaults
+  namespace: lab10
+spec:
+  limits:
+    - type: Container
+      # A container that names no resources gets these. That is a MUTATION at
+      # admission: the object stored in etcd is not the object you submitted,
+      # and nothing tells you so. It is also what makes the quota above
+      # enforceable at all - a quota on requests.memory cannot count a pod that
+      # requested nothing, so without a LimitRange the pod is simply refused.
+      defaultRequest:
+        memory: 64Mi
+        cpu: 25m
+      default:
+        memory: 128Mi
+        cpu: 200m
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quota-demo
+  namespace: lab10
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quota-demo
+  template:
+    metadata:
+      labels:
+        app: quota-demo
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.9
+          # No resources block on purpose. The LimitRange fills it in, and the
+          # lab asks you to go and find the values you never wrote.

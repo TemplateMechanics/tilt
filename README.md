@@ -362,6 +362,8 @@ annotations:
 └── docs/                       # Additional documentation
 ```
 
+Teaching from this platform: see [docs/TEACHING.md](docs/TEACHING.md).
+
 ## Prerequisites
 
 | Tool | Version | Installation |
