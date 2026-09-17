@@ -9,7 +9,7 @@
 #   ./scripts/platform.sh ci      run the same checks CI runs, locally
 #   ./scripts/platform.sh hello   deploy examples/hello-world and prove it works
 #   ./scripts/platform.sh lab NN  run the grader for labs/NN-*
-#   ./scripts/platform.sh test    run the steady-state lab graders (01, 03, 07 if wordpress is up)
+#   ./scripts/platform.sh test    run the steady-state lab graders (01, 03, 07 if its fixture is up)
 #
 #   PROFILE=full ./scripts/platform.sh up      bring up every tier (see Tiltfile)
 #
@@ -171,7 +171,10 @@ cmd_test() {
     # — and 06 hands `hello` to Flagger, which breaks 01 and 03 until it is
     # undone. Run those with `lab NN` after following their README.
     local labs="01 03" rc=0
-    kubectl --context "$CONTEXT" -n wordpress get deploy mysql >/dev/null 2>&1 && labs="$labs 07"
+    # Lab 07 owns its fixture now (labs/07-stateful-rollout/mysql.yaml); it used
+    # to borrow the wordpress app, which meant the lab silently skipped unless
+    # wordpress happened to be enabled in tilt-config.json.
+    kubectl --context "$CONTEXT" -n lab07 get deploy mysql >/dev/null 2>&1 && labs="$labs 07"
     echo "steady-state labs: $labs"
     for n in $labs; do echo; cmd_lab "$n" || rc=1; done
     echo; [ "$rc" -eq 0 ] && echo "all graders passed" || { echo "some graders failed"; exit 1; }
