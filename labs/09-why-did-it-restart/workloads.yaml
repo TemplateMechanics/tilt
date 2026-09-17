@@ -1,0 +1,112 @@
+---
+# Two Deployments that both "keep restarting". They are broken for opposite
+# reasons and the fixes are opposite, yet `kubectl get pods` shows the same
+# thing for both: CrashLoopBackOff and a climbing restart count.
+#
+# Both are taken from real failures on this platform:
+#   starved  - keycloak was OOMKilled at a 2Gi limit, eight restarts deep
+#   impatient - wazuh's API never finished starting before its liveness probe
+#               fired, so the probe killed it, and it surfaced as a filebeat
+#               stack dump pointing at entirely the wrong component
+#
+# Measured on this cluster: BOTH exit with code 137. The exit code does not
+# separate them - a fact worth knowing, because it is the first thing people
+# reach for. What separates them is lastState.terminated.reason (OOMKilled vs
+# Error) and the events (only one says "Liveness probe failed").
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab09
+  labels:
+    istio.io/dataplane-mode: ambient
+---
+# CASE 1: killed by the kernel for exceeding its memory limit.
+# Allocates ~200Mi against a 64Mi limit. reason=OOMKilled.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starved
+  namespace: lab09
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starved
+  template:
+    metadata:
+      labels:
+        app: starved
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["python", "-c"]
+          args:
+            - |
+              # Touch every page so the pages are resident, not just reserved.
+              # A lazy allocation would never trip the cgroup limit and the pod
+              # would look fine - which would teach the wrong thing.
+              buf = bytearray(200 * 1024 * 1024)
+              for i in range(0, len(buf), 4096):
+                  buf[i] = 1
+              print("allocated", flush=True)
+              import time; time.sleep(3600)
+          resources:
+            requests:
+              memory: 32Mi
+            limits:
+              # THE BUG. Raising this is the fix for this pod - and would do
+              # nothing at all for the other one.
+              memory: 64Mi
+---
+# CASE 2: killed by kubelet because a liveness probe failed while it was still
+# starting up. reason=Error, and an event saying "failed liveness probe, will be
+# restarted". The process was perfectly healthy; it simply was not finished.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: impatient
+  namespace: lab09
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: impatient
+  template:
+    metadata:
+      labels:
+        app: impatient
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["python", "-c"]
+          args:
+            - |
+              import time, http.server, threading
+              # 60 seconds of "startup work" before it serves anything.
+              print("starting up (60s)...", flush=True)
+              time.sleep(60)
+              print("ready", flush=True)
+              class H(http.server.BaseHTTPRequestHandler):
+                  def do_GET(s):
+                      s.send_response(200); s.end_headers(); s.wfile.write(b"ok")
+                  def log_message(s, *a): pass
+              http.server.HTTPServer(("", 8080), H).serve_forever()
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            # THE BUG. It gives the container 15s to become answerable and it
+            # needs 60. A startupProbe - or simply a longer delay - is the fix,
+            # and more memory would not help it for a moment.
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: 32Mi
+            limits:
+              memory: 128Mi
