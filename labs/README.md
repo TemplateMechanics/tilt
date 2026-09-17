@@ -24,6 +24,7 @@ Flagger and must be exited before 01 and 03 pass again.
 | [07 Stateful rollout](07-stateful-rollout/) | minimal | RollingUpdate on one PVC can never finish; Recreate can |
 | [08 The dashboard that lies](08-empty-dashboard/) | observability | an empty graph is not a quiet system; a ServiceMonitor can be accepted and scrape nothing |
 | [09 Why did it restart?](09-why-did-it-restart/) | minimal | two crashes with the same exit code and opposite fixes |
+| [10 Why won't it schedule?](10-why-wont-it-schedule/) | minimal | admission-time failures: the object you are looking at never mentions them |
 
 ## Every grader has been made to fail
 
