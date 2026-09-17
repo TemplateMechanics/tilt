@@ -76,6 +76,27 @@ kubectl -n lab10 describe resourcequota lab10-quota
 
 Memory was never the constraint. The pod count was.
 
+## A quota does not claw anything back
+
+Worth trying before you move on. With six pods running, lower the quota below
+what is already in use:
+
+```
+kubectl -n lab10 patch resourcequota lab10-quota --type=merge   -p '{"spec":{"hard":{"pods":"3"}}}'
+kubectl -n lab10 get pods          # still six. Nothing was evicted.
+kubectl -n lab10 describe resourcequota lab10-quota
+#   pods   6   3      <-- used is ABOVE hard, and that is allowed
+```
+
+A quota governs **admission**, not existing objects. Lowering it stops new pods
+being created; it never removes ones that already exist. So a namespace can sit
+over its quota indefinitely and look completely normal.
+
+This is why `break.sh` has to scale down first, then lower the quota, then scale
+back up. It caught me twice: the pre-flight in `scripts/verify-labs.sh` kept
+reporting "STILL grades green after break.sh", because my break was not breaking
+anything.
+
 ## Fix
 
 ```
