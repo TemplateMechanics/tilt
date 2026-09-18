@@ -31,7 +31,10 @@ local_resource(
           + " --from-file=config-server.py=./scripts/config-server.py"
           + " --dry-run=client -o yaml | kubectl apply -f -",
     ])),
-    deps=["./scripts/config-server.py", "./tilt-config.json"],
+    # deps resolve relative to THIS file (tilt/), not the repo root, so the
+    # "./scripts/..." form watched tilt/scripts/... - paths that do not exist -
+    # and the resource never re-ran on an edit. ROOT is the repo root.
+    deps=[ROOT + "/scripts/config-server.py", ROOT + "/tilt-config.json"],
     labels=["Platform"],
     auto_init=True,
 )
@@ -357,7 +360,11 @@ local_resource(
         # Assert the provider actually initialised as gatewayapi. With the wrong
         # provider Flagger writes VirtualServices that Istio never applies, and
         # canaries stall with no error.
-        kubectl logs -n istio-system -l app.kubernetes.io/name=flagger --tail=50 2>/dev/null             | grep -q "mesh provider gatewayapi"             && echo "Flagger running with the Gateway API provider"             || { echo "ERROR: Flagger did not start with the gatewayapi provider"; exit 1; }
+        # --tail=-1: the provider is logged once, on the first line. With a
+        # tail the check passed on a fresh pod and failed on any Flagger that
+        # had done work - after one lab 06 run it had 122 lines and Tilt went
+        # red for a correctly configured Flagger.
+        kubectl logs -n istio-system -l app.kubernetes.io/name=flagger --tail=-1 2>/dev/null             | grep -q "mesh provider gatewayapi"             && echo "Flagger running with the Gateway API provider"             || { echo "ERROR: Flagger did not start with the gatewayapi provider"; exit 1; }
     """),
     labels=["Infrastructure"],
     resource_deps=["istio-gateway"],
