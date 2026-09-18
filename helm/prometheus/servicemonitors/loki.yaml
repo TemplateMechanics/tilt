@@ -12,6 +12,14 @@ spec:
       # `app` label, so this selector matched nothing and every panel on the
       # Loki dashboard was empty while Loki itself was healthy.
       app.kubernetes.io/name: loki
+    # ...which loki-headless also carries, with the same http-metrics port,
+    # so loki-0 was scraped twice and every sum() on the Loki dashboard read
+    # double. The chart marks the headless Service as not-for-scraping with
+    # this label; honour it.
+    matchExpressions:
+      - key: prometheus.io/service-monitor
+        operator: NotIn
+        values: ["false"]
   namespaceSelector:
     matchNames:
       - logging
