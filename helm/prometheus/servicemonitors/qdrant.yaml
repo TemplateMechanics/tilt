@@ -9,6 +9,14 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: qdrant
+    # The chart also creates qdrant-headless with the same name label and the
+    # same ports. Selecting both scrapes every pod twice, and every sum() on
+    # the dashboard doubles: one collection read as "Collections: 2". Only
+    # the headless Service carries this component label.
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [cluster-discovery]
   namespaceSelector:
     matchNames:
       - qdrant
