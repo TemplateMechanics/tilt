@@ -1,0 +1,49 @@
+---
+# Flagger's built-in `request-success-rate` for the gatewayapi provider queries
+# istio_requests_total with reporter="destination". Ambient never produces that
+# label: ztunnel is L4 only and reports nothing per-request, and a waypoint
+# reports as reporter="waypoint". So the built-in metric finds zero series and
+# Flagger halts with "no values found ... probably hello.hello is not receiving
+# traffic" — while the traffic is flowing perfectly well.
+#
+# This template accepts either label, so the same canary works on ambient with a
+# waypoint and on a sidecar mesh without one.
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: ambient-success-rate
+  namespace: hello
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus-kube-prometheus-prometheus.monitoring:9090
+  # NOTE: no "#" comments inside the query below. Flagger renders the template
+  # onto a single line before sending it, so the first "#" comments out
+  # everything after it and Prometheus answers 400 Bad Request - which Flagger
+  # reports as "Metric query failed", not as a syntax error, so it reads like a
+  # broken Prometheus rather than a broken comment.
+  #
+  # This is a success rate: non-5xx over total. An earlier version opened with
+  # "100 - ...", which inverted it - a service answering every request correctly
+  # scored 0, and Flagger rolled back every release with "0.00 < 99".
+  query: |
+    sum(
+      rate(
+        istio_requests_total{
+          reporter=~"waypoint|destination",
+          destination_workload_namespace="{{ namespace }}",
+          destination_workload=~"{{ target }}",
+          response_code!~"5.."
+        }[{{ interval }}]
+      )
+    )
+    /
+    sum(
+      rate(
+        istio_requests_total{
+          reporter=~"waypoint|destination",
+          destination_workload_namespace="{{ namespace }}",
+          destination_workload=~"{{ target }}"
+        }[{{ interval }}]
+      )
+    ) * 100

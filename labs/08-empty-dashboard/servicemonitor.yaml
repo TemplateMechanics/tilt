@@ -1,0 +1,29 @@
+---
+# Scrape the hello app's metrics. podinfo serves Prometheus metrics on the same
+# port it serves HTTP, and the Service names that port "http".
+#
+# That name is the whole lab. A ServiceMonitor names a PORT BY NAME, and if the
+# name does not exist on the Service, Prometheus selects the Service, creates no
+# target, reports no error, and every panel built on these metrics stays empty
+# forever. This is not hypothetical: it is exactly how the Argo CD dashboard in
+# this repo was broken - the monitor asked for a port called "metrics" while
+# every argocd service names it "http-metrics" - and all 18 panels read as a
+# quiet, healthy component.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hello
+  namespace: monitoring
+  labels:
+    app: hello
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello
+  namespaceSelector:
+    matchNames:
+      - hello
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

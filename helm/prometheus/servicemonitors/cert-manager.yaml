@@ -1,0 +1,38 @@
+---
+# cert-manager metrics had zero series. The repo does ship a kustomize component
+# that flips the chart's own prometheus.servicemonitor.enabled, but no overlay
+# references it, so it has never been applied - and it cannot simply be added to
+# the base, because enabling it before the Prometheus Operator CRDs exist breaks
+# the cert-manager install outright rather than merely losing metrics.
+#
+# A plain ServiceMonitor here sidesteps that: this directory is applied by the
+# prometheus-monitors resource, which already waits for the CRDs. Same result,
+# no ordering trap.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cert-manager
+  namespace: monitoring
+  labels:
+    app: cert-manager
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  namespaceSelector:
+    matchNames:
+      - cert-manager
+  endpoints:
+    # Three services, three different port names for the same 9402 metrics
+    # endpoint. A ServiceMonitor endpoint only matches a service that has
+    # that port name, so all three are listed; naming one would have scraped
+    # a third of cert-manager and looked like it worked.
+    - port: tcp-prometheus-servicemonitor
+      path: /metrics
+      interval: 30s
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+    - port: metrics
+      path: /metrics
+      interval: 30s

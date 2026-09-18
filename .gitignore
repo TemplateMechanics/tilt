@@ -13,3 +13,6 @@ azurite-data/
 scripts/validate/node_modules/
 scripts/validate/package-lock.json
 .browser-check/
+
+# Exported platform root CA and other per-machine artefacts.
+.local/

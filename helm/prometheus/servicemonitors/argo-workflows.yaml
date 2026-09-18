@@ -11,7 +11,10 @@ spec:
       - argo
   selector:
     matchLabels:
-      app.kubernetes.io/name: argo-workflows-controller
+      # ...-workflow-controller, not ...-controller. The chart names the service
+      # argo-workflows-workflow-controller; with the short name this selector
+      # matched nothing and argo_workflows_* had zero series in Prometheus.
+      app.kubernetes.io/name: argo-workflows-workflow-controller
   endpoints:
     - port: metrics
       interval: 30s

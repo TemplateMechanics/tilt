@@ -242,6 +242,11 @@ local_resource(
         # keeping a copy in the repo, so there is exactly one source of truth
         # and a rotated CA cannot silently disagree with the trusted copy.
         CA_FILE="$(mktemp -t dev-root-ca-XXXXXX).crt"
+        # Also keep a copy at a stable path. Anything outside the cluster that
+        # must verify platform TLS needs a file it can mount - the Grafana MCP
+        # container is the current example. A mktemp path changes every run, so
+        # a config referencing it works once and then silently fails.
+        mkdir -p ./.local && STABLE_CA="./.local/dev-root-ca.crt"
         # go-template, not jsonpath. Starlark rejects the backslash-dot escape
         # that jsonpath needs to address the "tls.crt" key, and the Tiltfile
         # then fails to parse with 'invalid escape sequence'. Note this comment
@@ -251,6 +256,7 @@ local_resource(
             echo "ERROR: exported root CA is empty - refusing to touch the trust store"
             exit 1
         fi
+        cp "$CA_FILE" "$STABLE_CA" && echo "Root CA also written to $STABLE_CA"
         FP=$(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
         echo "Root CA fingerprint: $FP"
 

@@ -11,9 +11,15 @@ spec:
       hostname: "*.localhost"
       port: 80
       protocol: HTTP
+      # Only istio-system may attach routes here, and the only route in it is
+      # the 301 to HTTPS. This restriction is what actually forces TLS: an app
+      # HTTPRoute names an exact hostname, which is more specific than the
+      # redirect's "*.localhost", so under `from: All` the app wins on port 80
+      # and keeps serving plaintext while a redirect sits beside it doing
+      # nothing at all.
       allowedRoutes:
         namespaces:
-          from: All
+          from: Same
     - name: https
       hostname: "*.localhost"
       port: 443
