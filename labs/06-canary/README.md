@@ -7,10 +7,18 @@ by watching it promote a good version and refuse a bad one.
 ## Setup
 
 ```
-kubectl apply -f labs/06-canary/loadtester.yaml   # generates the traffic Flagger measures
+kubectl apply -f labs/06-canary/waypoint.yaml         # L7 proxy: gives Flagger request metrics
+kubectl label ns hello istio.io/use-waypoint=waypoint # route hello's traffic through it
+kubectl apply -f labs/06-canary/metric-template.yaml  # success rate, measured the ambient way
+kubectl apply -f labs/06-canary/loadtester.yaml       # generates the traffic Flagger measures
 kubectl apply -f labs/06-canary/canary.yaml
-kubectl -n hello get canary -w                    # wait for Initialized
+kubectl -n hello get canary -w                        # wait for Initialized
 ```
+
+Ambient's ztunnel encrypts and forwards but does not count requests. The
+waypoint does, and without it Flagger finds no success-rate series and rolls
+back every release. `waypoint.yaml` explains why the namespace is labelled
+with a command rather than declared in a file.
 
 The load tester matters: Flagger judges a canary on request success rate, and
 a canary nobody calls has no rate to judge. Without this pod the analysis
@@ -84,6 +92,8 @@ manifests you own:
 kubectl -n hello delete canary hello
 kubectl apply -k examples/hello-world       # hello -> 1/1, route -> hello
 kubectl -n hello delete svc hello-primary hello-canary --ignore-not-found
+kubectl label ns hello istio.io/use-waypoint-   # back to plain ambient for labs 01-03
+kubectl delete -f labs/06-canary/waypoint.yaml -f labs/06-canary/loadtester.yaml -f labs/06-canary/metric-template.yaml
 ```
 
 The declarative state was right the whole time; the live state had drifted.
