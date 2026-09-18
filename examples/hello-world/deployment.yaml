@@ -29,6 +29,20 @@ spec:
           env:
             - name: PODINFO_UI_MESSAGE
               value: "Hello from the platform"
+            # Emit traces, so the Tempo panels on the AI Ops dashboard have
+            # something in them. Without this Tempo ran, was wired up as a
+            # datasource, and received nothing - two permanently empty panels that
+            # read as "no slow requests" when the truth was "nobody sends spans".
+            # podinfo enables tracing only when a service name is set, and reads
+            # its flags from PODINFO_* env vars.
+            - name: PODINFO_OTEL_SERVICE_NAME
+              value: hello
+            # OTLP/gRPC to Tempo. On the `minimal` profile Tempo does not exist;
+            # the exporter drops spans and the app is unaffected.
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: http://tempo.tracing.svc.cluster.local:4317
+            - name: OTEL_EXPORTER_OTLP_TRACES_INSECURE
+              value: "true"
           # Probes are what turn "the container started" into "the app is
           # ready". Without readinessProbe, the Service sends traffic the moment
           # the process exists, and a slow-starting app returns errors for its
