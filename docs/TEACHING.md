@@ -48,6 +48,17 @@ Also worth doing once:
 ./scripts/check-mcp.sh            # if you plan to demo the Grafana MCP
 ```
 
+If you will show the AI Ops dashboard, give its trace tables something to show.
+They list only slow (>250ms) and failed traces, and a quiet platform has
+neither, so the tables are empty unless you make some:
+
+```bash
+for p in delay/1 delay/2 status/500 status/503; do curl -sk https://hello.localhost/$p -o /dev/null; done
+```
+
+hello is the only workload emitting spans. An empty table means nobody sent a
+slow request in the time range, not that tracing is broken.
+
 ## Profiles, and what to start
 
 `up` defaults to `minimal`: Flux, Gateway API, Istio ambient, cert-manager, the

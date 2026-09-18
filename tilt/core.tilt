@@ -207,6 +207,11 @@ local_resource(
         kubectl -n istio-system get gateway localhost-gateway
         echo "Gateway programmed and serving the wildcard certificate"
     """),
+    # Without deps a local_resource runs once and never again, so edits to
+    # the gateway, the certificate SANs or the HTTPS redirect never reached
+    # the cluster while Tilt stayed green. Found when https-redirect differed
+    # live from the repo. ROOT, not "./": deps resolve relative to this file.
+    deps=[ROOT + "/helm/istio/gateway"],
     labels=["Infrastructure"],
     resource_deps=["istio", "cert-manager-pki"],
 )
@@ -218,6 +223,9 @@ local_resource(
         kubectl -n hello rollout status deploy/hello --timeout=180s
         kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
     """),
+    # Re-apply on edit, for the same reason as istio-gateway above. Lab 02
+    # has students edit httproute.yaml, and this is what applies it.
+    deps=[ROOT + "/examples/hello-world"],
     labels=["Apps"],
     links=["https://hello.localhost"],
     resource_deps=["istio-gateway"],
