@@ -11,6 +11,11 @@ metadata:
   labels:
     app.kubernetes.io/name: hello
 spec:
+  # Kept, although lab 05 puts an HPA on this Deployment. Two owners of one
+  # field: every re-apply resets it to 1 and the HPA sets it back. Measured
+  # under lab 05 load: 3 of 4 pods terminated at once, back to 4 ready in 13s.
+  # Removing it would stop that, but lab 01 relies on `kubectl apply -k`
+  # restoring the Deployment after students scale it to 0. Lab 05 teaches it.
   replicas: 1
   selector:
     matchLabels:
