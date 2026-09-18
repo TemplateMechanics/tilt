@@ -94,8 +94,13 @@ local_resource(
             if kubectl get crd servicemonitors.monitoring.coreos.com >/dev/null 2>&1 && \
                kubectl get crd podmonitors.monitoring.coreos.com >/dev/null 2>&1; then
                 echo "CRDs ready — applying monitors..."
-                kubectl apply -k ./helm/prometheus/servicemonitors/ 2>&1
-                kubectl apply -k ./helm/prometheus/podmonitors/ 2>&1
+                # Fail the resource if either apply fails. Without this, a
+                # kustomization naming a deleted file (it happened: traefik.yaml)
+                # applied nothing, printed "applied" and showed green in Tilt,
+                # while every ServiceMonitor edit silently stopped reaching the
+                # cluster.
+                kubectl apply -k ./helm/prometheus/servicemonitors/ 2>&1 || exit 1
+                kubectl apply -k ./helm/prometheus/podmonitors/ 2>&1 || exit 1
                 echo "ServiceMonitors and PodMonitors applied."
                 exit 0
             fi
