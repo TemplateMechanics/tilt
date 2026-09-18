@@ -8,7 +8,10 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: loki
+      # app.kubernetes.io/name, not app: the loki chart stopped setting a bare
+      # `app` label, so this selector matched nothing and every panel on the
+      # Loki dashboard was empty while Loki itself was healthy.
+      app.kubernetes.io/name: loki
   namespaceSelector:
     matchNames:
       - logging

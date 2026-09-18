@@ -1,0 +1,41 @@
+---
+# A human-facing cluster UI. This repo already has Grafana, Kiali, Argo CD, Tilt
+# and Backstage, but none of them answer "what is actually in this namespace and
+# why is that pod unhappy" - which is the question a student asks first.
+#
+# Headlamp moved OUT of CNCF Sandbox into kubernetes-sigs under SIG-UI, and the
+# Kubernetes Dashboard it replaces is archived: that project's own README now
+# recommends Headlamp, and its chart repository returns 404.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: headlamp
+      version: "0.45.0"
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+        namespace: flux-system
+  values:
+    # The chart ships `resources: {}` and says so deliberately, recommending
+    # against defaults on small clusters. On a teaching cluster an unbounded pod
+    # is the one that gets evicted first, so it gets explicit numbers here.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    config:
+      # Local development only. Anyone who can reach the gateway is already on
+      # this machine, and an auth prompt in front of a teaching UI is friction
+      # with no security benefit here. Do not carry this to a shared cluster.
+      pluginsDir: /headlamp/plugins
+    serviceAccount:
+      create: true

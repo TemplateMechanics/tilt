@@ -32,7 +32,13 @@ spec:
     maxWeight: 50
     stepWeight: 25
     metrics:
-      - name: request-success-rate
+      # Not the built-in request-success-rate: it queries
+      # reporter="destination", a label ambient never emits. See
+      # metric-template.yaml for why, and what replaces it.
+      - name: ambient-success-rate
+        templateRef:
+          name: ambient-success-rate
+          namespace: hello
         thresholdRange:
           min: 99
         interval: 1m

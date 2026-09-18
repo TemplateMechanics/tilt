@@ -67,6 +67,12 @@
       "configKey": "crossplane_apps.harbor"
     },
     {
+      "name": "headlamp",
+      "host": "headlamp.localhost",
+      "path": "/",
+      "expect": "Headlamp"
+    },
+    {
       "name": "hello",
       "host": "hello.localhost",
       "path": "/",

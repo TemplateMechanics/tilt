@@ -1,35 +1,24 @@
+---
+# Dapr's services carry app.kubernetes.io/* labels only - there is no bare `app`
+# label and no Service named dapr-operator at all, so the previous two monitors
+# selected nothing and every dapr_* metric was missing while dapr ran fine.
+# One monitor on part-of=dapr covers the operator (dapr-api), sentry, placement,
+# scheduler and the sidecar injector, all of which publish a "metrics" port.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: dapr
   namespace: monitoring
   labels:
-    release: prometheus
+    app: dapr
 spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: dapr
   namespaceSelector:
     matchNames:
       - dapr-system
-  selector:
-    matchLabels:
-      app: dapr-operator
   endpoints:
     - port: metrics
-      interval: 30s
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: dapr-sidecar-injector
-  namespace: monitoring
-  labels:
-    release: prometheus
-spec:
-  namespaceSelector:
-    matchNames:
-      - dapr-system
-  selector:
-    matchLabels:
-      app: dapr-sidecar-injector
-  endpoints:
-    - port: metrics
+      path: /metrics
       interval: 30s
