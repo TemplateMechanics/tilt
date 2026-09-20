@@ -89,6 +89,26 @@ willing to experiment once they know the environment is disposable.
 Lab fixtures live in their own namespaces (`lab07`, `lab09`, `lab10`) and can be
 deleted individually without touching the platform.
 
+## When a learner is stuck, and the clock is running
+
+`./scripts/platform.sh reset` is the guaranteed fix, and it costs a full
+rebuild, so it is the wrong answer during a session. Each lab can be put back
+on its own:
+
+| Lab | Put it back with |
+|---|---|
+| 01 | `kubectl apply -k examples/hello-world` |
+| 02 | `git checkout -- examples/hello-world/httproute.yaml helm/istio/gateway/base/certificate.yaml` (Tilt re-applies) |
+| 03 | `kubectl label ns hello istio.io/dataplane-mode=ambient --overwrite && kubectl -n hello rollout restart deploy/hello` |
+| 04 | `./labs/04-break-tls/fix.sh` |
+| 05 | `kubectl delete -f labs/05-scale-it/hpa.yaml` |
+| 06 | the "Leaving the lab" block in its README - deleting the Canary alone leaves `hello.localhost` returning 500 |
+| 07-10 | `./labs/NN-*/fix.sh` |
+
+Lab 06 is the one to watch. It hands `hello` to Flagger, and labs 01-05 fail
+until it is exited properly. If someone runs it early, that is what has
+happened to their cluster.
+
 ## Things learners reliably get wrong
 
 - **Testing immediately after a fix.** Prometheus reloads on a timer, kindnet
@@ -108,8 +128,12 @@ deleted individually without touching the platform.
 `platform.sh` is bash. On Windows that means Git Bash, not PowerShell — see the
 README prerequisites. Docker Desktop is the tested default; Podman works and
 needs a WSL kernel carrying `nft_fib_inet` (see `docs/CONTAINER-RUNTIMES.md`).
-Have people run `./scripts/platform.sh up` *before* they arrive; the first run
-pulls a lot of images.
+Send people [STUDENT-SETUP.md](STUDENT-SETUP.md) a few days ahead. It walks
+them through installing the tools, building the cluster at home, and running
+`./scripts/student-check.sh`, which verifies the platform actually answers a
+request rather than merely having installed. Ask for that script's output from
+anyone you have not taught before; it turns "it didn't work" on the morning
+into a fixable email the week before.
 
 ## If you extend it
 
