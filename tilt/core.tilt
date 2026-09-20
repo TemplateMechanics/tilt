@@ -289,11 +289,29 @@ local_resource(
                 fi
                 ;;
             MINGW*|MSYS*|CYGWIN*)
-                # certutil compares by content, so re-adding an identical cert is
-                # a no-op; -user avoids needing an elevated shell.
-                certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null \
-                    && echo "Root CA trusted in Windows user Root store" \
-                    || { echo "Could not trust Root CA automatically. Run in an admin PowerShell:"; echo "  certutil -addstore Root $CA_FILE"; }
+                # Windows ALWAYS asks before adding a root CA to the user store.
+                # certutil and the .NET X509Store API both raise the same modal
+                # dialog; -f does not suppress it. Unanswered, that dialog blocks
+                # this resource, and Tilt runs local resources one at a time, so
+                # it blocks the whole build: measured, `tilt ci` from an empty
+                # cluster timed out after 30 minutes with 23 resources queued
+                # behind a prompt nobody had clicked, and a stray dialog from an
+                # earlier run was still open three days later.
+                #
+                # Bounded, an unanswered prompt costs two minutes and one red
+                # resource instead of the platform. certutil compares by content,
+                # so re-adding an identical cert is a no-op and does not prompt.
+                echo "Windows will ask you to confirm installing the development root CA."
+                echo "Click Yes. Ignoring it fails this step in 2 minutes; nothing else is blocked."
+                if timeout 120 certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null; then
+                    echo "Root CA trusted in Windows user Root store"
+                else
+                    echo "ERROR: the root CA was NOT trusted (prompt unanswered, or certutil failed)."
+                    echo "The platform still works, but every https://*.localhost page will warn,"
+                    echo "and labs 01 and 04 assert that TLS verifies. Fix it with:"
+                    echo "  ./scripts/trust-ca.sh"
+                    exit 1
+                fi
                 ;;
             *)
                 echo "Unsupported OS for automatic trust. Trust this file manually: $CA_FILE"
