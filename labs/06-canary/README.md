@@ -39,6 +39,18 @@ kubectl -n hello get canary hello -w
 Watch `WEIGHT` step 25 → 50 while the success rate holds, then `Promoting`,
 then `Succeeded`. Reload the page: the new message, served by the primary.
 
+The first analysis round often logs this, and it is not a failure:
+
+```
+Halt advancement no values found for custom metric: ambient-success-rate: no values found
+```
+
+The waypoint has not served enough requests yet for a rate to exist, so
+Flagger waits and tries again. Seen twice on a fresh cluster before the same
+release promoted 102s later. It matters only if it never stops - which is
+what happens when there is no waypoint at all, and is why the setup labels
+the namespace.
+
 ## Ship a bad version
 
 ```
