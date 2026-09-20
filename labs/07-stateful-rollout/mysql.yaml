@@ -82,12 +82,25 @@ spec:
             limits:
               cpu: 1000m
               memory: 1Gi
+          # A query, not `mysqladmin ping`. Measured in this pod: ping exits 0
+          # with a WRONG password, and over TCP it exits 0 while printing
+          # "Host '127.0.0.1' is not allowed to connect". A probe that cannot
+          # fail is worse than no probe: this one reported Ready for 17 minutes
+          # on a database whose root account was unusable, which is how a
+          # half-finished first-time init went unnoticed until the grader (not
+          # the probe) complained.
+          #
+          # No -h: MySQL 8 creates root@localhost only, so a TCP connection as
+          # root is refused outright. The socket is the connection that works.
+          # failureThreshold x periodSeconds must exceed first-boot init on a
+          # cold node, or the kubelet restarts the pod mid-initialisation and
+          # leaves a data directory that never gets its root password set.
           readinessProbe:
             exec:
-              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\""]
+              command: ["sh", "-c", "mysql -uroot -p\"$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1'"]
             initialDelaySeconds: 20
             periodSeconds: 10
-            failureThreshold: 10
+            failureThreshold: 30
       volumes:
         - name: mysql-storage
           persistentVolumeClaim:
