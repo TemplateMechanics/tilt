@@ -82,9 +82,14 @@ to show.
 ./scripts/platform.sh reset       # destroys the cluster and rebuilds it empty
 ```
 
-About a minute to an empty cluster, then the profile build. This is what makes
-it safe to let people break things — say so early, because learners are far more
-willing to experiment once they know the environment is disposable.
+Measured on this machine: 4m55s to an empty cluster, then 8m29s more before
+hello.localhost answered. The heavier profiles keep building for a while after
+that. Budget accordingly — a reset is not a coffee break, and almost all of it
+is image pulls, so a slow connection makes it worse.
+
+That it is disposable at all is what makes it safe to let people break things —
+say so early, because learners are far more willing to experiment once they
+know the environment can be thrown away.
 
 Lab fixtures live in their own namespaces (`lab07`, `lab09`, `lab10`) and can be
 deleted individually without touching the platform.
