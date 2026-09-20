@@ -6,6 +6,12 @@
 # front of, and that step gives up after two minutes rather than blocking the
 # platform. This is how you do it afterwards, without a rebuild.
 #
+# Until it is done, every curl and browser check against the platform fails
+# (lab 01: 3 of 6 checks, including ERR_CERT_AUTHORITY_INVALID in Chrome).
+# The labs' TLS-code assertions verify against the CA read from the cluster,
+# so they pass either way - a green "TLS verifies" line says nothing about
+# your trust store.
+#
 # Each cluster mints its own CA, so a `reset` means a new certificate and one
 # more entry in your trust store. `--list` shows what has accumulated.
 set -uo pipefail
