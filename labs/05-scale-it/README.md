@@ -73,9 +73,16 @@ grader then fails. It tells you which case you are in.
 ```
 kubectl delete -f labs/05-scale-it/hpa.yaml
 kubectl -n hello delete pod hello-load --ignore-not-found
+kubectl apply -k examples/hello-world            # replicas back to 1
 ```
 
-Leave the HPA behind and it follows you. In lab 06 Flagger copies the
+That last line is not optional, and it is worth pausing on. Deleting an HPA
+does not undo its last decision: the Deployment keeps whatever replica count
+the HPA left it with — measured here, four, five minutes after the load
+stopped and the HPA was gone. Nothing is scaling it back, because the thing
+that scaled it up no longer exists.
+
+Leave any of this behind and it follows you. In lab 06 Flagger copies the
 candidate's replica count into `hello-primary` at promotion, and the HPA had
 scaled the candidate. The primary came out at 4 replicas instead of 1, with
 no HPA of its own to bring it back down.
