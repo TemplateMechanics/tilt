@@ -15,6 +15,18 @@ Two of them catch people out:
   one prints a version-skew warning on *every* command, and you will spend the
   session reading that warning instead of the output underneath it.
 
+  Check which one you are actually running, not just that one is installed:
+
+  ```bash
+  kubectl version -o json | grep gitVersion     # client vs server
+  ```
+
+  Docker Desktop installs its own kubectl and puts it on your PATH. On the
+  machine this was written on it was v1.34.1 against a v1.36.1 cluster, and
+  it shadowed everything else. Installing a current kubectl somewhere earlier
+  on PATH fixes it; leave Docker Desktop's copy alone, because Docker Desktop
+  replaces it on update anyway.
+
 ## 2. Bring the platform up at home
 
 ```bash
