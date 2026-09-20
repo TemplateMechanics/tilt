@@ -307,8 +307,12 @@ local_resource(
                     echo "Root CA trusted in Windows user Root store"
                 else
                     echo "ERROR: the root CA was NOT trusted (prompt unanswered, or certutil failed)."
-                    echo "The platform still works, but every https://*.localhost page will warn,"
-                    echo "and labs 01 and 04 assert that TLS verifies. Fix it with:"
+                    echo "Pods keep running, but nothing that speaks HTTPS to the platform"
+                    echo "verifies: measured, lab 01 fails 3 of 6 checks (curl 000, empty body,"
+                    echo "browser ERR_CERT_AUTHORITY_INVALID) and lab 04 fails on the OS trust"
+                    echo "store. The in-cluster TLS checks still pass - they use the cluster CA"
+                    echo "directly - so a green TLS line is not evidence of a trusted store."
+                    echo "Fix it with:"
                     echo "  ./scripts/trust-ca.sh"
                     exit 1
                 fi
