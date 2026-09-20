@@ -44,7 +44,13 @@ if [ ! -s "$CA_FILE" ]; then
     exit 1
 fi
 FP=$(fp_of "$CA_FILE")
-echo "CA fingerprint: $FP"
+echo "CA fingerprint (SHA-256): $FP"
+# Windows identifies certificates by SHA-1 thumbprint, and --list prints those.
+# Comparing the SHA-256 above against a thumbprint says "not trusted" about a
+# CA that is trusted - it cost an hour here. Print both.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+    echo "Windows thumbprint (SHA-1): $(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha1 | sed 's/.*=//' | tr -d ':')" ;;
+esac
 
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
@@ -72,7 +78,11 @@ esac
 
 # Prove it, rather than trusting the exit code of the thing that just ran.
 # A curl WITHOUT -k is the only evidence that the trust store took effect.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://hello.localhost/ 2>/dev/null)
+# --ssl-no-revoke matters on Windows: curl there is a Schannel build, and
+# Schannel tries a revocation check that a local CA with no CRL endpoint
+# cannot satisfy. Without the flag this returns 000 / exit 35 on a correctly
+# trusted CA, which reads exactly like a trust failure and is not one.
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --ssl-no-revoke         --resolve "hello.localhost:443:127.0.0.1" https://hello.localhost/ 2>/dev/null)
 if [ "$code" = "200" ]; then
     echo "Verified: https://hello.localhost returns 200 without -k."
 else
