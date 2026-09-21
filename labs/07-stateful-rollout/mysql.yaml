@@ -92,15 +92,19 @@ spec:
           #
           # No -h: MySQL 8 creates root@localhost only, so a TCP connection as
           # root is refused outright. The socket is the connection that works.
-          # failureThreshold x periodSeconds must exceed first-boot init on a
-          # cold node, or the kubelet restarts the pod mid-initialisation and
-          # leaves a data directory that never gets its root password set.
+          #
+          # What interrupted first-boot init was break.sh's rollout restart, not
+          # the kubelet - a failing readiness probe never restarts a container,
+          # and there is no liveness probe here on purpose, so a slow init is
+          # left alone. The guard against that interruption is in
+          # scripts/verify-labs.sh, which now waits for the rollout before
+          # breaking anything.
           readinessProbe:
             exec:
               command: ["sh", "-c", "mysql -uroot -p\"$MYSQL_ROOT_PASSWORD\" -e 'SELECT 1'"]
             initialDelaySeconds: 20
             periodSeconds: 10
-            failureThreshold: 30
+            failureThreshold: 10
       volumes:
         - name: mysql-storage
           persistentVolumeClaim:

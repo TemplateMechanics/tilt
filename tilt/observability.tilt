@@ -109,6 +109,11 @@ local_resource(
         done
         echo "Timeout waiting for Prometheus Operator CRDs"; exit 1
     """),
+    # Without deps this ran once at `tilt up` and never again, so a
+    # ServiceMonitor edit (the Loki and Qdrant double-scrape fixes) reached
+    # only clusters started after it. ROOT, not "./": deps resolve relative
+    # to this file.
+    deps=[ROOT + "/helm/prometheus/servicemonitors", ROOT + "/helm/prometheus/podmonitors"],
     labels=["Observability"],
     resource_deps=["prometheus"]
 )

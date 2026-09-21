@@ -34,8 +34,13 @@ else bad "bash ${BASH_VERSION%%(*} is too old - needs 4+"; fi
 
 echo
 echo "== container daemon"
-if docker info >/dev/null 2>&1; then
-    ok "container daemon is running"
+# Podman is a supported runtime (docs/CONTAINER-RUNTIMES.md); checking only
+# for docker failed every Podman user whose setup worked.
+rt=""
+if docker info >/dev/null 2>&1; then rt=docker
+elif podman info >/dev/null 2>&1; then rt=podman; fi
+if [ -n "$rt" ]; then
+    ok "container daemon is running ($rt)"
     # kind pulls images into the node, not the host, so a reset re-downloads
     # up to ~10 GB (measured: 9.7 GB with every profile on). A full disk shows up as pods stuck in ContainerCreating with no
     # obvious error.
@@ -43,7 +48,9 @@ if docker info >/dev/null 2>&1; then
     # reports its sparse virtual disk and cheerfully claims 1.5 TB free on a
     # laptop that has 12 GB left.
     home_fs="${HOME:-/}"
-    free_gb=$(df -BG "$home_fs" 2>/dev/null | awk 'NR==2{gsub("G","",$4); print $4}')
+    # -Pk is POSIX: the same columns from GNU df, busybox df and macOS's BSD
+    # df. -BG is GNU-only, and on a Mac this check silently never ran.
+    free_gb=$(df -Pk "$home_fs" 2>/dev/null | awk 'NR==2{print int($4/1048576)}')
     if [ -n "${free_gb:-}" ] && [ "$free_gb" -lt 20 ] 2>/dev/null; then
         warn "only ${free_gb}G free on $home_fs - the platform stores up to ~10G of images; keep 15G free"
     elif [ -n "${free_gb:-}" ]; then ok "${free_gb}G free on $home_fs"
@@ -59,16 +66,29 @@ echo "== version skew"
 # An older kubectl prints a warning on every single command, and students
 # chase the warning instead of the lab.
 if command -v kubectl >/dev/null 2>&1; then
-    cv=$(kubectl version --client -o json 2>/dev/null | python -c "import sys,json;print(json.load(sys.stdin)['clientVersion']['minor'])" 2>/dev/null)
+    # No python: stock macOS and recent Debian/Ubuntu ship only python3, and on
+    # Windows `python3` is usually the Microsoft Store stub, which prompts to
+    # install rather than running. The JSON lists client then server, so the
+    # first "minor" is the client's and the second the server's.
+    minors() { sed -n 's/.*"minor": *"\([0-9]*\).*/\1/p'; }
+    cv=$(kubectl version --client -o json 2>/dev/null | minors | head -1)
     # Prefer the running cluster; kind/cluster.yaml pins no node image, so the
     # version is whatever the installed kind defaults to.
-    want=$(kubectl --context "$CONTEXT" version -o json 2>/dev/null | python -c "import sys,json;print(json.load(sys.stdin)['serverVersion']['minor'].strip('+'))" 2>/dev/null)
+    want=$(kubectl --context "$CONTEXT" version -o json 2>/dev/null | minors | sed -n 2p)
     [ -n "$want" ] || want=$(grep -oE 'kindest/node:v1\.[0-9]+' "$ROOT/kind/cluster.yaml" 2>/dev/null | head -1 | grep -oE '[0-9]+$')
+    # Both must be plain integers before any arithmetic. A bad parse once
+    # produced a non-empty control character here: it passed a -n test, the
+    # arithmetic then failed, and this whole section printed nothing while the
+    # summary said "Ready". Garbage must reach the warn branch, not vanish.
+    case "$cv$want" in *[!0-9]*) cv=""; want="" ;; esac
     if [ -n "$cv" ] && [ -n "$want" ]; then
         d=$((want - cv)); [ "$d" -lt 0 ] && d=$(( -d ))
         if [ "$d" -le 1 ]; then ok "kubectl 1.$cv against cluster 1.$want"
         else warn "kubectl 1.$cv vs cluster 1.$want - expect a skew warning on every command"; fi
     else warn "could not compare kubectl and cluster versions"; fi
+else
+    # Say so. An empty section reads as "nothing wrong here".
+    warn "skipped - kubectl not found (see tools, above)"
 fi
 
 echo
