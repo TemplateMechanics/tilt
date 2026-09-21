@@ -66,12 +66,14 @@ case "$(uname -s)" in
     Darwin)
         bash ./archive/openssl-certs/sudo-helper.sh \
             "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $CA_FILE" \
-            && echo "Trusted in the macOS System keychain."
+            && echo "Trusted in the macOS System keychain." \
+            || { echo "ERROR: not trusted (sudo declined or security failed)."; exit 1; }
         ;;
     Linux)
         bash ./archive/openssl-certs/sudo-helper.sh \
             "cp $CA_FILE /usr/local/share/ca-certificates/dev-root-ca.crt && update-ca-certificates" \
-            && echo "Trusted in the Linux certificate store."
+            && echo "Trusted in the Linux certificate store." \
+            || { echo "ERROR: not trusted (sudo declined or update-ca-certificates failed)."; exit 1; }
         ;;
     *)  echo "Unsupported OS. Trust this file by hand: $CA_FILE"; exit 1 ;;
 esac
@@ -82,10 +84,21 @@ esac
 # Schannel tries a revocation check that a local CA with no CRL endpoint
 # cannot satisfy. Without the flag this returns 000 / exit 35 on a correctly
 # trusted CA, which reads exactly like a trust failure and is not one.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --ssl-no-revoke         --resolve "hello.localhost:443:127.0.0.1" https://hello.localhost/ 2>/dev/null)
-if [ "$code" = "200" ]; then
-    echo "Verified: https://hello.localhost returns 200 without -k."
-else
-    echo "WARNING: https://hello.localhost still does not verify (got '${code:-no response}')."
-    echo "Browsers cache TLS state - restart the browser before deciding it failed."
-fi
+# TRUST_CHECK_HOST exists so the failure branch can be tested: a host the
+# certificate does not name fails TLS the same way an untrusted CA does.
+host="${TRUST_CHECK_HOST:-hello.localhost}"
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --ssl-no-revoke \
+        --resolve "$host:443:127.0.0.1" "https://$host/" 2>/dev/null)
+# Any HTTP status proves the chain verified: without -k, a TLS failure aborts
+# before HTTP and curl reports 000. So 503 means "trusted, app down" - which
+# an earlier version of this script called a trust failure and exited 2 on.
+case "${code:-000}" in
+    200) echo "Verified: https://$host returns 200 without -k." ;;
+    000) # Non-zero, not a warning: `./scripts/trust-ca.sh && next-step` must
+         # not carry on as if TLS verified when the evidence says it does not.
+         echo "ERROR: https://$host does not verify over TLS (no response, code 000)."
+         echo "The certificate is installed but not trusted for this host, or nothing is listening."
+         exit 2 ;;
+    *)   echo "Verified TLS: https://$host answered over a trusted connection (HTTP $code)."
+         echo "The CA is trusted. HTTP $code is the app, not the certificate - check: kubectl -n hello get pods" ;;
+esac
