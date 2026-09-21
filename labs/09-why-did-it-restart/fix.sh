@@ -14,7 +14,11 @@ $K -n lab09 patch deploy impatient --type=json -p '[{"op":"add","path":"/spec/te
 echo "impatient: added a startupProbe (up to 120s to start, then liveness takes over)"
 echo
 echo "waiting for both to settle..."
-wait_for 240 "both deployments ready" bash -c "
-  [ \"\$($K -n lab09 get deploy starved -o jsonpath='{.status.readyReplicas}')\" = 1 ] &&
-  [ \"\$($K -n lab09 get deploy impatient -o jsonpath='{.status.readyReplicas}')\" = 1 ]"
+# `rollout status`, not readyReplicas. readyReplicas hits 1 while the previous
+# ReplicaSet's pod is still terminating, and the grader - correctly - wants one
+# pod from the current ReplicaSet. On a cold node, where image pulls are slow,
+# that gap is wide enough that this script returned before the lab was fixed
+# and the grader then failed a lab that was on its way to being right.
+$K -n lab09 rollout status deploy/starved --timeout=300s
+$K -n lab09 rollout status deploy/impatient --timeout=300s
 $K -n lab09 get pods

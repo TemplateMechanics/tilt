@@ -207,6 +207,11 @@ local_resource(
         kubectl -n istio-system get gateway localhost-gateway
         echo "Gateway programmed and serving the wildcard certificate"
     """),
+    # Without deps a local_resource runs once and never again, so edits to
+    # the gateway, the certificate SANs or the HTTPS redirect never reached
+    # the cluster while Tilt stayed green. Found when https-redirect differed
+    # live from the repo. ROOT, not "./": deps resolve relative to this file.
+    deps=[ROOT + "/helm/istio/gateway"],
     labels=["Infrastructure"],
     resource_deps=["istio", "cert-manager-pki"],
 )
@@ -218,6 +223,9 @@ local_resource(
         kubectl -n hello rollout status deploy/hello --timeout=180s
         kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
     """),
+    # Re-apply on edit, for the same reason as istio-gateway above. Lab 02
+    # has students edit httproute.yaml, and this is what applies it.
+    deps=[ROOT + "/examples/hello-world"],
     labels=["Apps"],
     links=["https://hello.localhost"],
     resource_deps=["istio-gateway"],
@@ -281,11 +289,33 @@ local_resource(
                 fi
                 ;;
             MINGW*|MSYS*|CYGWIN*)
-                # certutil compares by content, so re-adding an identical cert is
-                # a no-op; -user avoids needing an elevated shell.
-                certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null \
-                    && echo "Root CA trusted in Windows user Root store" \
-                    || { echo "Could not trust Root CA automatically. Run in an admin PowerShell:"; echo "  certutil -addstore Root $CA_FILE"; }
+                # Windows ALWAYS asks before adding a root CA to the user store.
+                # certutil and the .NET X509Store API both raise the same modal
+                # dialog; -f does not suppress it. Unanswered, that dialog blocks
+                # this resource, and Tilt runs local resources one at a time, so
+                # it blocks the whole build: measured, `tilt ci` from an empty
+                # cluster timed out after 30 minutes with 23 resources queued
+                # behind a prompt nobody had clicked, and a stray dialog from an
+                # earlier run was still open three days later.
+                #
+                # Bounded, an unanswered prompt costs two minutes and one red
+                # resource instead of the platform. certutil compares by content,
+                # so re-adding an identical cert is a no-op and does not prompt.
+                echo "Windows will ask you to confirm installing the development root CA."
+                echo "Click Yes. Ignoring it fails this step in 2 minutes; nothing else is blocked."
+                if timeout 120 certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null; then
+                    echo "Root CA trusted in Windows user Root store"
+                else
+                    echo "ERROR: the root CA was NOT trusted (prompt unanswered, or certutil failed)."
+                    echo "Pods keep running, but nothing that speaks HTTPS to the platform"
+                    echo "verifies: measured, lab 01 fails 3 of 6 checks (curl 000, empty body,"
+                    echo "browser ERR_CERT_AUTHORITY_INVALID) and lab 04 fails on the OS trust"
+                    echo "store. The in-cluster TLS checks still pass - they use the cluster CA"
+                    echo "directly - so a green TLS line is not evidence of a trusted store."
+                    echo "Fix it with:"
+                    echo "  ./scripts/trust-ca.sh"
+                    exit 1
+                fi
                 ;;
             *)
                 echo "Unsupported OS for automatic trust. Trust this file manually: $CA_FILE"

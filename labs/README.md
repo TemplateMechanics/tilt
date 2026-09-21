@@ -30,10 +30,12 @@ Flagger and must be exited before 01 and 03 pass again.
 
 A check that cannot fail is worse than none — it reads as evidence. Each
 `check.sh` was run once against a deliberately broken state before it was
-trusted, and the break/fix scripts in labs 04 and 07 are the fixtures for
-that. If you add a lab, do the same and say so in its README.
+trusted, and the break/fix scripts in labs 04, 07, 08, 09 and 10 are the
+fixtures for that. If you add a lab, do the same and say so in its README.
 
 ## Reset
 
-`./scripts/platform.sh reset` destroys the cluster and rebuilds it empty in
-about a minute. That is what makes it safe to break things.
+`./scripts/platform.sh reset` destroys the cluster and gives you an empty one
+(measured: 4m55s), then `up` rebuilds the platform (8.5 minutes more before
+hello answers). That is what makes it safe to break things — but it is not
+free, so each lab also says how to put back just what it changed.

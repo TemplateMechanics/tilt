@@ -143,6 +143,7 @@ cmd_ci() {
     echo "  $pass passed, $fail failed"
     echo "== routed hostnames have SANs =="; python scripts/ci/check-route-hostnames.py || fail=$((fail+1))
     echo "== charts pinned ==";              python scripts/ci/check-chart-pins.py     || fail=$((fail+1))
+    echo "== scripts executable in git ==";  python scripts/ci/check-exec-bits.py      || fail=$((fail+1))
     [ "$fail" -eq 0 ] && echo "all checks passed" || { echo "$fail failure(s)"; exit 1; }
 }
 

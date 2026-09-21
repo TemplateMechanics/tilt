@@ -35,9 +35,10 @@ minutes. When Tilt shows `hello-world` green:
 
 Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
 files, and its README walks through breaking each one. Then work through
-[`labs/`](labs/README.md): seven graded exercises — routing, TLS, the mesh,
-autoscaling, canaries, stateful rollouts — each with a `check.sh` that proves
-you did it, and a `reset` that makes breaking things cheap.
+[`labs/`](labs/README.md): ten graded exercises — routing, TLS, the mesh,
+autoscaling, canaries, stateful rollouts, and three on diagnosing systems that
+look healthy and are not — each with a `check.sh` that proves you did it, and
+a `reset` that makes breaking things cheap.
 
 ```bash
 ./scripts/platform.sh hello       # deploy hello-world and prove it in a browser
@@ -363,13 +364,15 @@ annotations:
 ```
 
 Teaching from this platform: see [docs/TEACHING.md](docs/TEACHING.md).
+Attending a session: see [docs/STUDENT-SETUP.md](docs/STUDENT-SETUP.md), which
+is the checklist to work through *before* the day.
 
 ## Prerequisites
 
 | Tool | Version | Installation |
 |------|---------|--------------|
 | A container daemon | Latest | Docker Desktop is the tested default; Podman also works. See [docs/CONTAINER-RUNTIMES.md](docs/CONTAINER-RUNTIMES.md) |
-| kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ (the tested path; Docker Desktop Kubernetes also works via the docker-desktop overlays) |
+| kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ — the only tested path. `helm/*/overlays/docker-desktop/` exists for Docker Desktop's built-in Kubernetes and is **not** exercised by CI or by any run of this platform; treat it as a starting point, not a supported path. |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
