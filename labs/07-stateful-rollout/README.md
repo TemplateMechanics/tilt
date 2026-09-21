@@ -62,8 +62,17 @@ time; the live state had drifted.
 ./scripts/platform.sh lab 07
 ```
 
-The grader asks the database directly — `mysqladmin ping` — rather than asking
-Kubernetes whether a pod is Ready. A Ready pod only means a probe passed.
+The grader asks the database directly — it runs `SELECT 1` as root — rather
+than asking Kubernetes whether a pod is Ready. A Ready pod only means a probe
+passed, and a probe is only as good as the question it asks.
+
+This lab used to prove that the hard way. Its readiness probe was
+`mysqladmin ping`, which exits 0 even with a wrong password. On a cold cluster
+the database's first-time setup was interrupted, root's password was never
+set, and the pod reported `1/1 Ready` for seventeen minutes while refusing
+every connection. The probe could not fail, so it said nothing. It is a
+`SELECT` now. If you remember one thing from this lab, make it: before you
+trust a check, find out what it takes to make it fail.
 
 ## Clean up
 

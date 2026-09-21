@@ -32,7 +32,11 @@ CLUSTER=tiltdev-podman KIND_CONFIG=kind/cluster-alt-ports.yaml \
 
 `TRUST_CA=0` skips installing that cluster's root CA into your OS trust store.
 Use it for a throwaway cluster: every cluster mints its own CA, and on Windows
-removing one needs a GUI confirmation that cannot be scripted.
+removing one needs a GUI confirmation that cannot be scripted. So does adding
+one: Windows asks before any root CA goes into the user store, whichever API
+is used. The Tilt step gives up after two minutes rather than blocking the
+build; `./scripts/trust-ca.sh` adds it afterwards and `--list` shows the CAs
+that have piled up.
 
 Be aware of what that costs. The lab graders and `./scripts/platform.sh check`
 verify TLS against the **OS trust store on purpose**, with no `-k` and no
