@@ -33,6 +33,9 @@ cost real days on this platform.
 ./scripts/verify-labs.sh          # runs each automated lab broken AND fixed
 ```
 
+Allow about twenty minutes for `verify-labs.sh` (measured: 18 and 22 minutes
+on two runs); start it before you set up the room, not after.
+
 `verify-labs.sh` is the one that matters. It applies each lab's fixture, grades
 it, breaks it, checks the grader **fails**, fixes it and grades again. Labs 05
 and 06 were both silently unpassable for weeks before this existed — a grader
@@ -106,7 +109,7 @@ on its own:
 | 02 | `git checkout -- examples/hello-world/httproute.yaml helm/istio/gateway/base/certificate.yaml` (Tilt re-applies) |
 | 03 | `kubectl label ns hello istio.io/dataplane-mode=ambient --overwrite && kubectl -n hello rollout restart deploy/hello` |
 | 04 | `./labs/04-break-tls/fix.sh` |
-| 05 | `kubectl delete -f labs/05-scale-it/hpa.yaml` |
+| 05 | `kubectl delete -f labs/05-scale-it/hpa.yaml && kubectl apply -k examples/hello-world` (deleting the HPA alone leaves 4 replicas) |
 | 06 | the "Leaving the lab" block in its README - deleting the Canary alone leaves `hello.localhost` returning 500 |
 | 07-10 | `./labs/NN-*/fix.sh` |
 
@@ -117,7 +120,8 @@ happened to their cluster.
 ## Things learners reliably get wrong
 
 - **Testing immediately after a fix.** Prometheus reloads on a timer, kindnet
-  applies NetworkPolicy in 30–60s, cert-manager reissues in ~30s, and a
+  applies NetworkPolicy in 30–60s, cert-manager reissues in 5–15s (measured
+  twice here: 5s and 13s; the labs say "wait ~30s" to be safe), and a
   ReplicaSet that has been failing backs off for minutes. "I fixed it and
   nothing happened" is usually impatience. Lab 10 makes them feel it.
 - **Reading `kubectl get` and stopping.** Quota rejections live in events and in
@@ -133,6 +137,13 @@ happened to their cluster.
 `platform.sh` is bash. On Windows that means Git Bash, not PowerShell — see the
 README prerequisites. Docker Desktop is the tested default; Podman works and
 needs a WSL kernel carrying `nft_fib_inet` (see `docs/CONTAINER-RUNTIMES.md`).
+On Windows, the first `up` on a new cluster raises a dialog asking to trust
+the cluster's root CA. Unanswered, it used to stall the whole build
+indefinitely (a `tilt ci` run gave up at its 30-minute timeout with 23
+resources queued behind it); now it fails that one step after two minutes, the
+build carries on, and `./scripts/trust-ca.sh` finishes the job. Tell people to
+expect it.
+
 Send people [STUDENT-SETUP.md](STUDENT-SETUP.md) a few days ahead. It walks
 them through installing the tools, building the cluster at home, and running
 `./scripts/student-check.sh`, which verifies the platform actually answers a

@@ -42,6 +42,12 @@ appreciably longer on a slower connection: almost all of that time is
 downloading, so your wifi sets the number, not your CPU. It is done when Tilt
 shows `hello-world` green and the page loads.
 
+**On Windows, watch for a dialog** partway through, asking whether to install
+a certificate from a "Tilt Local Development Root CA". Click **Yes**. That is
+what lets your browser trust `https://*.localhost` pages. If you miss it,
+that one step turns red after two minutes and everything else carries on
+building; run `./scripts/trust-ca.sh` afterwards to do just that step.
+
 Do this **at home, on wifi you trust**. Twenty laptops pulling the same images
 through one conference connection is the single most reliable way to lose the
 first hour of a class. The images land inside the kind cluster, not in your
@@ -88,6 +94,8 @@ Each lab has a cheaper way back in its own README, under **Leaving the lab** or
 
 ## What you need
 
-- A laptop with about 15 GB free and 8 GB of RAM to spare.
+- A laptop with about 15 GB of free disk and 8 GB of RAM to spare. Measured
+  with everything running (the heaviest profile, 50 pods): 9.7 GB of images
+  and 5.9 GB of memory. The default profile uses less.
 - Admin rights to install a container runtime.
 - No access to any cloud account. Everything runs locally.

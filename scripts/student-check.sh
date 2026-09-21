@@ -6,7 +6,7 @@
 # claims, and the gap between them costs the first hour of a session. Every
 # check here failed for somebody at least once: a missing Flux CLI, a kubectl
 # two minors behind the cluster, a container daemon that was installed but not
-# running, a machine with no room left for 6 GB of images.
+# running, a machine with no room left for ~10 GB of images.
 #
 # Safe to run at any time. It reads; it changes nothing and pulls nothing.
 set -uo pipefail
@@ -37,7 +37,7 @@ echo "== container daemon"
 if docker info >/dev/null 2>&1; then
     ok "container daemon is running"
     # kind pulls images into the node, not the host, so a reset re-downloads
-    # ~6 GB. A full disk shows up as pods stuck in ContainerCreating with no
+    # up to ~10 GB (measured: 9.7 GB with every profile on). A full disk shows up as pods stuck in ContainerCreating with no
     # obvious error.
     # Measured on the host filesystem, not inside the daemon's VM: a VM
     # reports its sparse virtual disk and cheerfully claims 1.5 TB free on a
@@ -45,7 +45,7 @@ if docker info >/dev/null 2>&1; then
     home_fs="${HOME:-/}"
     free_gb=$(df -BG "$home_fs" 2>/dev/null | awk 'NR==2{gsub("G","",$4); print $4}')
     if [ -n "${free_gb:-}" ] && [ "$free_gb" -lt 20 ] 2>/dev/null; then
-        warn "only ${free_gb}G free on $home_fs - the platform needs roughly 15G of images"
+        warn "only ${free_gb}G free on $home_fs - the platform stores up to ~10G of images; keep 15G free"
     elif [ -n "${free_gb:-}" ]; then ok "${free_gb}G free on $home_fs"
         note "if your container daemon stores images on another disk, check that one instead"
     else warn "could not measure free disk space - check by hand that ~15G is free"; fi
@@ -87,7 +87,7 @@ if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
              note "if Tilt is still building, wait for hello-world to go green and re-run"; fi
     else bad "cluster exists but kubectl cannot reach it"; fi
 else
-    warn "no cluster yet - run ./scripts/platform.sh up (first run pulls ~6 GB)"
+    warn "no cluster yet - run ./scripts/platform.sh up (first run downloads several GB)"
     note "do this at home, on good wifi, NOT in the room on the day"
 fi
 
