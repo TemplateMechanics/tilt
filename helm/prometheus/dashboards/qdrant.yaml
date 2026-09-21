@@ -1,3 +1,15 @@
+# Qdrant exposes its metrics without a "qdrant_" prefix (collections_total,
+# rest_responses_total, memory_resident_bytes), checked against the v1.19.1
+# image the chart deploys. The old queries used prefixed names that do not
+# exist and hid it behind "or vector(0)", so the panels drew a confident zero
+# whether Qdrant was idle, down or not installed. The rate panels now fall
+# back to 0 only while Prometheus is scraping a live Qdrant; otherwise they
+# show "No data", because "not running" and "idle" are different answers.
+# Everything is scoped to namespace="qdrant" rather than a job regex.
+# Qdrant labels the API path "endpoint", which collides with the operator's
+# own target label (the port name). Prometheus keeps the operator's and
+# renames Qdrant's to exported_endpoint, so grouping by "endpoint" draws one
+# line called "http" instead of one per API path.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -55,7 +67,7 @@ data:
           },
           "targets": [
             {
-              "expr": "qdrant_app_info_collections_total or collections_total or vector(0)",
+              "expr": "sum(collections_total{namespace=\"qdrant\"})",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -105,7 +117,7 @@ data:
           },
           "targets": [
             {
-              "expr": "sum(rate(qdrant_grpc_responses_total[5m])) or vector(0)",
+              "expr": "sum(rate(grpc_responses_total{namespace=\"qdrant\"}[5m])) or (max(up{namespace=\"qdrant\"}) == 1) * 0",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -156,7 +168,7 @@ data:
           },
           "targets": [
             {
-              "expr": "sum(rate(qdrant_rest_responses_total[5m])) or vector(0)",
+              "expr": "sum(rate(rest_responses_total{namespace=\"qdrant\"}[5m])) or (max(up{namespace=\"qdrant\"}) == 1) * 0",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -207,7 +219,7 @@ data:
           },
           "targets": [
             {
-              "expr": "process_resident_memory_bytes{job=~\".*qdrant.*\"}",
+              "expr": "sum(memory_resident_bytes{namespace=\"qdrant\"})",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
@@ -258,12 +270,12 @@ data:
           },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum by (le, endpoint) (rate(qdrant_grpc_responses_duration_seconds_bucket[5m])))",
+              "expr": "histogram_quantile(0.95, sum by (le, exported_endpoint) (rate(grpc_responses_duration_seconds_bucket{namespace=\"qdrant\"}[5m])))",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "legendFormat": "{{endpoint}}",
+              "legendFormat": "{{exported_endpoint}}",
               "range": true
             }
           ],
@@ -292,12 +304,12 @@ data:
           },
           "targets": [
             {
-              "expr": "histogram_quantile(0.95, sum by (le, endpoint) (rate(qdrant_rest_responses_duration_seconds_bucket[5m])))",
+              "expr": "histogram_quantile(0.95, sum by (le, exported_endpoint) (rate(rest_responses_duration_seconds_bucket{namespace=\"qdrant\"}[5m])))",
               "datasource": {
                 "type": "prometheus",
                 "uid": "prometheus"
               },
-              "legendFormat": "{{endpoint}}",
+              "legendFormat": "{{exported_endpoint}}",
               "range": true
             }
           ],

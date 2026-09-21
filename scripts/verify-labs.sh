@@ -55,7 +55,7 @@ run 01 && verify 01-deploy-a-service "kubectl apply -k examples/hello-world" "" 
 run 03 && verify 03-join-the-mesh    "" "" ""
 run 04 && verify 04-break-tls        "" "" ""
 run 07 && verify 07-stateful-rollout \
-    "kubectl apply -f labs/07-stateful-rollout/mysql.yaml" \
+    "kubectl apply -f labs/07-stateful-rollout/mysql.yaml && kubectl -n lab07 rollout status deploy/mysql --timeout=420s" \
     "./labs/07-stateful-rollout/break.sh" "./labs/07-stateful-rollout/fix.sh" 45
 run 08 && verify 08-empty-dashboard \
     "kubectl apply -f labs/08-empty-dashboard/servicemonitor.yaml" \

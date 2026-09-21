@@ -10,7 +10,10 @@ metadata:
   namespace: istio-system
 spec:
   parentRefs:
-    - name: localhost-gateway
+    # group and kind are server defaults too; see the note on rules below.
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: localhost-gateway
       namespace: istio-system
       # Only the plaintext listener. Without sectionName this route would also
       # attach to :443 and redirect HTTPS to itself, which is a redirect loop.
@@ -18,7 +21,15 @@ spec:
   hostnames:
     - "*.localhost"
   rules:
-    - filters:
+    # This match is the API server's default, spelled out on purpose. Leave it
+    # implicit and the server adds it to the live object, the live rules no
+    # longer equal last-applied, and every apply rewrites the route and prints
+    # "configured" for a file that has not changed - noise that reads as drift.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https

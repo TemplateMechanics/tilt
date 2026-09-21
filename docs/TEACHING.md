@@ -33,6 +33,9 @@ cost real days on this platform.
 ./scripts/verify-labs.sh          # runs each automated lab broken AND fixed
 ```
 
+Allow about twenty minutes for `verify-labs.sh` (measured: 18 and 22 minutes
+on two runs); start it before you set up the room, not after.
+
 `verify-labs.sh` is the one that matters. It applies each lab's fixture, grades
 it, breaks it, checks the grader **fails**, fixes it and grades again. Labs 05
 and 06 were both silently unpassable for weeks before this existed — a grader
@@ -47,6 +50,17 @@ Also worth doing once:
 ./scripts/platform.sh check       # renders every service in a real browser
 ./scripts/check-mcp.sh            # if you plan to demo the Grafana MCP
 ```
+
+If you will show the AI Ops dashboard, give its trace tables something to show.
+They list only slow (>250ms) and failed traces, and a quiet platform has
+neither, so the tables are empty unless you make some:
+
+```bash
+for p in delay/1 delay/2 status/500 status/503; do curl -sk https://hello.localhost/$p -o /dev/null; done
+```
+
+hello is the only workload emitting spans. An empty table means nobody sent a
+slow request in the time range, not that tracing is broken.
 
 ## Profiles, and what to start
 
@@ -71,17 +85,43 @@ to show.
 ./scripts/platform.sh reset       # destroys the cluster and rebuilds it empty
 ```
 
-About a minute to an empty cluster, then the profile build. This is what makes
-it safe to let people break things — say so early, because learners are far more
-willing to experiment once they know the environment is disposable.
+Measured on this machine: 4m55s to an empty cluster, then 8m29s more before
+hello.localhost answered. The heavier profiles keep building for a while after
+that. Budget accordingly — a reset is not a coffee break, and almost all of it
+is image pulls, so a slow connection makes it worse.
+
+That it is disposable at all is what makes it safe to let people break things —
+say so early, because learners are far more willing to experiment once they
+know the environment can be thrown away.
 
 Lab fixtures live in their own namespaces (`lab07`, `lab09`, `lab10`) and can be
 deleted individually without touching the platform.
 
+## When a learner is stuck, and the clock is running
+
+`./scripts/platform.sh reset` is the guaranteed fix, and it costs a full
+rebuild, so it is the wrong answer during a session. Each lab can be put back
+on its own:
+
+| Lab | Put it back with |
+|---|---|
+| 01 | `kubectl apply -k examples/hello-world` |
+| 02 | `git checkout -- examples/hello-world/httproute.yaml helm/istio/gateway/base/certificate.yaml` (Tilt re-applies) |
+| 03 | `kubectl label ns hello istio.io/dataplane-mode=ambient --overwrite && kubectl -n hello rollout restart deploy/hello` |
+| 04 | `./labs/04-break-tls/fix.sh` |
+| 05 | `kubectl delete -f labs/05-scale-it/hpa.yaml && kubectl apply -k examples/hello-world` (deleting the HPA alone leaves 4 replicas) |
+| 06 | the "Leaving the lab" block in its README - deleting the Canary alone leaves `hello.localhost` returning 500 |
+| 07-10 | `./labs/NN-*/fix.sh` |
+
+Lab 06 is the one to watch. It hands `hello` to Flagger, and labs 01-05 fail
+until it is exited properly. If someone runs it early, that is what has
+happened to their cluster.
+
 ## Things learners reliably get wrong
 
 - **Testing immediately after a fix.** Prometheus reloads on a timer, kindnet
-  applies NetworkPolicy in 30–60s, cert-manager reissues in ~30s, and a
+  applies NetworkPolicy in 30–60s, cert-manager reissues in 5–15s (measured
+  twice here: 5s and 13s; the labs say "wait ~30s" to be safe), and a
   ReplicaSet that has been failing backs off for minutes. "I fixed it and
   nothing happened" is usually impatience. Lab 10 makes them feel it.
 - **Reading `kubectl get` and stopping.** Quota rejections live in events and in
@@ -97,8 +137,19 @@ deleted individually without touching the platform.
 `platform.sh` is bash. On Windows that means Git Bash, not PowerShell — see the
 README prerequisites. Docker Desktop is the tested default; Podman works and
 needs a WSL kernel carrying `nft_fib_inet` (see `docs/CONTAINER-RUNTIMES.md`).
-Have people run `./scripts/platform.sh up` *before* they arrive; the first run
-pulls a lot of images.
+On Windows, the first `up` on a new cluster raises a dialog asking to trust
+the cluster's root CA. Unanswered, it used to stall the whole build
+indefinitely (a `tilt ci` run gave up at its 30-minute timeout with 23
+resources queued behind it); now it fails that one step after two minutes, the
+build carries on, and `./scripts/trust-ca.sh` finishes the job. Tell people to
+expect it.
+
+Send people [STUDENT-SETUP.md](STUDENT-SETUP.md) a few days ahead. It walks
+them through installing the tools, building the cluster at home, and running
+`./scripts/student-check.sh`, which verifies the platform actually answers a
+request rather than merely having installed. Ask for that script's output from
+anyone you have not taught before; it turns "it didn't work" on the morning
+into a fixable email the week before.
 
 ## If you extend it
 

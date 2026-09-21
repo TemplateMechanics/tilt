@@ -42,10 +42,47 @@ Once load stops, scale-down waits `stabilizationWindowSeconds` before
 shrinking — that lag is deliberate, and it is why autoscaling never looks
 instant.
 
+**Who owns `replicas`?** The Deployment manifest says `replicas: 1`. The
+HPA says whatever the load needs. While the load is running and you are at 4,
+re-apply the manifest:
+
+```
+kubectl apply -k examples/hello-world
+kubectl -n hello get deploy hello -w
+```
+
+Three of the four pods are terminated at once. The HPA puts the count back
+within a second and the new pods are ready in about 13 s. Here, that is a
+blip. In production, it is what a GitOps sync does to an autoscaled service
+at peak traffic. The fix is to stop declaring `replicas` in the manifest
+once an HPA owns it. This repo keeps it only because lab 01 relies on
+re-applying to undo `scale --replicas=0`.
+
 ## Check
 
-Run while load is on, or within a minute of it:
+Run it **while the load is still on**. About a minute after the load stops,
+the HPA scales back to one replica, which is correct behaviour, and the
+grader then fails. It tells you which case you are in.
 
 ```
 ./scripts/platform.sh lab 05
 ```
+
+## Leaving the lab
+
+```
+kubectl delete -f labs/05-scale-it/hpa.yaml
+kubectl -n hello delete pod hello-load --ignore-not-found
+kubectl apply -k examples/hello-world            # replicas back to 1
+```
+
+That last line is not optional, and it is worth pausing on. Deleting an HPA
+does not undo its last decision: the Deployment keeps whatever replica count
+the HPA left it with — measured here, four, five minutes after the load
+stopped and the HPA was gone. Nothing is scaling it back, because the thing
+that scaled it up no longer exists.
+
+Leave any of this behind and it follows you. In lab 06 Flagger copies the
+candidate's replica count into `hello-primary` at promotion, and the HPA had
+scaled the candidate. The primary came out at 4 replicas instead of 1, with
+no HPA of its own to bring it back down.

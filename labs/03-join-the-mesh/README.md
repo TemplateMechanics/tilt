@@ -37,7 +37,15 @@ kubectl -n hello get pod -l app.kubernetes.io/name=hello   -o jsonpath='{.items[
 
 ## Fix
 
-Put the label back, apply, restart. Check the annotation says `enabled`.
+```
+kubectl label ns hello istio.io/dataplane-mode=ambient --overwrite
+kubectl -n hello rollout restart deploy/hello
+kubectl -n hello get pod -l app.kubernetes.io/name=hello   -o jsonpath='{.items[0].metadata.annotations.ambient\.istio\.io/redirection}'
+```
+
+The restart is the part people miss. Labelling the namespace does not move a
+pod that is already running: ambient capture is decided when the pod starts.
+The annotation must say `enabled`.
 
 ## Check
 

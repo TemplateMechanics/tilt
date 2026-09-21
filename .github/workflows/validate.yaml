@@ -143,6 +143,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Runnable scripts are executable in git
+        # Every README says ./scripts/... and ./labs/.... On Windows git
+        # records new scripts as 100644 and nothing looks wrong; on Linux and
+        # macOS the README's first command then fails with Permission denied.
+        # shellcheck never executes anything, so it cannot catch this.
+        run: python scripts/ci/check-exec-bits.py
+
       - name: shellcheck
         # The cleanup script had a variable-shadowing bug (a helper looping over
         # `w` without declaring it local, clobbering its caller's loop variable)

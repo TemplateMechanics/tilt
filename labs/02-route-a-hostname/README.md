@@ -57,3 +57,21 @@ person who forgets.
 ```
 ./scripts/platform.sh lab 02
 ```
+
+## Leaving the lab
+
+This is the one lab where you edit files in the repo, so undoing it is a `git`
+operation, not a `kubectl` one:
+
+```
+git checkout -- examples/hello-world/httproute.yaml helm/istio/gateway/base/certificate.yaml
+```
+
+Tilt watches both paths and re-applies within seconds; `hi.localhost` goes back
+to a hostname mismatch (62), which is where lab 02 started. If Tilt is not
+running, apply them yourself:
+
+```
+kubectl apply -k examples/hello-world
+kubectl apply -k helm/istio/gateway/overlays/kind
+```
