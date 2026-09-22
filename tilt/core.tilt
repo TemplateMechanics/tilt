@@ -131,6 +131,7 @@ local_resource(
 #   cert-manager      the controller (CRDs come with the chart)
 #   cert-manager-pki  ClusterIssuers + root/intermediate CA Certificates
 #   istio-gateway     the Gateway + the wildcard Certificate it serves
+#   local-ca-crls     issuer-signed CRLs on the Gateway's HTTP listener
 #   dev-ca-trust      export the root CA and install it in the OS trust store
 ###############################################################################
 
@@ -187,13 +188,9 @@ local_resource(
 local_resource(
     "cert-manager-pki",
     cmd=sh("""
-        kubectl apply -k ./helm/cert-manager/pki/overlays/""" + PLATFORM + """
-        kubectl -n cert-manager wait --for=condition=Ready certificate/local-root-ca --timeout=180s
-        kubectl -n cert-manager wait --for=condition=Ready certificate/local-intermediate-ca --timeout=180s
-        # An Issuer can exist and not be usable; assert it verified its signing CA.
-        kubectl wait --for=condition=Ready clusterissuer/local-intermediate-ca --timeout=120s
-        echo "Local CA chain ready (root -> intermediate)"
+        ./scripts/apply-local-pki.sh
     """),
+    deps=[ROOT + "/helm/cert-manager/pki", ROOT + "/scripts/apply-local-pki.sh"],
     labels=["Infrastructure"],
     resource_deps=["cert-manager"],
 )
@@ -217,6 +214,16 @@ local_resource(
 )
 
 local_resource(
+    "local-ca-crls",
+    cmd=sh("""
+        ./scripts/ensure-local-crls.sh
+    """),
+    deps=[ROOT + "/helm/cert-manager/crl", ROOT + "/scripts/ensure-local-crls.sh"],
+    labels=["Infrastructure"],
+    resource_deps=["istio-gateway"],
+)
+
+local_resource(
     "hello-world",
     cmd=sh("""
         kubectl apply -k ./examples/hello-world
@@ -234,94 +241,9 @@ local_resource(
 local_resource(
     "dev-ca-trust",
     cmd=sh("""
-        # TRUST_CA=0 skips the OS trust store. Needed for a throwaway or CI
-        # cluster: each cluster mints its own root CA, so trusting every one of
-        # them leaves a pile of dev roots behind, and on Windows removing one
-        # takes a GUI confirmation that cannot be scripted. It says so out loud
-        # rather than exiting quietly, because "skipped" and "trusted" must not
-        # look the same in the log.
-        if [ "${TRUST_CA:-1}" = "0" ]; then
-            echo "TRUST_CA=0 - OS trust store NOT touched. The cert is still issued"
-            echo "in-cluster; browsers and curl will report an untrusted issuer."
-            exit 0
-        fi
-
-        # The CA now lives in the cluster, not on disk. Export it rather than
-        # keeping a copy in the repo, so there is exactly one source of truth
-        # and a rotated CA cannot silently disagree with the trusted copy.
-        CA_FILE="$(mktemp -t dev-root-ca-XXXXXX).crt"
-        # Also keep a copy at a stable path. Anything outside the cluster that
-        # must verify platform TLS needs a file it can mount - the Grafana MCP
-        # container is the current example. A mktemp path changes every run, so
-        # a config referencing it works once and then silently fails.
-        mkdir -p ./.local && STABLE_CA="./.local/dev-root-ca.crt"
-        # go-template, not jsonpath. Starlark rejects the backslash-dot escape
-        # that jsonpath needs to address the "tls.crt" key, and the Tiltfile
-        # then fails to parse with 'invalid escape sequence'. Note this comment
-        # cannot contain that escape either - it is inside the string literal.
-        kubectl get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d > "$CA_FILE"
-        if [ ! -s "$CA_FILE" ]; then
-            echo "ERROR: exported root CA is empty - refusing to touch the trust store"
-            exit 1
-        fi
-        cp "$CA_FILE" "$STABLE_CA" && echo "Root CA also written to $STABLE_CA"
-        FP=$(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
-        echo "Root CA fingerprint: $FP"
-
-        case "$(uname -s)" in
-            Darwin)
-                if security verify-cert -c "$CA_FILE" >/dev/null 2>&1; then
-                    echo "Root CA already trusted (macOS)"
-                else
-                    bash ./archive/openssl-certs/sudo-helper.sh "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $CA_FILE"
-                    echo "Root CA trusted in macOS System keychain"
-                fi
-                ;;
-            Linux)
-                TARGET="/usr/local/share/ca-certificates/dev-root-ca.crt"
-                EXISTING=""
-                [ -f "$TARGET" ] && EXISTING=$(openssl x509 -in "$TARGET" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//')
-                if [ "$EXISTING" = "$FP" ]; then
-                    echo "Root CA already trusted (Linux)"
-                else
-                    bash ./archive/openssl-certs/sudo-helper.sh "cp $CA_FILE $TARGET && update-ca-certificates"
-                    echo "Root CA trusted in Linux certificate store"
-                fi
-                ;;
-            MINGW*|MSYS*|CYGWIN*)
-                # Windows ALWAYS asks before adding a root CA to the user store.
-                # certutil and the .NET X509Store API both raise the same modal
-                # dialog; -f does not suppress it. Unanswered, that dialog blocks
-                # this resource, and Tilt runs local resources one at a time, so
-                # it blocks the whole build: measured, `tilt ci` from an empty
-                # cluster timed out after 30 minutes with 23 resources queued
-                # behind a prompt nobody had clicked, and a stray dialog from an
-                # earlier run was still open three days later.
-                #
-                # Bounded, an unanswered prompt costs two minutes and one red
-                # resource instead of the platform. certutil compares by content,
-                # so re-adding an identical cert is a no-op and does not prompt.
-                echo "Windows will ask you to confirm installing the development root CA."
-                echo "Click Yes. Ignoring it fails this step in 2 minutes; nothing else is blocked."
-                if timeout 120 certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null; then
-                    echo "Root CA trusted in Windows user Root store"
-                else
-                    echo "ERROR: the root CA was NOT trusted (prompt unanswered, or certutil failed)."
-                    echo "Pods keep running, but nothing that speaks HTTPS to the platform"
-                    echo "verifies: measured, lab 01 fails 3 of 6 checks (curl 000, empty body,"
-                    echo "browser ERR_CERT_AUTHORITY_INVALID) and lab 04 fails on the OS trust"
-                    echo "store. The in-cluster TLS checks still pass - they use the cluster CA"
-                    echo "directly - so a green TLS line is not evidence of a trusted store."
-                    echo "Fix it with:"
-                    echo "  ./scripts/trust-ca.sh"
-                    exit 1
-                fi
-                ;;
-            *)
-                echo "Unsupported OS for automatic trust. Trust this file manually: $CA_FILE"
-                ;;
-        esac
+        ./scripts/trust-ca.sh
     """),
+    deps=[ROOT + "/scripts/trust-ca.sh"],
     labels=["Infrastructure"],
-    resource_deps=["cert-manager-pki"],
+    resource_deps=["hello-world", "local-ca-crls"],
 )

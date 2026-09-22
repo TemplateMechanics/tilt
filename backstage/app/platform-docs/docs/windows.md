@@ -91,7 +91,7 @@ If you still encounter issues:
 | KubeVirt | Requires Linux with KVM — not available on Windows | Use emulation mode for testing only |
 | macOS VMs | KubeVirt-based, Linux-only | Not available on Windows |
 | eyeOS | KubeVirt-based, Linux-only | Not available on Windows |
-| PowerShell scripts | Certificate generation uses `generate-certs.ps1` | Works natively on Windows (PowerShell is the default) |
+| Certificate trust | Windows confirms additions to the user Root store | Run `./scripts/trust-ca.sh` from Git Bash and accept the prompt |
 | Symlinks | Some Git operations may require elevated privileges | Run Git Bash as Administrator if symlink errors occur |
 
 ## Quick Verification

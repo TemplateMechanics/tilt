@@ -5,6 +5,8 @@
 # Every URL then needs the port: https://<name>.localhost:8443.
 #
 #   KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up
+# platform.sh pairs that with GATEWAY_HTTP_PORT=8080 so certificates contain a
+# reachable CRL URL. Set GATEWAY_HTTP_PORT explicitly for any custom mapping.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: tiltdev

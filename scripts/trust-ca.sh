@@ -1,104 +1,169 @@
 #!/usr/bin/env bash
-# Trust this cluster's development root CA, on its own.
-#
-# Tilt's dev-ca-trust resource does this during a build, but on Windows the
-# operating system raises a confirmation dialog that nobody may be sitting in
-# front of, and that step gives up after two minutes rather than blocking the
-# platform. This is how you do it afterwards, without a rebuild.
-#
-# Until it is done, every curl and browser check against the platform fails
-# (lab 01: 3 of 6 checks, including ERR_CERT_AUTHORITY_INVALID in Chrome).
-# The labs' TLS-code assertions verify against the CA read from the cluster,
-# so they pass either way - a green "TLS verifies" line says nothing about
-# your trust store.
-#
-# Each cluster mints its own CA, so a `reset` means a new certificate and one
-# more entry in your trust store. `--list` shows what has accumulated.
-set -uo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT" || exit 1
-CONTEXT="${CONTEXT:-kind-tiltdev}"
+# Export this cluster's development root CA and install it in the host trust
+# store. On macOS the user/login keychain is used deliberately: it needs no
+# administrator trust-domain mutation and is the store Chrome consults for a
+# user-installed local anchor.
+set -euo pipefail
 
-fp_of() { openssl x509 -in "$1" -noout -fingerprint -sha256 2>/dev/null | sed 's/.*=//'; }
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+CONTEXT="${CONTEXT:-kind-tiltdev}"
+GATEWAY_PORT="${GATEWAY_PORT:-443}"
+host="${TRUST_CHECK_HOST:-hello.localhost}"
+port_suffix=""
+[ "$GATEWAY_PORT" = "443" ] || port_suffix=":$GATEWAY_PORT"
+url="https://$host$port_suffix/"
+
+fp_of() {
+    openssl x509 -in "$1" -noout -fingerprint -sha256 2>/dev/null \
+        | sed 's/.*=//'
+}
+
+mac_login_keychain() {
+    local keychain
+    keychain="$(security default-keychain -d user 2>/dev/null | tr -d '"' | sed 's/^[[:space:]]*//')"
+    if [ -n "$keychain" ]; then
+        printf '%s\n' "$keychain"
+    else
+        printf '%s\n' "${HOME}/Library/Keychains/login.keychain-db"
+    fi
+}
 
 if [ "${1:-}" = "--list" ]; then
     case "$(uname -s)" in
         MINGW*|MSYS*|CYGWIN*)
             powershell -NoProfile -Command "Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object { \$_.Subject -match 'Development Root CA' } | Select-Object Thumbprint,Subject,NotAfter | Format-Table -AutoSize"
-            echo "Remove one with:  certutil -delstore -user Root <thumbprint>"
+            echo "Remove one with: certutil -delstore -user Root <thumbprint>"
             ;;
-        Darwin) security find-certificate -a -c "Development Root CA" -Z /Library/Keychains/System.keychain 2>/dev/null | grep -E "SHA-256|labl" ;;
-        *)      ls -l /usr/local/share/ca-certificates/ 2>/dev/null ;;
+        Darwin)
+            keychain="$(mac_login_keychain)"
+            echo "User keychain: $keychain"
+            security find-certificate -a -c "Tilt Local Development Root CA" \
+                -Z "$keychain" 2>/dev/null | grep -E "SHA-256|SHA-1|labl" || true
+            legacy="$(security find-certificate -a -c "Tilt Local Development Root CA" \
+                -Z /Library/Keychains/System.keychain 2>/dev/null \
+                | grep -E "SHA-256|SHA-1|labl" || true)"
+            if [ -n "$legacy" ]; then
+                echo "Legacy System keychain entries (not modified automatically):"
+                printf '%s\n' "$legacy"
+            fi
+            ;;
+        Linux)
+            ls -l /usr/local/share/ca-certificates/dev-root-ca.crt 2>/dev/null || true
+            ;;
     esac
     exit 0
 fi
 
-# Export from the cluster rather than trusting the file in .local/: that file is
-# a copy, and a copy can disagree with what the gateway is actually serving.
-CA_FILE="$(mktemp -t dev-root-ca-XXXXXX).crt"
+for command in kubectl openssl base64 curl install sed tr awk; do
+    command -v "$command" >/dev/null 2>&1 || {
+        echo "ERROR: required command is missing: $command" >&2
+        exit 1
+    }
+done
+
+CA_FILE="$(mktemp "${TMPDIR:-/tmp}/dev-root-ca.XXXXXX")"
+trap '/bin/rm -f "$CA_FILE"' EXIT
 kubectl --context "$CONTEXT" get secret local-root-ca -n cert-manager \
-    -o go-template='{{index .data "tls.crt"}}' 2>/dev/null | base64 -d > "$CA_FILE"
-if [ ! -s "$CA_FILE" ]; then
-    echo "ERROR: could not read the CA from the cluster (context $CONTEXT)."
-    echo "Is the cluster up, and has cert-manager-pki finished?"
+    -o go-template='{{index .data "tls.crt"}}' 2>/dev/null \
+    | base64 -d > "$CA_FILE"
+if [ ! -s "$CA_FILE" ] || ! openssl x509 -in "$CA_FILE" -noout >/dev/null 2>&1; then
+    echo "ERROR: could not export a valid CA from cluster context $CONTEXT" >&2
     exit 1
 fi
-FP=$(fp_of "$CA_FILE")
+
+mkdir -p ./.local
+install -m 0644 "$CA_FILE" ./.local/dev-root-ca.crt
+FP="$(fp_of "$CA_FILE")"
+FP_HEX="$(printf '%s' "$FP" | tr -d ':')"
+CA_SKI="$(openssl x509 -in "$CA_FILE" -noout -ext subjectKeyIdentifier \
+    | sed -n '2{s/[[:space:]:]//g;p;}')"
+[ -n "$CA_SKI" ] || {
+    echo "ERROR: exported root CA has no subject key identifier" >&2
+    exit 1
+}
+echo "Root CA written to .local/dev-root-ca.crt"
 echo "CA fingerprint (SHA-256): $FP"
-# Windows identifies certificates by SHA-1 thumbprint, and --list prints those.
-# Comparing the SHA-256 above against a thumbprint says "not trusted" about a
-# CA that is trusted - it cost an hour here. Print both.
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
-    echo "Windows thumbprint (SHA-1): $(openssl x509 -in "$CA_FILE" -noout -fingerprint -sha1 | sed 's/.*=//' | tr -d ':')" ;;
-esac
+
+if [ "${TRUST_CA:-1}" = "0" ]; then
+    echo "TRUST_CA=0 - exported the CA, but did not modify the OS trust store."
+    exit 0
+fi
 
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*)
-        echo "Windows will ask you to confirm. Click Yes."
-        if certutil -addstore -user -f Root "$(cygpath -w "$CA_FILE")" >/dev/null; then
-            echo "Trusted in the Windows user Root store."
+        echo "Windows may ask you to confirm installing the development root CA."
+        if timeout 120 certutil -addstore -user -f Root \
+            "$(cygpath -w "$CA_FILE" 2>/dev/null || echo "$CA_FILE")" >/dev/null; then
+            echo "Root CA trusted in the Windows user Root store."
         else
-            echo "ERROR: not trusted. If no dialog appeared, run this from an admin PowerShell:"
-            echo "  certutil -addstore Root $(cygpath -w "$CA_FILE")"
+            echo "ERROR: the root CA was not trusted (prompt unanswered or certutil failed)." >&2
             exit 1
         fi
         ;;
     Darwin)
-        bash ./archive/openssl-certs/sudo-helper.sh \
-            "security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain $CA_FILE" \
-            && echo "Trusted in the macOS System keychain." \
-            || { echo "ERROR: not trusted (sudo declined or security failed)."; exit 1; }
+        keychain="$(mac_login_keychain)"
+        present="$(security find-certificate -a -c "Tilt Local Development Root CA" \
+            -Z "$keychain" 2>/dev/null | grep -F "SHA-256 hash: $FP_HEX" || true)"
+        if [ -z "$present" ] \
+            || ! security verify-cert -c "$CA_FILE" -p ssl >/dev/null 2>&1; then
+            echo "Installing the current root in the macOS user keychain: $keychain"
+            security add-trusted-cert -r trustRoot -p ssl -k "$keychain" "$CA_FILE"
+        else
+            echo "Current root is already trusted for SSL in the macOS user keychain."
+        fi
+        legacy_fp="$(security find-certificate -a -c "Tilt Local Development Root CA" \
+            -Z /Library/Keychains/System.keychain 2>/dev/null \
+            | awk -v ski="$CA_SKI" '
+                /^SHA-1 hash:/ { sha1=$3 }
+                index(toupper($0), "\"SKID\"<BLOB>=0X" toupper(ski)) { print sha1; exit }
+            ')"
+        if [ -n "$legacy_fp" ]; then
+            echo "WARNING: a same-key root also remains in the legacy System keychain." >&2
+            echo "Review and remove it manually if no other cluster uses it:" >&2
+            echo "  sudo security delete-certificate -Z $legacy_fp /Library/Keychains/System.keychain" >&2
+        fi
         ;;
     Linux)
-        bash ./archive/openssl-certs/sudo-helper.sh \
-            "cp $CA_FILE /usr/local/share/ca-certificates/dev-root-ca.crt && update-ca-certificates" \
-            && echo "Trusted in the Linux certificate store." \
-            || { echo "ERROR: not trusted (sudo declined or update-ca-certificates failed)."; exit 1; }
+        target="/usr/local/share/ca-certificates/dev-root-ca.crt"
+        existing=""
+        [ -f "$target" ] && existing="$(fp_of "$target")"
+        native_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
+            --resolve "$host:$GATEWAY_PORT:127.0.0.1" "$url" 2>/dev/null || true)"
+        if [ "$existing" = "$FP" ] \
+            && [ -n "$native_code" ] && [ "$native_code" != "000" ]; then
+            echo "Current root is already trusted by Linux."
+        else
+            bash ./archive/openssl-certs/sudo-helper.sh \
+                "cp '$CA_FILE' '$target' && update-ca-certificates"
+            echo "Root CA trusted in the Linux certificate store."
+        fi
         ;;
-    *)  echo "Unsupported OS. Trust this file by hand: $CA_FILE"; exit 1 ;;
+    *)
+        echo "ERROR: unsupported OS; trust this file manually: .local/dev-root-ca.crt" >&2
+        exit 1
+        ;;
 esac
 
-# Prove it, rather than trusting the exit code of the thing that just ran.
-# A curl WITHOUT -k is the only evidence that the trust store took effect.
-# --ssl-no-revoke matters on Windows: curl there is a Schannel build, and
-# Schannel tries a revocation check that a local CA with no CRL endpoint
-# cannot satisfy. Without the flag this returns 000 / exit 35 on a correctly
-# trusted CA, which reads exactly like a trust failure and is not one.
-# TRUST_CHECK_HOST exists so the failure branch can be tested: a host the
-# certificate does not name fails TLS the same way an untrusted CA does.
-host="${TRUST_CHECK_HOST:-hello.localhost}"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --ssl-no-revoke \
-        --resolve "$host:443:127.0.0.1" "https://$host/" 2>/dev/null)
-# Any HTTP status proves the chain verified: without -k, a TLS failure aborts
-# before HTTP and curl reports 000. So 503 means "trusted, app down" - which
-# an earlier version of this script called a trust failure and exited 2 on.
-case "${code:-000}" in
-    200) echo "Verified: https://$host returns 200 without -k." ;;
-    000) # Non-zero, not a warning: `./scripts/trust-ca.sh && next-step` must
-         # not carry on as if TLS verified when the evidence says it does not.
-         echo "ERROR: https://$host does not verify over TLS (no response, code 000)."
-         echo "The certificate is installed but not trusted for this host, or nothing is listening."
-         exit 2 ;;
-    *)   echo "Verified TLS: https://$host answered over a trusted connection (HTTP $code)."
-         echo "The CA is trusted. HTTP $code is the app, not the certificate - check: kubectl -n hello get pods" ;;
+# Prove the host-native path. On managed macOS, requiring revocation also
+# proves that both CRL distribution points are reachable; issuer trust alone
+# is not enough for Chrome's local-anchor policy.
+case "$(uname -s)" in
+    Darwin)
+        if security verify-cert -R require "$url" >/dev/null 2>&1; then
+            echo "Verified macOS trust and online revocation: $url"
+        else
+            echo "ERROR: macOS rejected $url or could not obtain revocation status." >&2
+            exit 2
+        fi
+        ;;
+    *)
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 \
+            --resolve "$host:$GATEWAY_PORT:127.0.0.1" "$url" 2>/dev/null || true)"
+        if [ -z "$code" ] || [ "$code" = "000" ]; then
+            echo "ERROR: $url did not verify through the OS trust store." >&2
+            exit 2
+        fi
+        echo "Verified OS trust: $url answered HTTP $code."
+        ;;
 esac

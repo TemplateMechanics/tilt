@@ -25,11 +25,52 @@ url() { # url <host> [path]
 }
 
 # curl through the gateway. --resolve pins the hostname to loopback so the
-# check does not depend on OS resolver behaviour for *.localhost. The OS trust
-# store is used for TLS (no -k), so a cert failure is a real failure.
-gw() { # gw <host> [path] [extra curl args...]
-    local host="$1" path="${2:-/}"; shift 2 2>/dev/null || shift $#
-    curl -sS --max-time 20 --ssl-no-revoke --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" "$@" "$(url "$host" "$path")"
+# check does not depend on OS resolver behaviour for *.localhost. Functional
+# HTTP assertions verify against the platform CA explicitly: current macOS curl
+# builds can use /etc/ssl/cert.pem even when Chrome and Security.framework use
+# the login keychain, which otherwise makes a healthy route fail for an
+# unrelated client trust-store choice. OS trust is tested separately below.
+gw() ( # gw <host> [path] [extra curl args...]
+    local host="$1" path="${2:-/}" ca; shift 2 2>/dev/null || shift $#
+    ca="$(mktemp -t lab-gateway-ca-XXXXXX)"
+    trap 'rm -f "$ca"' EXIT
+    $K get secret local-root-ca -n cert-manager \
+        -o go-template='{{index .data "tls.crt"}}' 2>/dev/null | base64 -d > "$ca"
+    if [ ! -s "$ca" ] || ! openssl x509 -in "$ca" -noout >/dev/null 2>&1; then
+        echo "ERROR: cluster root CA is empty or invalid" >&2
+        return 1
+    fi
+    curl -sS --max-time 20 --cacert "$ca" \
+        --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" "$@" "$(url "$host" "$path")"
+)
+
+# Prove that the host-native trust store accepts the live endpoint. On macOS,
+# Security.framework is authoritative for both the login keychain and Chrome's
+# locally installed anchors; curl may instead read /etc/ssl/cert.pem. Requiring
+# revocation here also exercises the local CRLs on managed Macs. Other platforms
+# retain curl's native trust-store check.
+assert_os_trust() { # assert_os_trust <host>
+    local host="$1" code
+    case "$(uname -s)" in
+      Darwin)
+        if security verify-cert -R require "$(url "$host" /)" >/dev/null 2>&1; then
+            pass "macOS trust store accepts $host with required revocation checking"
+        else
+            fail "macOS trust store rejects $host or cannot obtain revocation status"
+        fi
+        ;;
+      *)
+        code=$(curl -sS --max-time 15 \
+            --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" \
+            -o /dev/null -w '%{http_code}' "$(url "$host" /)" 2>/dev/null)
+        code="${code:-000}"
+        if [ "$code" = "000" ]; then
+            fail "OS trust store rejects the chain or the endpoint is unreachable"
+        else
+            pass "OS trust store accepts the chain (no --cacert; HTTP $code)"
+        fi
+        ;;
+    esac
 }
 
 assert_http() { # assert_http <host> <path> <expected-code>

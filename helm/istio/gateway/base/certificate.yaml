@@ -22,6 +22,12 @@ metadata:
 spec:
   secretName: wildcard-localhost-tls
   commonName: "*.localhost"
+  # This stable subject also gives existing pre-CRL clusters a one-time
+  # cert-manager reissuance trigger, so the live leaf receives the issuer's
+  # CRL distribution point without rotating the root CA key.
+  subject:
+    organizations:
+      - SystematicTech (local development only)
   dnsNames:
     - "*.localhost"
     - localhost

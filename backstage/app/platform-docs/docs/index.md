@@ -41,6 +41,5 @@ tilt up
 │   ├── crossplane/             # Crossplane core + providers + compositions
 │   ├── backstage/              # Backstage K8s manifests
 │   └── <service>/              # Service-specific manifests
-├── certificates/               # TLS certificate generation
 └── docs/                       # Additional documentation
 ```

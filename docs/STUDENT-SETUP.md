@@ -42,11 +42,21 @@ appreciably longer on a slower connection: almost all of that time is
 downloading, so your wifi sets the number, not your CPU. It is done when Tilt
 shows `hello-world` green and the page loads.
 
-**On Windows, watch for a dialog** partway through, asking whether to install
-a certificate from a "Tilt Local Development Root CA". Click **Yes**. That is
-what lets your browser trust `https://*.localhost` pages. If you miss it,
-that one step turns red after two minutes and everything else carries on
-building; run `./scripts/trust-ca.sh` afterwards to do just that step.
+**On Windows or macOS, watch for a certificate/keychain confirmation** partway
+through. Accept only the certificate named "Tilt Local Development Root CA"
+after comparing the fingerprint printed by Tilt. macOS installs it in your
+login keychain, not the System keychain. If you miss or decline the prompt,
+the workloads remain available but browser trust stays red; run
+`./scripts/trust-ca.sh` afterwards to retry the idempotent trust step.
+
+Tilt also publishes `root.crl` and `intermediate.crl` automatically. Managed
+Chrome can require those online-revocation results for a locally installed
+root. Do not bypass a certificate interstitial: on macOS, prove the complete
+trust and revocation path with:
+
+```bash
+security verify-cert -R require https://hello.localhost/
+```
 
 Do this **at home, on wifi you trust**. Twenty laptops pulling the same images
 through one conference connection is the single most reliable way to lose the
@@ -87,6 +97,12 @@ Breaking it is the point, and it is disposable:
 ./scripts/platform.sh reset   # destroys the cluster and gives you an empty one
 ./scripts/platform.sh up      # rebuild
 ```
+
+A reset mints a new root. The next `up` regenerates both CRLs and asks the host
+to trust that new fingerprint; an older same-name root is not accepted as a
+substitute. Use `./scripts/trust-ca.sh --list` to inspect accumulated roots,
+including legacy macOS System-keychain entries from older versions. Those are
+reported but never deleted automatically because another cluster may use them.
 
 Do not run that during the session without asking — it re-downloads everything.
 Each lab has a cheaper way back in its own README, under **Leaving the lab** or
