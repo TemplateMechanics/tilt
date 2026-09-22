@@ -63,6 +63,13 @@ def main():
             for doc in load_docs(path):
                 if doc.get("kind") != "HTTPRoute":
                     continue
+                # A route attached only to the plaintext listener never uses
+                # the Gateway certificate. Requiring its hostname as a TLS SAN
+                # would be actively misleading (the CRL endpoint is the first
+                # deliberate HTTP-only route).
+                parents = doc.get("spec", {}).get("parentRefs", []) or []
+                if parents and all(p.get("sectionName") == "http" for p in parents):
+                    continue
                 for host in doc.get("spec", {}).get("hostnames", []) or []:
                     seen += 1
                     if host not in dns:

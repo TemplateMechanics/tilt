@@ -19,8 +19,7 @@ esac
 
 # 3. Prometheus has a target for it, and that target is up. An object with no
 #    target is the silent state this lab exists to make visible.
-n=$(curl -sS --max-time 20 --ssl-no-revoke --resolve prometheus.localhost:443:127.0.0.1 \
-      'https://prometheus.localhost/api/v1/targets?state=active' 2>/dev/null \
+n=$(gw prometheus.localhost '/api/v1/targets?state=active' 2>/dev/null \
     | python -c "import json,sys
 try: ts=json.load(sys.stdin)['data']['activeTargets']
 except Exception: ts=[]
@@ -32,7 +31,7 @@ print(sum(1 for t in ts if t['labels'].get('job')=='hello' and t.get('health')==
 #    scrape stops, Prometheus keeps serving the last sample for ~5 minutes, so a
 #    broken monitor still looks healthy for the length of a coffee break. This
 #    measures how long ago the last successful scrape was.
-age=$(curl -sS --max-time 20 --ssl-no-revoke --resolve prometheus.localhost:443:127.0.0.1       'https://prometheus.localhost/api/v1/query?query=time()%20-%20max(timestamp(up%7Bjob%3D%22hello%22%7D))' 2>/dev/null     | python -c "import json,sys
+age=$(gw prometheus.localhost '/api/v1/query?query=time()%20-%20max(timestamp(up%7Bjob%3D%22hello%22%7D))' 2>/dev/null | python -c "import json,sys
 try:
     r=json.load(sys.stdin)['data']['result']; print(int(float(r[0]['value'][1])) if r else 999)
 except Exception: print(999)" 2>/dev/null)

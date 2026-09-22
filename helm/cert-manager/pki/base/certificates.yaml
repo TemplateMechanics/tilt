@@ -16,6 +16,12 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    # Re-issuing a CA to add revocation metadata must not silently rotate the
+    # trust anchor. The private key stays stable; only the certificate changes.
+    rotationPolicy: Never
+  usages:
+    - cert sign
+    - crl sign
   issuerRef:
     name: selfsigned-bootstrap
     kind: ClusterIssuer
@@ -38,6 +44,10 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    rotationPolicy: Never
+  usages:
+    - cert sign
+    - crl sign
   issuerRef:
     name: local-root-ca
     kind: ClusterIssuer
