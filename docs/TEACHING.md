@@ -75,6 +75,10 @@ neither, so the tables are empty unless you make some:
 for p in delay/1 delay/2 status/500 status/503; do curl -fsS https://hello.localhost/$p -o /dev/null || true; done
 ```
 
+The dashboard intentionally uses manual refresh because its one-hour,
+all-namespace view fans out into several Loki queries. Generate the signals,
+then use Grafana's refresh control once rather than enabling auto-refresh.
+
 hello is the only workload emitting spans. An empty table means nobody sent a
 slow request in the time range, not that tracing is broken.
 

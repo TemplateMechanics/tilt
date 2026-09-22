@@ -172,6 +172,7 @@ cmd_ci() {
     echo "== routed hostnames have SANs =="; python scripts/ci/check-route-hostnames.py || fail=$((fail+1))
     echo "== local PKI revocation ==";       python scripts/ci/check-local-pki.py        || fail=$((fail+1))
     echo "== charts pinned ==";              python scripts/ci/check-chart-pins.py     || fail=$((fail+1))
+    echo "== AI Ops dashboard safety ==";    python scripts/ci/check-ai-ops-dashboard.py || fail=$((fail+1))
     echo "== MCP config safety ==";           python scripts/validate/mcp-check.py --config-only || fail=$((fail+1))
     echo "== scripts executable in git ==";  python scripts/ci/check-exec-bits.py      || fail=$((fail+1))
     [ "$fail" -eq 0 ] && echo "all checks passed" || { echo "$fail failure(s)"; exit 1; }

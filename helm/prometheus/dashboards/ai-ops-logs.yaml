@@ -4,6 +4,9 @@
 # all on a single shared time range, so a spike in 5xx, the log lines behind it
 # and the traces that carried it are the same window rather than three tabs.
 # The traffic row stayed empty for as long as nothing scraped istio-proxy.
+# Automatic refresh is deliberately off: a refresh cancels queries still pending,
+# and this dashboard fans out across all namespaces over a one-hour window.
+# Use Grafana's refresh control after generating a signal during a demo.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,9 +18,9 @@ metadata:
     grafana_folder: AI Ops
 data:
   ai-ops-logs.json: "{\n  \"uid\": \"ai-ops-logs\",\n  \"title\": \"AI Ops - logs, traces and golden signals\",\n  \"tags\": [\n    \"ai-ops\",\n    \"logs\",\n    \"loki\",\n    \"platform\",\n    \"traces\"\
-    \n  ],\n  \"timezone\": \"browser\",\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"refresh\": \"30s\",\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"templating\": {\n\
+    \n  ],\n  \"timezone\": \"browser\",\n  \"schemaVersion\": 39,\n  \"version\": 1,\n  \"refresh\": \"\",\n  \"time\": {\n    \"from\": \"now-1h\",\n    \"to\": \"now\"\n  },\n  \"templating\": {\n\
     \    \"list\": [\n      {\n        \"name\": \"namespace\",\n        \"label\": \"Namespace\",\n        \"type\": \"query\",\n        \"datasource\": {\n          \"type\": \"loki\",\n          \"uid\"\
-    : \"loki\"\n        },\n        \"query\": {\n          \"label\": \"namespace\",\n          \"refId\": \"namespaces\",\n          \"type\": 1\n        },\n        \"refresh\": 2,\n        \"multi\"\
+    : \"loki\"\n        },\n        \"query\": {\n          \"label\": \"namespace\",\n          \"refId\": \"namespaces\",\n          \"type\": 1\n        },\n        \"refresh\": 1,\n        \"multi\"\
     : true,\n        \"includeAll\": true,\n        \"allValue\": \".+\",\n        \"current\": {}\n      },\n      {\n        \"name\": \"level\",\n        \"label\": \"Level\",\n        \"type\": \"custom\"\
     ,\n        \"query\": \"(?i)(error|fatal|panic|exception|fail),(?i)(warn),(?i)(info),.*\",\n        \"options\": [],\n        \"current\": {\n          \"text\": \"(?i)(error|fatal|panic|exception|fail)\"\
     ,\n          \"value\": \"(?i)(error|fatal|panic|exception|fail)\"\n        },\n        \"description\": \"Severity regex, applied to the logs panel only.\"\n      },\n      {\n        \"name\": \"\
