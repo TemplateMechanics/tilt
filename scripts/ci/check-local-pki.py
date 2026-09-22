@@ -2,6 +2,7 @@
 """Fail closed if the local PKI loses its revocation or hardening contract."""
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -91,7 +92,11 @@ require("@sha256:" in container.get("image", ""), "CRL server image must be pinn
 # embeds that port before issuance instead of leaving an unreachable CDP.
 environment = dict(os.environ, CRL_BASE_URL="http://crl.localhost:8080")
 rendered = subprocess.run(
-    ["bash", "scripts/apply-local-pki.sh", "--render"],
+    # shutil.which, not a bare "bash": CreateProcess searches System32 before
+    # PATH, so "bash" on Windows starts WSL, which fails with
+    # "execvpe(/bin/bash) failed" - this check failed on every Windows machine
+    # while Linux CI stayed green.
+    [shutil.which("bash") or "bash", "scripts/apply-local-pki.sh", "--render"],
     check=True,
     capture_output=True,
     text=True,
