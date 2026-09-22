@@ -13,6 +13,24 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT="${CONTEXT:-kind-tiltdev}"
 CLUSTER="${CLUSTER:-tiltdev}"
+GATEWAY_PORT="${GATEWAY_PORT:-443}"
+if [ -z "${GATEWAY_HTTP_PORT:-}" ]; then
+    case "$GATEWAY_PORT" in
+        443) GATEWAY_HTTP_PORT=80 ;;
+        8443) GATEWAY_HTTP_PORT=8080 ;;
+        *)
+            echo "GATEWAY_HTTP_PORT is required when GATEWAY_PORT is $GATEWAY_PORT" >&2
+            exit 2
+            ;;
+    esac
+fi
+if [ "${GATEWAY_HTTP_PORT:-80}" = "80" ]; then
+    CRL_BASE_URL="${CRL_BASE_URL:-http://crl.localhost}"
+else
+    CRL_BASE_URL="${CRL_BASE_URL:-http://crl.localhost:${GATEWAY_HTTP_PORT}}"
+fi
+port_suffix=""; [ "$GATEWAY_PORT" = "443" ] || port_suffix=":$GATEWAY_PORT"
+hello_url="https://hello.localhost$port_suffix/"
 
 pass=0; fail=0; warn=0
 ok()   { pass=$((pass+1)); printf '  \033[32mok\033[0m    %s\n' "$*"; }
@@ -23,10 +41,14 @@ note() { printf '        %s\n' "$*"; }
 echo "Student pre-flight — $(date '+%Y-%m-%d %H:%M')"
 echo
 echo "== tools"
-for t in kind kubectl helm flux tilt; do
+for t in kind kubectl helm flux tilt python curl openssl; do
     if command -v "$t" >/dev/null 2>&1; then ok "$t found"
     else bad "$t is not on PATH"; note "see the Prerequisites table in README.md"; fi
 done
+if command -v python >/dev/null 2>&1; then
+    if python -c 'import yaml' >/dev/null 2>&1; then ok "Python module PyYAML found"
+    else bad "Python module PyYAML is missing"; note "install it with: python -m pip install pyyaml"; fi
+fi
 
 # bash 3.x (macOS's system bash) cannot run these scripts.
 if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ]; then ok "bash ${BASH_VERSION%%(*}"
@@ -100,11 +122,47 @@ if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
         notready=$(kubectl --context "$CONTEXT" get pods -A --no-headers 2>/dev/null \
                    | awk '$4!="Running" && $4!="Completed"' | wc -l | tr -d ' ')
         [ "${notready:-0}" -eq 0 ] && ok "all pods Running" || warn "$notready pod(s) not Running yet - give it a few minutes"
-        # The real question is not "did it install" but "does it answer".
-        code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -k https://hello.localhost/ 2>/dev/null)
-        if [ "$code" = "200" ]; then ok "https://hello.localhost answers 200"
-        else bad "https://hello.localhost returned '${code:-no response}'"
+        # Test application routing against the cluster CA, independently of
+        # whether the host trust prompt was accepted.
+        ca="$(mktemp "${TMPDIR:-/tmp}/student-root-ca.XXXXXX")"
+        kubectl --context "$CONTEXT" -n cert-manager get secret local-root-ca \
+            -o go-template='{{index .data "tls.crt"}}' 2>/dev/null \
+            | base64 -d > "$ca"
+        code=""
+        if [ -s "$ca" ] && openssl x509 -in "$ca" -noout >/dev/null 2>&1; then
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+                --cacert "$ca" --resolve "hello.localhost:$GATEWAY_PORT:127.0.0.1" \
+                "$hello_url" 2>/dev/null)
+        fi
+        /bin/rm -f "$ca"
+        if [ "$code" = "200" ]; then ok "$hello_url answers 200 with the cluster CA"
+        else bad "$hello_url returned '${code:-no response}'"
              note "if Tilt is still building, wait for hello-world to go green and re-run"; fi
+
+        crls_ok=1
+        for crl in root intermediate; do
+            curl -fsS --max-time 10 "$CRL_BASE_URL/$crl.crl" 2>/dev/null \
+                | openssl crl -inform DER -noout >/dev/null 2>&1 || crls_ok=0
+        done
+        [ "$crls_ok" -eq 1 ] \
+            && ok "root and intermediate CRLs are reachable and parse" \
+            || bad "local CA revocation endpoints are unavailable"
+
+        case "$(uname -s)" in
+          Darwin)
+            security verify-cert -R require "$hello_url" >/dev/null 2>&1 \
+                && ok "macOS user trust and required revocation succeed" \
+                || bad "macOS rejects the CA or cannot obtain revocation status"
+            ;;
+          *)
+            native=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+                --resolve "hello.localhost:$GATEWAY_PORT:127.0.0.1" \
+                "$hello_url" 2>/dev/null)
+            [ -n "$native" ] && [ "$native" != "000" ] \
+                && ok "OS trust store accepts the platform CA" \
+                || bad "OS trust store rejects the platform CA"
+            ;;
+        esac
     else bad "cluster exists but kubectl cannot reach it"; fi
 else
     warn "no cluster yet - run ./scripts/platform.sh up (first run downloads several GB)"

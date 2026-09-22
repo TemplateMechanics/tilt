@@ -38,27 +38,30 @@ is used. The Tilt step gives up after two minutes rather than blocking the
 build; `./scripts/trust-ca.sh` adds it afterwards and `--list` shows the CAs
 that have piled up.
 
-Be aware of what that costs. The lab graders and `./scripts/platform.sh check`
-verify TLS against the **OS trust store on purpose**, with no `-k` and no
-explicit CA, because a lab about broken certificates is worthless if the check
-bypasses certificate checking. So on a `TRUST_CA=0` cluster their HTTP
-assertions fail by design:
+Be precise about what that costs. Functional grader requests verify against the
+root exported from the cluster, so routing and application checks remain useful
+even when host trust was deliberately skipped. Lab 04 separately tests the OS
+trust store, and the real-browser harness uses Chrome without a TLS bypass.
+Those trust-specific checks fail by design on a `TRUST_CA=0` cluster:
 
 ```
 ok    TLS for hello.localhost verifies (code 0)      <- uses the cluster CA explicitly
-FAIL  GET https://hello.localhost:8443/ -> 000       <- OS store does not trust it
+ok    GET https://hello.localhost:8443/ -> 200       <- uses the cluster CA explicitly
+FAIL  OS trust store rejects the chain               <- host CA install was skipped
 FAIL  browser check: ERR_CERT_AUTHORITY_INVALID      <- same cause
 ```
 
-Confirm such a cluster by hand with the CA passed in, and read the body rather
-than the status code:
+The alternate kind config maps HTTPS to 8443 and the CRL HTTP listener to 8080.
+`platform.sh` derives both `https://*.localhost:8443` and
+`http://crl.localhost:8080`; a custom port mapping must set both
+`GATEWAY_PORT` and `GATEWAY_HTTP_PORT` before certificates are issued.
+
+Confirm a trust-skipped cluster by hand with the CA passed in:
 
 ```bash
 kubectl get secret local-root-ca -n cert-manager   -o go-template='{{index .data "tls.crt"}}' | base64 -d > /tmp/ca.crt
-curl --ssl-no-revoke --cacert /tmp/ca.crt   --resolve hello.localhost:8443:127.0.0.1 https://hello.localhost:8443/
+curl --cacert /tmp/ca.crt --resolve hello.localhost:8443:127.0.0.1 https://hello.localhost:8443/
 ```
-
-Run the graders on a cluster whose CA you did trust.
 
 ## The Podman kernel requirement
 

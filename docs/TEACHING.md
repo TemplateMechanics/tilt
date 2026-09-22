@@ -47,9 +47,25 @@ and a Flagger canary respectively. Walk those by hand the day before.
 Also worth doing once:
 
 ```bash
+./scripts/student-check.sh         # includes both CRLs and host-native trust
 ./scripts/platform.sh check       # renders every service in a real browser
 ./scripts/check-mcp.sh            # if you plan to demo the Grafana MCP
 ```
+
+On a managed Mac, Chrome may require online revocation for a locally installed
+root. A trusted root by itself is therefore not the readiness gate. Before the
+session, require the complete chain to pass:
+
+```bash
+security verify-cert -R require https://hello.localhost/
+curl -fsS http://crl.localhost/root.crl | openssl crl -inform DER -noout -nextupdate
+curl -fsS http://crl.localhost/intermediate.crl | openssl crl -inform DER -noout -nextupdate
+```
+
+If that fails, make sure `local-ca-crls` is green in Tilt, then run
+`./scripts/trust-ca.sh`. It installs the exact current root in the user's login
+keychain and refuses to report success until required-revocation verification
+passes. Do not teach learners to bypass the Chrome interstitial.
 
 If you will show the AI Ops dashboard, give its trace tables something to show.
 They list only slow (>250ms) and failed traces, and a quiet platform has

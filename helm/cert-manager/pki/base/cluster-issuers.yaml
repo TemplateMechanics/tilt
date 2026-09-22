@@ -15,6 +15,10 @@ metadata:
 spec:
   ca:
     secretName: local-root-ca
+    # The intermediate certificate points here. Managed Chrome can require an
+    # online revocation result even for a locally installed trust anchor.
+    crlDistributionPoints:
+      - http://crl.localhost/root.crl
 ---
 # Leaf certs are signed by the intermediate, never the root. The root key then
 # only ever signs one thing, so rotating a leaf never touches the CA that is
@@ -26,3 +30,6 @@ metadata:
 spec:
   ca:
     secretName: local-intermediate-ca
+    # Every leaf issued by this ClusterIssuer points at the leaf CRL.
+    crlDistributionPoints:
+      - http://crl.localhost/intermediate.crl

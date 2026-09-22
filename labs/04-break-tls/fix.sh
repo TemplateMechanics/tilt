@@ -27,13 +27,5 @@ else
     echo "ERROR: certificate was not reissued with hello.localhost within 120s"; exit 1
 fi
 
-# Re-trust the root CA: the same logic as the Tiltfile's dev-ca-trust resource.
-ca="$(mktemp -t dev-root-ca-XXXXXX).crt"
-$K get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d > "$ca"
-[ -s "$ca" ] || { echo "ERROR: exported root CA is empty - refusing to touch the trust store"; exit 1; }
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) certutil -addstore -user -f Root "$(cygpath -w "$ca")" >/dev/null && echo "root CA trusted (Windows user store)" ;;
-  Darwin) sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain "$ca" && echo "root CA trusted (macOS)" ;;
-  Linux)  sudo cp "$ca" /usr/local/share/ca-certificates/dev-root-ca.crt && sudo update-ca-certificates >/dev/null && echo "root CA trusted (Linux)" ;;
-esac
-rm -f "$ca"
+# Re-trust and prove online revocation through the same shared path Tilt uses.
+CONTEXT="$CONTEXT" GATEWAY_PORT="$GATEWAY_PORT" "$ROOT/scripts/trust-ca.sh"

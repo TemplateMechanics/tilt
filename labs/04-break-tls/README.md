@@ -45,8 +45,9 @@ To break it for real (macOS/Linux only — see below):
 ```
 
 Reload the page: certificate error — **the same words in the browser** as
-way one. Fix with `./labs/04-break-tls/fix.sh`, which does what the Tilt
-resource `dev-ca-trust` does.
+way one. Fix with `./labs/04-break-tls/fix.sh`, which calls the same shared
+user-trust script as the Tilt resource `dev-ca-trust` and verifies online
+revocation before reporting success.
 
 > **Windows:** deleting from the user Root store always raises a GUI
 > confirmation, so `break.sh trust` refuses and prints the manual command

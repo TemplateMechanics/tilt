@@ -17,7 +17,10 @@ case "${1:-}" in
     fi
     ;;
   trust)
-    fp=$($K get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d | openssl x509 -noout -fingerprint -sha1 | sed 's/.*=//;s/://g')
+    root_ca=$($K get secret local-root-ca -n cert-manager -o go-template='{{index .data "tls.crt"}}' | base64 -d)
+    fp=$(printf '%s\n' "$root_ca" | openssl x509 -noout -fingerprint -sha1 | sed 's/.*=//;s/://g')
+    ski=$(printf '%s\n' "$root_ca" | openssl x509 -noout -ext subjectKeyIdentifier | sed -n '2{s/[[:space:]:]//g;p;}')
+    [ -n "$fp" ] && [ -n "$ski" ] || { echo "ERROR: could not identify the current root CA"; exit 1; }
     case "$(uname -s)" in
       MINGW*|MSYS*|CYGWIN*)
         # Deliberately NOT automated. Windows shows a GUI confirmation dialog
@@ -30,7 +33,24 @@ case "${1:-}" in
         echo "Or see the failure without touching your store at all:"
         echo "  ./labs/04-break-tls/probe.sh hello.localhost --untrusted"
         exit 2 ;;
-      Darwin) sudo security delete-certificate -Z "$fp" /Library/Keychains/System.keychain && echo "removed root CA $fp from System keychain" ;;
+      Darwin)
+        keychain=$(security default-keychain -d user | tr -d '"' | sed 's/^[[:space:]]*//')
+        [ -n "$keychain" ] || keychain="${HOME}/Library/Keychains/login.keychain-db"
+        legacy_fp=$(security find-certificate -a -c "Tilt Local Development Root CA" \
+          -Z /Library/Keychains/System.keychain 2>/dev/null \
+          | awk -v ski="$ski" '
+              /^SHA-1 hash:/ { sha1=$3 }
+              index(toupper($0), "\"SKID\"<BLOB>=0X" toupper(ski)) { print sha1; exit }
+            ')
+        if [ -n "$legacy_fp" ]; then
+          echo "ERROR: a same-key root is also trusted in the legacy System keychain."
+          echo "Review and remove that exact certificate, then rerun this lab:"
+          echo "  sudo security delete-certificate -Z $legacy_fp /Library/Keychains/System.keychain"
+          exit 2
+        fi
+        security delete-certificate -Z "$fp" "$keychain" \
+          && echo "removed root CA $fp from the macOS user keychain"
+        ;;
       Linux)  sudo rm -f /usr/local/share/ca-certificates/dev-root-ca.crt && sudo update-ca-certificates >/dev/null && echo "removed root CA from Linux store" ;;
     esac
     ;;

@@ -88,27 +88,27 @@ kubectl logs -n flux-system -l app=helm-controller
 
 ### Browser Shows "Not Secure"
 
-1. Verify root CA is trusted:
-    - macOS: Open Keychain Access → System → look for the dev root CA
-    - Linux: Check `/usr/local/share/ca-certificates/`
-2. Restart browser after trusting
-3. Clear browser TLS state/cache
+1. Make sure `local-ca-crls` is green in Tilt.
+2. Reconcile the exact current root with `./scripts/trust-ca.sh`.
+3. Verify the complete macOS trust and revocation path with:
 
-### Permission Denied During Generation
+    ```bash
+    security verify-cert -R require https://hello.localhost/
+    ```
 
-```bash
-# Remove old root-owned directories and regenerate
-sudo rm -rf certificates/rootCA certificates/intermediateCA
-bash certificates/generate-certs.sh
-```
+    On macOS the root belongs in the current user's login keychain, not the
+    System keychain. `./scripts/trust-ca.sh --list` reports both current-user
+    entries and any legacy System-keychain entries without deleting them.
+4. Confirm both revocation lists are reachable:
 
-### Duplicate Subject Error
+    ```bash
+    curl -fsS http://crl.localhost/root.crl | openssl crl -inform DER -noout -nextupdate
+    curl -fsS http://crl.localhost/intermediate.crl | openssl crl -inform DER -noout -nextupdate
+    ```
 
-The script automatically resets `index.txt` before signing. If it persists:
-
-```bash
-echo -n > certificates/intermediateCA/index.txt
-```
+Do not bypass the certificate warning. Functional graders use the cluster CA
+explicitly, so they can pass while host-native trust or managed-Chrome
+revocation still fails.
 
 ## Windows Issues
 
@@ -142,11 +142,15 @@ choco install flux -y
 
 ### Certificate trust fails
 
-Run the following in an **elevated** (Administrator) command prompt:
+Run the shared trust operation from Git Bash and accept the Windows certificate
+confirmation:
 
-```cmd
-certutil -addstore -f "Root" certificates\rootCA\certs\ca.cert.pem
+```bash
+./scripts/trust-ca.sh
 ```
+
+It installs `.local/dev-root-ca.crt` into the current user's Root store; an
+Administrator prompt is not required.
 
 See the [Windows Setup](windows.md) guide for full details.
 
