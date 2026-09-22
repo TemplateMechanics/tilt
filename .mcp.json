@@ -12,36 +12,74 @@
         "-v",
         "${PWD}/.local/dev-root-ca.crt:/ca/dev-root-ca.crt:ro",
         "-e",
-        "GRAFANA_URL=https://grafana.localhost",
+        "GRAFANA_URL",
         "-e",
-        "GRAFANA_USERNAME=admin",
+        "GRAFANA_USERNAME",
         "-e",
-        "GRAFANA_PASSWORD=admin",
-        "mcp/grafana",
+        "GRAFANA_PASSWORD",
+        "--entrypoint",
+        "/app/mcp-grafana",
+        "grafana/mcp-grafana:1.5.1@sha256:07c6614a8f8b6477e572444874c8c07baf145473977f014497cb59262af1944c",
         "--transport",
         "stdio",
         "--tls-ca-file",
-        "/ca/dev-root-ca.crt"
+        "/ca/dev-root-ca.crt",
+        "--disable-write",
+        "--enabled-tools",
+        "search,datasource,prometheus,loki,dashboard,navigation,tempo",
+        "--max-loki-log-limit",
+        "20",
+        "--usage-stats",
+        "disabled"
       ],
-      "env": {}
+      "env": {
+        "GRAFANA_URL": "https://grafana.localhost",
+        "GRAFANA_USERNAME": "admin",
+        "GRAFANA_PASSWORD": "admin"
+      }
     },
     "playwright": {
       "command": "npx",
       "args": [
         "-y",
-        "@playwright/mcp@latest",
+        "@playwright/mcp@0.0.80",
         "--browser",
-        "chrome"
+        "chrome",
+        "--isolated",
+        "--block-service-workers",
+        "--allowed-origins",
+        "https://hello.localhost;https://hello.localhost:8443;https://kiali.localhost;https://kiali.localhost:8443;wss://kiali.localhost;wss://kiali.localhost:8443;http://crl.localhost;http://crl.localhost:8080",
+        "--output-dir",
+        "${PWD}/.local/mcp-artifacts/playwright"
       ],
-      "env": {}
+      "env": {
+        "NPM_CONFIG_CACHE": "${PWD}/.local/npm-cache"
+      }
     },
     "chrome-devtools": {
       "command": "npx",
       "args": [
         "-y",
-        "chrome-devtools-mcp@latest"
+        "chrome-devtools-mcp@1.9.0",
+        "--isolated",
+        "--no-usage-statistics",
+        "--no-performance-crux",
+        "--no-javascript-evaluation",
+        "--no-category-emulation",
+        "--redact-network-headers",
+        "--allowed-url-pattern=https://hello.localhost/*",
+        "--allowed-url-pattern=https://hello.localhost:8443/*",
+        "--allowed-url-pattern=https://kiali.localhost/*",
+        "--allowed-url-pattern=https://kiali.localhost:8443/*",
+        "--allowed-url-pattern=wss://kiali.localhost/*",
+        "--allowed-url-pattern=wss://kiali.localhost:8443/*",
+        "--allowed-url-pattern=http://crl.localhost/*",
+        "--allowed-url-pattern=http://crl.localhost:8080/*"
       ],
-      "env": {}
+      "env": {
+        "NPM_CONFIG_CACHE": "${PWD}/.local/npm-cache",
+        "CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS": "1"
+      }
     }
   }
 }

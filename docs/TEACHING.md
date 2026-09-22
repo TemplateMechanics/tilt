@@ -49,7 +49,7 @@ Also worth doing once:
 ```bash
 ./scripts/student-check.sh         # includes both CRLs and host-native trust
 ./scripts/platform.sh check       # renders every service in a real browser
-./scripts/check-mcp.sh            # if you plan to demo the Grafana MCP
+./scripts/check-mcp.sh            # if you plan to demo the three MCP servers
 ```
 
 On a managed Mac, Chrome may require online revocation for a locally installed
@@ -72,11 +72,34 @@ They list only slow (>250ms) and failed traces, and a quiet platform has
 neither, so the tables are empty unless you make some:
 
 ```bash
-for p in delay/1 delay/2 status/500 status/503; do curl -sk https://hello.localhost/$p -o /dev/null; done
+for p in delay/1 delay/2 status/500 status/503; do curl -fsS https://hello.localhost/$p -o /dev/null || true; done
 ```
 
 hello is the only workload emitting spans. An empty table means nobody sent a
 slow request in the time range, not that tracing is broken.
+
+## AI-assisted observability showcase
+
+The repository includes project-scoped Grafana, Playwright and Chrome DevTools
+MCP servers. Use the [read-only showcase runbook](GRAFANA-MCP.md) rather than
+improvising configuration during the session. Its Grafana surface is enforced
+read-only, browser mutation tools are denied in the project settings, package
+versions are pinned, and browser access is limited to the local demo routes.
+The Playwright origin filter is a request guardrail, not a security boundary,
+and upstream notes that it does not affect redirects. Service workers are
+blocked, mutation tools stay denied, and demo prompts must remain on the local
+GET-only routes.
+
+Run the complete live gate from a normal Terminal before teaching:
+
+```bash
+./scripts/check-mcp.sh
+```
+
+On the managed instructor Mac, use Claude Code for this segment. `codex mcp
+list` currently shows the required local servers disabled by enterprise policy;
+a project config cannot override that. The runbook includes exact prompts that
+correlate one request across the browser, Prometheus, Loki and Tempo.
 
 ## Profiles, and what to start
 
