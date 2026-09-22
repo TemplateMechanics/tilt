@@ -363,6 +363,7 @@ annotations:
 ```
 
 Teaching from this platform: see [docs/TEACHING.md](docs/TEACHING.md).
+AI-assisted observability demo: see [docs/GRAFANA-MCP.md](docs/GRAFANA-MCP.md).
 Attending a session: see [docs/STUDENT-SETUP.md](docs/STUDENT-SETUP.md), which
 is the checklist to work through *before* the day.
 
@@ -379,6 +380,8 @@ is the checklist to work through *before* the day.
 | kubectl | within one minor of the cluster | https://kubernetes.io/docs/tasks/tools/ — kind here runs Kubernetes 1.36, and an older kubectl prints a version-skew warning on *every* command, which students will chase |
 | Python + PyYAML | Python 3.10+ | Used by Tilt, manifest checks, and data-parsing labs. `python` must invoke Python 3; install the module with `python -m pip install pyyaml`. |
 | OpenSSL | 3.x recommended | Used to inspect certificates and generate the local development CRLs. |
+| Node.js (MCP demo only) | `^20.19` or `^22.12` or `>=23` | Required only for the optional Playwright and Chrome DevTools MCP showcase; includes `npx`. The cluster and labs do not need it. |
+| Claude Code (MCP demo only) | Current | Required only to use the checked-in project MCP servers on the managed instructor Mac. Start it from this repository and approve the project servers. |
 
 ## TLS Certificates
 

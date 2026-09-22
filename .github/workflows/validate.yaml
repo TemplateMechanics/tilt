@@ -61,6 +61,9 @@ jobs:
       - name: Helm charts are pinned
         run: python scripts/ci/check-chart-pins.py
 
+      - name: MCP config is pinned and read-only
+        run: python scripts/validate/mcp-check.py --config-only
+
       - name: TechDocs references resolve
         # A dangling techdocs-ref does not fail any build; it produces a broken
         # doc page in the Backstage portal at runtime. Deleting a service's docs
