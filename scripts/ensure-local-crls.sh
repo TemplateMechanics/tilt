@@ -37,6 +37,20 @@ secret_part() {
     [ -s "$output" ]
 }
 
+# Git Bash's openssl is a native Windows build. MSYS rewrites arguments that
+# look like POSIX paths, so -config lands correctly, but paths written INSIDE
+# the config file are passed through untouched and openssl looks for a literal
+# C:	mp\... . Measured before this: "Could not open file or uri for loading CA
+# private key from /tmp/tilt-local-crl.XXXX/root.key" - and it was invisible,
+# because the openssl call discarded its own stderr.
+native_path() {
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) cygpath -m "$1" ;;
+        *)                    printf '%s
+' "$1" ;;
+    esac
+}
+
 first_certificate() {
     awk 'BEGIN { n=0 } /BEGIN CERTIFICATE/ { n++ } n==1 { print } /END CERTIFICATE/ && n==1 { exit }' \
         "$1" > "$2"
@@ -52,17 +66,22 @@ generate_crl() {
     printf '%s\n' "$number" > "$db/crlnumber"
     printf '%s\n' '1000' > "$db/serial"
 
+    local db_n ca_cert_n ca_key_n
+    db_n="$(native_path "$db")"
+    ca_cert_n="$(native_path "$ca_cert")"
+    ca_key_n="$(native_path "$ca_key")"
+
     cat > "$db/openssl.cnf" <<EOF
 [ ca ]
 default_ca = CA_default
 
 [ CA_default ]
-database = $db/index.txt
-new_certs_dir = $db/newcerts
-certificate = $ca_cert
-private_key = $ca_key
-serial = $db/serial
-crlnumber = $db/crlnumber
+database = $db_n/index.txt
+new_certs_dir = $db_n/newcerts
+certificate = $ca_cert_n
+private_key = $ca_key_n
+serial = $db_n/serial
+crlnumber = $db_n/crlnumber
 default_md = sha256
 default_crl_days = 30
 crl_extensions = crl_ext
@@ -76,8 +95,16 @@ commonName = optional
 authorityKeyIdentifier = keyid:always
 EOF
 
-    openssl ca -batch -config "$db/openssl.cnf" -gencrl \
-        -out "$db/$name.crl.pem" >/dev/null 2>&1
+    # Keep openssl's message. With it discarded, a failure here aborted the
+    # script under `set -e` with no output at all: Tilt showed "exit status 1"
+    # and nothing else.
+    local gencrl_err
+    if ! gencrl_err="$(openssl ca -batch -config "$db/openssl.cnf" -gencrl \
+        -out "$db/$name.crl.pem" 2>&1 >/dev/null)"; then
+        echo "ERROR: openssl could not generate the $name CRL:" >&2
+        printf '%s\n' "$gencrl_err" >&2
+        return 1
+    fi
     openssl crl -in "$db/$name.crl.pem" -outform DER -out "$output_der"
     openssl crl -inform DER -in "$output_der" -verify \
         -CAfile "$ca_cert" -noout >/dev/null
@@ -90,14 +117,33 @@ secret_part cert-manager local-intermediate-ca tls.key "$work/intermediate.key"
 first_certificate "$work/root-chain.crt" "$work/root.crt"
 first_certificate "$work/intermediate-chain.crt" "$work/intermediate.crt"
 
+# Wait, do not fail. Tilt orders this after cert-manager-pki on a fresh `up`,
+# but when an existing session reloads a changed Tiltfile this resource is new,
+# its dependency has already built once, and it starts first. Measured on the
+# upgrade path: this ran at 16:27:39 and the root was reissued at 16:27:54 - it
+# failed on a cluster seconds away from being correct, and nothing re-ran it.
+ca_deadline=$((SECONDS + 300))
+while (( SECONDS < ca_deadline )); do
+    secret_part cert-manager local-root-ca tls.crt "$work/root-chain.crt" \
+        && secret_part cert-manager local-intermediate-ca tls.crt "$work/intermediate-chain.crt" \
+        && first_certificate "$work/root-chain.crt" "$work/root.crt" \
+        && first_certificate "$work/intermediate-chain.crt" "$work/intermediate.crt" \
+        && openssl x509 -in "$work/root.crt" -noout -text | grep -q 'CRL Sign' \
+        && openssl x509 -in "$work/intermediate.crt" -noout -text | grep -q 'CRL Sign' \
+        && break
+    sleep 5
+done
 openssl x509 -in "$work/root.crt" -noout -text | grep -q 'CRL Sign' || {
-    echo "ERROR: root CA lacks cRLSign; re-run the cert-manager-pki resource" >&2
+    echo "ERROR: root CA still lacks cRLSign after 300s; check cert-manager-pki" >&2
     exit 1
 }
 openssl x509 -in "$work/intermediate.crt" -noout -text | grep -q 'CRL Sign' || {
-    echo "ERROR: intermediate CA lacks cRLSign; re-run cert-manager-pki" >&2
+    echo "ERROR: intermediate CA still lacks cRLSign after 300s; check cert-manager-pki" >&2
     exit 1
 }
+# Re-read the keys after the wait so they match the certificates checked above.
+secret_part cert-manager local-root-ca tls.key "$work/root.key"
+secret_part cert-manager local-intermediate-ca tls.key "$work/intermediate.key"
 openssl x509 -in "$work/intermediate.crt" -noout -text \
     | grep -Fq "$CRL_BASE_URL/root.crl" || {
     echo "ERROR: intermediate certificate has the wrong root CRL URL" >&2
