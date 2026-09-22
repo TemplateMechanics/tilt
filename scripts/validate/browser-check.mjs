@@ -8,9 +8,10 @@
  *
  * TLS is deliberately NOT bypassed. There is no ignoreHTTPSErrors here, so the
  * run only passes if Chrome validates the certificate chain against the OS
- * trust store. That makes it a genuine check of the cert-manager PKI and the
- * dev-ca-trust step, not just of routing. A cert failure must look different
- * from a 404 — with ignoreHTTPSErrors they look identical.
+ * trust store. Managed Chrome can also require online revocation for a local
+ * anchor, so this exercises the issuer-signed CRLs as well as dev-ca-trust.
+ * That makes it a genuine PKI check, not just a routing check. A cert failure
+ * must look different from a 404 — with ignoreHTTPSErrors they look identical.
  *
  * Usage:
  *   node browser-check.mjs --out <dir> [--port 443] [host ...]
@@ -56,10 +57,10 @@ if (targets.length === 0) {
 }
 fs.mkdirSync(outDir, { recursive: true });
 
-// channel: 'chrome' uses the installed Google Chrome, which on Windows reads the
-// OS certificate store — so the locally trusted dev CA applies. Playwright's
-// bundled Chromium ships its own store and would reject the chain regardless of
-// whether dev-ca-trust worked.
+// channel: 'chrome' uses installed Google Chrome, which reads the platform
+// trust store and its managed local-anchor revocation policy. Playwright's
+// bundled Chromium can use a different trust path and would not prove that the
+// host trust plus CRL setup works.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const results = [];
 

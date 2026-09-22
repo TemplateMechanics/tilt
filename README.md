@@ -359,7 +359,6 @@ annotations:
 │   ├── <service>/              # Service-specific configs
 │   ├── istio/                  # Ambient control plane + Gateway (base/overlays)
 │   └── cert-manager/           # CA chain + PKI (base/overlays/components)
-├── certificates/               # TLS certificate generation
 └── docs/                       # Additional documentation
 ```
 
@@ -378,17 +377,36 @@ is the checklist to work through *before* the day.
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
 | bash | 4+ | Built in on macOS/Linux. On Windows, Git Bash from https://git-scm.com/download/win — `platform.sh` and the lab scripts are bash, and do not run in PowerShell or cmd.exe |
 | kubectl | within one minor of the cluster | https://kubernetes.io/docs/tasks/tools/ — kind here runs Kubernetes 1.36, and an older kubectl prints a version-skew warning on *every* command, which students will chase |
+| Python + PyYAML | Python 3.10+ | Used by Tilt, manifest checks, and data-parsing labs. `python` must invoke Python 3; install the module with `python -m pip install pyyaml`. |
+| OpenSSL | 3.x recommended | Used to inspect certificates and generate the local development CRLs. |
 
 ## TLS Certificates
 
-Generate local development certificates:
+cert-manager creates a root, intermediate, and 90-day Gateway certificate
+inside the cluster. Tilt also generates issuer-signed revocation lists and
+serves them over the Gateway's plaintext listener:
 
 ```bash
-cd certificates
-pwsh ./generate-certs.ps1
+http://crl.localhost/root.crl
+http://crl.localhost/intermediate.crl
 ```
 
-This creates a local CA and wildcard certificate for `*.localhost`.
+The `dev-ca-trust` resource exports the root to `.local/dev-root-ca.crt` and
+installs it in the host trust store. On macOS it uses the current user's login
+keychain and verifies the live endpoint with required online revocation; it
+does not modify the System keychain. The OS may still ask you to approve the
+keychain write. Run the same idempotent operation by hand with:
+
+```bash
+./scripts/trust-ca.sh
+```
+
+`TRUST_CA=0 ./scripts/platform.sh up` exports the CA without changing host
+trust. Browser validation and Lab 04's OS-trust assertion will then fail by
+design, while functional graders continue to verify against the cluster CA.
+
+The alternate kind topology derives CRL URLs with port 8080 automatically when
+`GATEWAY_PORT=8443`. Custom mappings must also set `GATEWAY_HTTP_PORT`.
 
 ## Adding New Services
 

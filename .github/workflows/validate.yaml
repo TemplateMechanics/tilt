@@ -55,6 +55,9 @@ jobs:
       - name: Routed hostnames have matching certificate SANs
         run: python scripts/ci/check-route-hostnames.py
 
+      - name: Local PKI has a complete revocation path
+        run: python scripts/ci/check-local-pki.py
+
       - name: Helm charts are pinned
         run: python scripts/ci/check-chart-pins.py
 

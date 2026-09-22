@@ -32,6 +32,25 @@ TILT_PORT="${TILT_PORT:-10350}"
 # 443 is the default and gives portless URLs. Set GATEWAY_PORT=8443 together
 # with KIND_CONFIG=kind/cluster-alt-ports.yaml when 443/80 are taken locally.
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
+# Certificate revocation is fetched over plaintext HTTP even though services
+# use HTTPS. Keep the two host-port mappings paired for the supported kind
+# topologies, while allowing an explicit value for custom mappings.
+if [ -z "${GATEWAY_HTTP_PORT:-}" ]; then
+    case "$GATEWAY_PORT" in
+        443)  GATEWAY_HTTP_PORT=80 ;;
+        8443) GATEWAY_HTTP_PORT=8080 ;;
+        *)
+            echo "GATEWAY_HTTP_PORT is required when GATEWAY_PORT is $GATEWAY_PORT" >&2
+            exit 2
+            ;;
+    esac
+fi
+if [ "$GATEWAY_HTTP_PORT" = "80" ]; then
+    CRL_BASE_URL="${CRL_BASE_URL:-http://crl.localhost}"
+else
+    CRL_BASE_URL="${CRL_BASE_URL:-http://crl.localhost:${GATEWAY_HTTP_PORT}}"
+fi
+export CLUSTER CONTEXT GATEWAY_PORT GATEWAY_HTTP_PORT CRL_BASE_URL
 KIND_CONFIG="${KIND_CONFIG:-kind/cluster.yaml}"
 # Which tiers Tilt brings up: minimal | observability | gitops | full.
 # minimal is the default on purpose — it is the ten-minute path to a working
@@ -41,6 +60,12 @@ PROFILE="${PROFILE:-minimal}"
 url_port() { [ "$GATEWAY_PORT" = "443" ] && echo "" || echo ":${GATEWAY_PORT}"; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
+need_python_yaml() {
+    python -c 'import yaml' >/dev/null 2>&1 || {
+        echo "missing Python module: PyYAML (install with: python -m pip install pyyaml)" >&2
+        exit 1
+    }
+}
 
 cluster_exists() { kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; }
 
@@ -77,6 +102,8 @@ podman_preflight() {
 
 cmd_up() {
     need kind; need kubectl; need tilt; need helm; need flux
+    need python; need curl; need openssl
+    need_python_yaml
     podman_preflight
     if cluster_exists; then
         echo "kind cluster '$CLUSTER' already exists"
@@ -132,6 +159,7 @@ cmd_check() {
 
 cmd_ci() {
     need python; need kubectl
+    need_python_yaml
     local fail=0
     echo "== kustomize build =="
     local pass=0
@@ -142,6 +170,7 @@ cmd_ci() {
                -not -path "*/skeleton/*" -not -path "./archive/*" | sort)
     echo "  $pass passed, $fail failed"
     echo "== routed hostnames have SANs =="; python scripts/ci/check-route-hostnames.py || fail=$((fail+1))
+    echo "== local PKI revocation ==";       python scripts/ci/check-local-pki.py        || fail=$((fail+1))
     echo "== charts pinned ==";              python scripts/ci/check-chart-pins.py     || fail=$((fail+1))
     echo "== scripts executable in git ==";  python scripts/ci/check-exec-bits.py      || fail=$((fail+1))
     [ "$fail" -eq 0 ] && echo "all checks passed" || { echo "$fail failure(s)"; exit 1; }

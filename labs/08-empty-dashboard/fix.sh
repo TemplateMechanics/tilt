@@ -6,8 +6,14 @@ echo "re-applied the ServiceMonitor (port: http); waiting for Prometheus to scra
 # Prometheus picks up ServiceMonitor changes on its own reload interval, so this
 # can take a minute. Waiting on the SERIES, not on the object, because the object
 # existing is exactly what fooled everyone in the first place.
-wait_for 240 "hello metrics to appear in Prometheus" bash -c '
-  curl -sS --max-time 15 --ssl-no-revoke --resolve prometheus.localhost:443:127.0.0.1 \
-    "https://prometheus.localhost/api/v1/query?query=count(up%7Bjob%3D%22hello%22%7D)" \
-    | grep -q "\"value\""'
-echo "done - run ./scripts/platform.sh lab 08"
+hello_metrics_present() {
+  gw prometheus.localhost \
+    '/api/v1/query?query=count(up%7Bjob%3D%22hello%22%7D)' \
+    | grep -q '"value"'
+}
+if wait_for 240 "hello metrics to appear in Prometheus" hello_metrics_present; then
+  echo "done - run ./scripts/platform.sh lab 08"
+else
+  echo "ERROR: hello metrics did not appear in Prometheus within 240s" >&2
+  exit 1
+fi
