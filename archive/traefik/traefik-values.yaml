@@ -1,3 +1,6 @@
+# Modified from the Traefik Helm chart's default values (Apache License 2.0):
+# https://github.com/traefik/traefik-helm-chart/blob/v34.1.0/traefik/values.yaml
+# Changes are listed in THIRD_PARTY_NOTICES.md at the repository root.
 # Default values for Traefik
 # This is a YAML-formatted file.
 # Declare variables to be passed into templates

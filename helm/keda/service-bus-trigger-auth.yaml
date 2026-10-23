@@ -3,8 +3,8 @@ kind: ClusterTriggerAuthentication
 metadata:
   name: keda-trigger-auth-azure-servicebus
 spec:
-  # This references the externally seeded Secret in your cluster
-  # where your pipeline stores the connection string
+  # keda-service-bus-secret must already exist in the keda namespace, holding
+  # the Service Bus connection string under the key named below.
   secretTargetRef:
     - parameter: connection
       name: keda-service-bus-secret

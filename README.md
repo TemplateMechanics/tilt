@@ -519,7 +519,8 @@ Open http://localhost:10350 in your browser
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE), except the third-party material listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which keeps its own licence.
 
 ## Production Notes
 
