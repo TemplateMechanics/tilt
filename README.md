@@ -519,7 +519,7 @@ Open http://localhost:10350 in your browser
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Production Notes
 
