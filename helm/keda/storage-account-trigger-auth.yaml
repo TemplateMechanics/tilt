@@ -7,13 +7,3 @@ spec:
     - parameter: connection
       name: storage-connect-string
       key: credential
----
-apiVersion: keda.sh/v1alpha1
-kind: ClusterTriggerAuthentication
-metadata:
-  name: keda-trigger-auth-azure-storage-account-secondary
-spec:
-  secretTargetRef:
-    - parameter: connection
-      name: storage-connect-string-secondary
-      key: credential

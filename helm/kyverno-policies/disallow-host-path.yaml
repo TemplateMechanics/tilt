@@ -1,3 +1,6 @@
+# Modified from the Kyverno project's policy library (Apache License 2.0):
+# https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline/disallow-host-path
+# Changes are listed in this directory's README.md, under "Origin and licence".
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
