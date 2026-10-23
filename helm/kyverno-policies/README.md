@@ -1,9 +1,8 @@
 # Kyverno policies
 
-Fourteen Pod Security Standard policy files. Twelve are live and **every live
-one is in `audit` mode, so none of them blocks anything**. The remaining two
-(`add-host-aliases.yaml`, `add-resource-limits.yaml`) are commented out in full
-and are not applied at all.
+Twelve Pod Security Standard policies, adapted from the Kyverno project's policy
+library (see [Origin and licence](#origin-and-licence)). **Every one is in
+`audit` mode, so none of them blocks anything.**
 
 That is deliberate, and it is written down here because a policy that reports
 and never refuses looks exactly like a policy that protects you. On this
@@ -49,8 +48,25 @@ kubectl -n istio-system rollout restart daemonset/ztunnel     # now refused
 
 The refusal names the policy and the rule. Put it back with `"Audit"`.
 
-The two commented-out files are mutating policies, and a mutation that fires on
-every pod in the cluster is not something to switch on without reading it first.
-
 Kyverno itself is `enabled: false` in `tilt-config.json`. Nothing in this
 directory is running unless you turn it on.
+
+## Origin and licence
+
+These policies are adapted from the Kyverno project's Pod Security Standards
+(Baseline) policies, <https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline>, copyright The Kyverno Authors. They
+remain under the Apache License 2.0
+(<https://www.apache.org/licenses/LICENSE-2.0>), not this repository's MIT licence,
+and each file carries a notice that it was modified.
+
+Changes from the upstream versions:
+
+- Every policy is set to `audit`. Upstream `restrict-apparmor-profiles` uses
+  `Enforce`; the others use `Audit`.
+- The `kyverno.io/kyverno-version` and `kyverno.io/kubernetes-version`
+  annotations were changed.
+- `disallow-capabilities`, `disallow-host-namespaces`, `disallow-host-path`,
+  `disallow-host-ports`, `disallow-host-ports-range`, `disallow-host-process` and
+  `disallow-privileged-containers` exclude the `kube-system` and `grafana`
+  namespaces.
+- YAML indentation and description line-wrapping differ.

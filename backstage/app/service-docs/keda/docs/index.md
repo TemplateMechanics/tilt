@@ -62,7 +62,6 @@ This deployment includes pre-configured `ClusterTriggerAuthentication` resources
 |------|--------|---------|
 | `keda-trigger-auth-azure-servicebus` | Azure Service Bus | Queue/topic autoscaling |
 | `keda-trigger-auth-azure-storage-account` | Azure Storage | Storage queue autoscaling |
-| `keda-trigger-auth-secondary-azure-storage-account` | Azure Storage (SFTP) | SFTP storage autoscaling |
 
 ## Enabling
 

@@ -4,6 +4,5 @@ resources:
   - helm-repo.yaml
   - helm-release.yaml
   - namespace.yaml
-  - secrets/app-batches.yaml
   - secrets/storage-connect-string.yaml
   - secrets/service-bus-connect-string.yaml
