@@ -54,19 +54,22 @@ directory is running unless you turn it on.
 ## Origin and licence
 
 These policies are adapted from the Kyverno project's Pod Security Standards
-(Baseline) policies, <https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline>, copyright The Kyverno Authors. They
+(Baseline) policies, <https://github.com/kyverno/policies/tree/release-1.9/pod-security/baseline>, copyright The Kyverno Authors. They
 remain under the Apache License 2.0
 (<https://www.apache.org/licenses/LICENSE-2.0>), not this repository's MIT licence,
 and each file carries a notice that it was modified.
 
 Changes from the upstream versions:
 
-- Every policy is set to `audit`. Upstream `restrict-apparmor-profiles` uses
-  `Enforce`; the others use `Audit`.
 - The `kyverno.io/kyverno-version` and `kyverno.io/kubernetes-version`
   annotations were changed.
 - `disallow-capabilities`, `disallow-host-namespaces`, `disallow-host-path`,
   `disallow-host-ports`, `disallow-host-ports-range`, `disallow-host-process` and
   `disallow-privileged-containers` exclude the `kube-system` and `grafana`
   namespaces.
-- YAML indentation and description line-wrapping differ.
+- YAML indentation differs, and some descriptions and messages are joined onto
+  one line. Their wording is unchanged.
+
+Release 1.9 is the closest upstream match: releases 1.7 to 1.9 are equally
+close, and later releases differ further (newer releases add `DELETE`
+preconditions and allow `hostPort: 0` in `disallow-host-ports-range`).
