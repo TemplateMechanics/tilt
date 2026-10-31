@@ -366,6 +366,11 @@ local_resource(
         # red for a correctly configured Flagger.
         kubectl logs -n istio-system -l app.kubernetes.io/name=flagger --tail=-1 2>/dev/null             | grep -q "mesh provider gatewayapi"             && echo "Flagger running with the Gateway API provider"             || { echo "ERROR: Flagger did not start with the gatewayapi provider"; exit 1; }
     """),
+    # Without deps a local_resource runs once at `tilt up` and never again, so
+    # an edit under helm/flagger reached only clusters started after it while
+    # Tilt stayed green (see helm-repositories in core.tilt). base and the
+    # overlays, which is everything the apply above reads.
+    deps=[ROOT + "/helm/flagger/base", ROOT + "/helm/flagger/overlays"],
     labels=["Infrastructure"],
     resource_deps=["istio-gateway"],
 )
@@ -385,6 +390,9 @@ local_resource(
         kubectl -n external-secrets wait --for=condition=Ready             externalsecret/demo-credentials --timeout=120s
         kubectl -n external-secrets get secret demo-credentials >/dev/null             && echo "External Secrets is materialising Secrets"             || { echo "ERROR: ExternalSecret Ready but no Secret was created"; exit 1; }
     """),
+    # Without deps this ran once at `tilt up` and never again (see flagger).
+    # The whole directory: the release, its overlays and the stores layer.
+    deps=[ROOT + "/helm/external-secrets"],
     labels=["Infrastructure"],
     resource_deps=["flux-install", "helm-repositories"],
 )
@@ -401,6 +409,9 @@ local_resource(
         kubectl -n cnpg-system wait --for=condition=Ready cluster/demo-pg --timeout=300s
         kubectl -n cnpg-system get cluster demo-pg
     """),
+    # Without deps this ran once at `tilt up` and never again (see flagger).
+    # The whole directory: the operator, its overlays and the demo Cluster.
+    deps=[ROOT + "/helm/cloudnative-pg"],
     labels=["Infrastructure"],
     resource_deps=["flux-install", "helm-repositories"],
 )
