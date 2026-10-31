@@ -140,6 +140,30 @@ jobs:
             tilt alpha tiltfile-result -- --profile=$p > /dev/null
           done
 
+  chart-values:
+    name: Chart values
+    # Its own job because it pulls every pinned chart (about 3.5 minutes),
+    # which the offline checks above deliberately avoid. A chart drops values
+    # it does not read without a word, so a leftover key reads as configuration
+    # and does nothing: this found a policy-reporter plugin that was never
+    # installed and an otel-collector release that could not render at all.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install --quiet pyyaml
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Every chart renders, and reads every value it is given
+        run: python scripts/ci/check-chart-values.py
+
   shell:
     name: Shell scripts
     runs-on: ubuntu-latest

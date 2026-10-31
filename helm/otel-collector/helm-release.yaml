@@ -14,6 +14,12 @@ spec:
         name: open-telemetry
         namespace: flux-system
   values:
+    # Required by this chart: with no repository it refuses to
+    # render ("'image.repository' must be set"), so this release had never
+    # installed at all. contrib, not core, because the loki exporter below only
+    # exists in contrib. The tag defaults to the chart's appVersion, 0.104.0.
+    image:
+      repository: otel/opentelemetry-collector-contrib
     mode: deployment
     replicaCount: 1
     resources:
@@ -66,9 +72,14 @@ spec:
           endpoint: tempo.tracing.svc.cluster.local:4317
           tls:
             insecure: true
-        # Forward metrics to Prometheus (via remote write)
-        prometheusremotewrite:
-          endpoint: http://prometheus-server.monitoring.svc.cluster.local:9090/api/v1/write
+        # Expose metrics for Prometheus to scrape on the `prometheus` port,
+        # which helm/prometheus/servicemonitors/otel-collector.yaml selects.
+        # This was prometheusremotewrite to prometheus-server.monitoring, a
+        # Service that does not exist here (kube-prometheus-stack names it
+        # prometheus-kube-prometheus-prometheus), and the Prometheus CR does
+        # not enable the remote-write receiver either. Scraping needs neither.
+        prometheus:
+          endpoint: 0.0.0.0:8889
         # Forward logs to Loki
         loki:
           endpoint: http://loki.logging.svc.cluster.local:3100/loki/api/v1/push
@@ -87,12 +98,13 @@ spec:
           metrics:
             receivers: [otlp]
             processors: [memory_limiter, batch]
-            exporters: [prometheusremotewrite]
+            exporters: [prometheus]
           logs:
             receivers: [otlp]
             processors: [memory_limiter, batch]
             exporters: [loki]
+    # Off: helm/prometheus/servicemonitors/otel-collector.yaml already scrapes
+    # this Service. With both, every series is scraped twice and each sum()
+    # doubles, the failure the qdrant monitor documents.
     serviceMonitor:
-      enabled: true
-      metricsEndpoints:
-        - port: metrics
+      enabled: false

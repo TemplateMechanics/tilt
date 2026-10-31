@@ -17,18 +17,18 @@ spec:
       # Single replica for local dev
       replicaCount: 1
       # Persistent storage for vectors
+      # No persistence.enabled or storageClass: chart 1.19.1 reads neither
+      # (storage is always a PVC; the class key is storageClassName), and
+      # changing them left the render identical.
       persistence:
-        enabled: true
         size: 10Gi
-        storageClass: ""
         accessModes:
           - ReadWriteOnce
-      # Service configuration
+      # Service configuration. Ports come from the chart's service.ports list
+      # (6333 http, 6334 grpc); service.port and grpcPort were ignored.
       service:
         type: ClusterIP
-        port: 6333
-        grpcPort: 6334
-      # Disable built-in ingress (Crossplane creates IngressRoute)
+      # Disable built-in ingress (the Crossplane composition creates an HTTPRoute)
       ingress:
         enabled: false
       # Resources (conservative for local dev)
