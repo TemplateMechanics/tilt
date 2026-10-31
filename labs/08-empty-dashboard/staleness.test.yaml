@@ -1,0 +1,50 @@
+# What a removed scrape target looks like to a query, as a promtool unit test.
+# It needs no cluster:
+#
+#   docker run --rm -v "$PWD/labs/08-empty-dashboard:/w" --entrypoint promtool \
+#       prom/prometheus:v3.15.1 test rules /w/staleness.test.yaml
+#
+# In Git Bash, prefix it with MSYS_NO_PATHCONV=1 and use "$(pwd -W)" in place
+# of "$PWD"; otherwise both paths are rewritten and promtool finds no file.
+#
+# The lab README once said Prometheus "keeps serving the last sample for ~5
+# minutes" after scraping stops. For a removed target it does not: Prometheus
+# writes a staleness marker and instant queries return nothing straight away.
+# What does linger is anything with a range selector, which is most dashboard
+# panels. The cases below pin both halves.
+rule_files: []
+evaluation_interval: 30s
+tests:
+  - interval: 30s
+    # Scraped every 30s from 0s to 4m30s; the target is then removed and the
+    # series marked stale at 5m.
+    input_series:
+      - series: 'up{job="hello"}'
+        values: '1x9 stale'
+      - series: 'hello_requests_total{job="hello"}'
+        values: '0+10x9 stale'
+    promql_expr_test:
+      # Instant queries: present while scraped, gone 10s after the marker.
+      - expr: count(up{job="hello"})
+        eval_time: 4m30s
+        exp_samples: [{labels: '{}', value: 1}]
+      - expr: count(up{job="hello"})
+        eval_time: 5m10s
+        exp_samples: []
+      # The grader's freshness query is empty too, which check.sh turns into a
+      # failure rather than a pass.
+      - expr: time() - max(timestamp(up{job="hello"}))
+        eval_time: 5m10s
+        exp_samples: []
+      # A rate() panel keeps drawing, and the value falls, so the graph reads
+      # as traffic tapering off rather than data missing...
+      - expr: rate(hello_requests_total{job="hello"}[5m])
+        eval_time: 5m10s
+        exp_samples: [{labels: '{job="hello"}', value: 0.3055555555555555}]
+      - expr: rate(hello_requests_total{job="hello"}[5m])
+        eval_time: 8m50s
+        exp_samples: [{labels: '{job="hello"}', value: 0.0611111111111111}]
+      # ...until its 5m window holds fewer than two real samples.
+      - expr: rate(hello_requests_total{job="hello"}[5m])
+        eval_time: 9m10s
+        exp_samples: []

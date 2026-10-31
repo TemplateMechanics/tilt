@@ -61,7 +61,7 @@ Harbor is a cloud-native container registry with vulnerability scanning, access 
 ```json
 {
   "crossplane_apps": {
-    "harbor": true
+    "harbor": { "enabled": true }
   }
 }
 ```

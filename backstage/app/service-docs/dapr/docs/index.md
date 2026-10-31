@@ -66,7 +66,7 @@ Dapr provides building blocks for common microservice patterns, abstracting away
 ```json
 {
   "flux_apps": {
-    "dapr": true
+    "dapr": { "enabled": true }
   }
 }
 ```

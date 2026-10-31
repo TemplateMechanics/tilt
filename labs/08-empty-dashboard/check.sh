@@ -27,10 +27,12 @@ print(sum(1 for t in ts if t['labels'].get('job')=='hello' and t.get('health')==
 [ "${n:-0}" -ge 1 ] && pass "Prometheus has $n healthy target(s) for job=hello" \
                     || fail "Prometheus has no healthy target for job=hello"
 
-# 4. And the data is FRESH. Asking "are there series?" is not enough: when the
-#    scrape stops, Prometheus keeps serving the last sample for ~5 minutes, so a
-#    broken monitor still looks healthy for the length of a coffee break. This
-#    measures how long ago the last successful scrape was.
+# 4. And the data is FRESH. Asking "are there series?" is not enough: after the
+#    scrape stops, rate(...[5m]) panels keep drawing a falling line for most of
+#    their window (staleness.test.yaml), so a broken monitor looks like quiet
+#    traffic for the length of a coffee break. This measures how long ago the
+#    last successful scrape was; once the series is stale the query is empty
+#    and age falls through to 999, a failure.
 age=$(gw prometheus.localhost '/api/v1/query?query=time()%20-%20max(timestamp(up%7Bjob%3D%22hello%22%7D))' 2>/dev/null | python -c "import json,sys
 try:
     r=json.load(sys.stdin)['data']['result']; print(int(float(r[0]['value'][1])) if r else 999)
@@ -38,6 +40,6 @@ except Exception: print(999)" 2>/dev/null)
 if [ "${age:-999}" -lt 120 ]; then
     pass "last successful scrape of job=hello was ${age}s ago"
 else
-    fail "no fresh data for job=hello (last scrape ${age}s ago; stale series can linger ~5m)"
+    fail "no fresh data for job=hello (last scrape ${age}s ago; rate() panels can keep drawing for ~5m)"
 fi
 summary

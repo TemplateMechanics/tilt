@@ -26,7 +26,7 @@ JupyterHub is a multi-user Jupyter notebook server for interactive data science 
 ```json
 {
   "raw_apps": {
-    "jupyterhub": true
+    "jupyterhub": { "enabled": true }
   }
 }
 ```

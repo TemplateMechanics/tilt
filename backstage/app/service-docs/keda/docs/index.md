@@ -68,7 +68,7 @@ This deployment includes pre-configured `ClusterTriggerAuthentication` resources
 ```json
 {
   "flux_apps": {
-    "keda": true
+    "keda": { "enabled": true }
   }
 }
 ```

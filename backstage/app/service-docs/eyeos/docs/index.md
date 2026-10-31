@@ -67,7 +67,7 @@ Uses `sickcodes/docker-eyeos:latest` with:
 ```json
 {
   "raw_apps": {
-    "eyeos": true
+    "eyeos": { "enabled": true }
   }
 }
 ```
@@ -76,8 +76,8 @@ Requires KubeVirt to be enabled:
 ```json
 {
   "raw_apps": {
-    "kubevirt": true,
-    "eyeos": true
+    "kubevirt": { "enabled": true },
+    "eyeos": { "enabled": true }
   }
 }
 ```

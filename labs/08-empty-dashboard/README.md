@@ -62,11 +62,15 @@ empty.
 
 Two more things worth knowing:
 
-- **Stale data hides it for ~5 minutes.** Prometheus keeps serving the last
-  sample after scraping stops, so `count({job="hello"})` still returns data long
-  after the target is gone. This lab's grader checks how long ago the last
-  scrape happened, not merely whether series exist. Freshness and existence are
-  different questions.
+- **Graphs fade out instead of stopping.** When the target disappears,
+  Prometheus marks its series stale, and an instant query such as
+  `count({job="hello"})` returns nothing almost at once. Most panels use
+  `rate(...[5m])`, though, and that reads back across its whole window: with a 30s
+  scrape it kept returning a falling value for 4m20s after the last one. So the graph looks
+  like traffic tapering off, not like data missing. `staleness.test.yaml` in
+  this directory reproduces both without a cluster (the command is at its top).
+  This lab's grader checks how long ago the last scrape happened, not merely
+  whether series exist. Freshness and existence are different questions.
 - **Prometheus reloads on a timer.** Changes take up to a minute to appear.
   Testing immediately and concluding "my fix did nothing" is its own trap.
 

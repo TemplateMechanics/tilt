@@ -26,7 +26,7 @@ MailHog is an email testing tool that captures outgoing email in a web-based UI,
 ```json
 {
   "raw_apps": {
-    "mailhog": true
+    "mailhog": { "enabled": true }
   }
 }
 ```

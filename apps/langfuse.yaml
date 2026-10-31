@@ -18,28 +18,21 @@ spec:
   dataplaneMode: none
   chart:
     name: langfuse
-    # PREREQUISITE, and the reason this does not install out of the box:
-    # chart 2.x requires the ClickHouse Kubernetes operator to be present first —
-    #   ClickHouse operator CRDs not found (clickhouse.com/v1alpha1/ClickHouseCluster)
-    # ClickHouse is NOT a subchart in any 2.x release; only postgres and valkey
-    # are. The langfuse chart's own values describe that operator as
-    # "alpha-quality at the time of writing", so it is deliberately NOT added to
-    # this platform to unblock one service that is disabled by default.
-    #
-    # To run langfuse, either:
-    #   a) install the ClickHouse operator (clickhouse.com/v1alpha1), then enable
-    #      this app; or
-    #   b) set clickhouse.deploy: false below and point clickhouse.host at an
-    #      external ClickHouse.
-    #
     # Pinned rather than ranged: ">=0.1.0" resolved to 2.1.0, a major version
     # whose values are shaped completely differently, and the app silently
     # stopped installing.
-    # 1.5.41 (app 3.224.1), not 2.1.0 (app 4.24.0). Both still require
-    # ClickHouse - correcting an earlier note here that claimed 1.5.x was a
-    # Postgres-only line. It is not: every published langfuse chart, back to
-    # 0.12.x, is app v3 or later. The chart bundles its own ClickHouse, so no
-    # external operator is needed; 2.x was the version that wanted one.
+    #
+    # 1.5.41 (app 3.224.1), not 2.1.0 (app 4.24.0). Both need ClickHouse; every
+    # published langfuse chart back to 0.12.x is app v3 or later. The difference
+    # is where it comes from. 1.5.41 bundles the Bitnami clickhouse subchart, so
+    # it installs with nothing else present. 2.x drops that subchart and fails
+    # with "ClickHouse operator CRDs not found
+    # (clickhouse.com/v1alpha1/ClickHouseCluster)" unless the ClickHouse
+    # operator is installed first. The chart's own values call that operator
+    # "alpha-quality at the time of writing", which is why it is not part of
+    # this platform. Moving to 2.x means adding the operator, or setting
+    # clickhouse.deploy: false and pointing clickhouse.host at an external
+    # ClickHouse.
     version: "1.5.41"
     repository: langfuse
     values:
@@ -73,9 +66,11 @@ spec:
           url: "https://langfuse.localhost"
           secret:
             value: "changeme-random-secret-min-32-chars!!"
-      # PostgreSQL dependency (embedded)
+      # PostgreSQL dependency (embedded). The chart's switch is `deploy`, not
+      # `enabled`: this key once read `enabled: true`, which the chart ignores,
+      # so `enabled: false` would have left the bundled database running.
       postgresql:
-        enabled: true
+        deploy: true
         auth:
           username: langfuse
           password: langfuse
@@ -84,16 +79,15 @@ spec:
           persistence:
             enabled: true
             size: 8Gi
-      # ClickHouse dependency (required by newer Langfuse versions)
+      # ClickHouse dependency (Langfuse v3 and later). `deploy`, as for postgresql.
       clickhouse:
-        enabled: true
+        deploy: true
         auth:
-          # MUST be "default". The chart refuses to render otherwise:
-          #   clickhouse.auth.username must be "default" when
-          #   clickhouse.deploy is true
-          # because the operator CR only provisions a password for the built-in
-          # default user. With "langfuse" here the whole HelmRelease fails to
-          # install, so langfuse never appears at all.
+          # "default" is the chart's own default and the user this app was run
+          # with. 1.5.41 renders with any name; 2.x refuses anything else
+          # ("clickhouse.auth.username must be "default" when clickhouse.deploy
+          # is true"), because its operator only provisions a password for the
+          # built-in user. Keeping "default" avoids that trap on an upgrade.
           username: default
           password: langfuse
         # Single node for dev environment (reduce resource usage)

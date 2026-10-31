@@ -25,7 +25,7 @@ Local emulators for Google Cloud Platform services running in Kubernetes.
 ```json
 {
   "raw_apps": {
-    "gcp-emulators": true
+    "gcp-emulators": { "enabled": true }
   }
 }
 ```

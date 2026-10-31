@@ -29,7 +29,7 @@ Kyverno enforces best practices and security policies across your Kubernetes clu
 ```json
 {
   "flux_apps": {
-    "kyverno": true
+    "kyverno": { "enabled": true }
   }
 }
 ```

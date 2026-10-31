@@ -65,7 +65,7 @@ NATS provides lightweight, high-performance messaging with multiple patterns:
 ```json
 {
   "flux_apps": {
-    "nats": true
+    "nats": { "enabled": true }
   }
 }
 ```

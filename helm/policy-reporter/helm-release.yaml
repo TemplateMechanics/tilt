@@ -22,9 +22,13 @@ spec:
     remediation:
       retries: 5
   values:
-    kyvernoPlugin:
-      enabled: true
+    # plugin.kyverno is the 3.x key. This used to set kyvernoPlugin.enabled and
+    # ui.plugins.kyverno, the 2.x shape, which 3.10.0 accepts and ignores: the
+    # render was byte-identical with them removed, and no plugin Deployment
+    # existed. With this key the chart adds policy-reporter-kyverno-plugin and
+    # points the UI at it, so no ui.plugins entry is needed.
+    plugin:
+      kyverno:
+        enabled: true
     ui:
       enabled: true
-      plugins:
-        kyverno: true

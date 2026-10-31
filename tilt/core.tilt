@@ -7,7 +7,7 @@
 # nothing routes, nothing has a certificate, or nothing trusts it.
 ###############################################################################
 
-load("./lib.tilt", "sh", "get_os_type", "k8s_namespace", "k8s_kustomize_simple", "CONFIG", "PLATFORM", "GATEWAY_API_VERSION", "WAIT_HR", "ROOT")
+load("./lib.tilt", "sh", "get_os_type", "k8s_namespace", "k8s_kustomize_simple", "CONFIG", "PLATFORM", "GATEWAY_API_VERSION", "FLUX_VERSION", "WAIT_HR", "ROOT")
 
 ###############################################################################
 # INFRASTRUCTURE (Always On)
@@ -39,8 +39,8 @@ local_resource(
             fi
         fi
 
-        echo "Installing / upgrading Flux on cluster..."
-        flux install
+        echo "Installing / upgrading Flux """ + FLUX_VERSION + """ on cluster..."
+        flux install --version=""" + FLUX_VERSION + """
 
         echo "Waiting for all Flux controllers to be ready..."
         kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s

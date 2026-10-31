@@ -66,7 +66,7 @@ Default MySQL credentials are configured in the deployment manifests.
 ```json
 {
   "raw_apps": {
-    "wordpress": true
+    "wordpress": { "enabled": true }
   }
 }
 ```

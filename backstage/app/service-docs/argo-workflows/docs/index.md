@@ -61,7 +61,7 @@ Argo Workflows enables container-native orchestration on Kubernetes:
 ```json
 {
   "flux_apps": {
-    "argo-workflows": true
+    "argo-workflows": { "enabled": true }
   }
 }
 ```

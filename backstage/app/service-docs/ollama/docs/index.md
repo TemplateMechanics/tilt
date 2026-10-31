@@ -25,7 +25,7 @@ Ollama provides a local large language model server for running LLMs like Llama,
 ```json
 {
   "flux_apps": {
-    "ollama": true
+    "ollama": { "enabled": true }
   }
 }
 ```

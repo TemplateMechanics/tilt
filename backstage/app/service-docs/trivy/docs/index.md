@@ -37,7 +37,7 @@ Trivy Operator automatically scans your Kubernetes workloads and produces securi
 ```json
 {
   "flux_apps": {
-    "trivy": true
+    "trivy": { "enabled": true }
   }
 }
 ```

@@ -25,7 +25,7 @@ Redis is an in-memory data structure store used as a database, cache, message br
 ```json
 {
   "raw_apps": {
-    "redis": true
+    "redis": { "enabled": true }
   }
 }
 ```

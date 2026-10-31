@@ -25,7 +25,7 @@ Microsoft SQL Server (MSSQL) is a relational database management system for appl
 ```json
 {
   "raw_apps": {
-    "mssql": true
+    "mssql": { "enabled": true }
   }
 }
 ```

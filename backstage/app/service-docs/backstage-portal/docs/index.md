@@ -26,7 +26,7 @@ Backstage is the developer portal and service catalog for the dev platform, prov
 ```json
 {
   "raw_apps": {
-    "backstage": true
+    "backstage": { "enabled": true }
   }
 }
 ```

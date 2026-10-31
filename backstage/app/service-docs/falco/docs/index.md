@@ -58,7 +58,7 @@ Prometheus    Wazuh Filebeat
 ```json
 {
   "flux_apps": {
-    "falco": true
+    "falco": { "enabled": true }
   }
 }
 ```

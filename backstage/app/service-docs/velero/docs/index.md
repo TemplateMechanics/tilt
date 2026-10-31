@@ -33,7 +33,7 @@ Velero lets you back up and restore your Kubernetes cluster resources and persis
 ```json
 {
   "flux_apps": {
-    "velero": true
+    "velero": { "enabled": true }
   }
 }
 ```

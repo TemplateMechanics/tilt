@@ -26,7 +26,7 @@ Qdrant is a high-performance vector similarity search engine for AI applications
 ```json
 {
   "crossplane_apps": {
-    "qdrant": true
+    "qdrant": { "enabled": true }
   }
 }
 ```
