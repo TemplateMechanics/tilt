@@ -68,7 +68,7 @@ The Helm release creates:
 ```json
 {
   "flux_apps": {
-    "1pass": true
+    "1pass": { "enabled": true }
   }
 }
 ```

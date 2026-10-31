@@ -75,7 +75,7 @@ Thanos extends Prometheus with enterprise-grade features:
 ```json
 {
   "flux_apps": {
-    "thanos": true
+    "thanos": { "enabled": true }
   }
 }
 ```

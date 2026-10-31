@@ -90,7 +90,7 @@ configs:
 ```json
 {
   "flux_apps": {
-    "argocd": true
+    "argocd": { "enabled": true }
   }
 }
 ```

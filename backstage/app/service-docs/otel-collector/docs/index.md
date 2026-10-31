@@ -69,7 +69,7 @@ Applications can send telemetry using either protocol. Set the `OTEL_EXPORTER_OT
 ```json
 {
   "flux_apps": {
-    "otel-collector": true
+    "otel-collector": { "enabled": true }
   }
 }
 ```

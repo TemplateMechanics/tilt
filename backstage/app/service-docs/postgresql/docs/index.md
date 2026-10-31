@@ -25,7 +25,7 @@ PostgreSQL is the open-source relational database deployed as a standalone insta
 ```json
 {
   "raw_apps": {
-    "postgresql": true
+    "postgresql": { "enabled": true }
   }
 }
 ```

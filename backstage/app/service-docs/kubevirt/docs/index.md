@@ -68,7 +68,7 @@ The following feature gates are enabled:
 ```json
 {
   "raw_apps": {
-    "kubevirt": true
+    "kubevirt": { "enabled": true }
   }
 }
 ```

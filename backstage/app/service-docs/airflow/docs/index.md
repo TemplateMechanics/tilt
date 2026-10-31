@@ -59,7 +59,7 @@ Apache Airflow is a workflow orchestration platform for building and managing da
 ```json
 {
   "raw_apps": {
-    "airflow": true
+    "airflow": { "enabled": true }
   }
 }
 ```

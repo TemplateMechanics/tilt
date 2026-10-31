@@ -25,7 +25,7 @@ MongoDB is a NoSQL document database providing flexible, JSON-like document stor
 ```json
 {
   "raw_apps": {
-    "mongodb": true
+    "mongodb": { "enabled": true }
   }
 }
 ```

@@ -25,7 +25,7 @@ Azurite is the Azure Storage emulator for local development, supporting Blob, Qu
 ```json
 {
   "raw_apps": {
-    "azurite": true
+    "azurite": { "enabled": true }
   }
 }
 ```

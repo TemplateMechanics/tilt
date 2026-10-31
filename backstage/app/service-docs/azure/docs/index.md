@@ -52,7 +52,7 @@ mountOptions:
 ```json
 {
   "raw_apps": {
-    "azure": true
+    "azure": { "enabled": true }
   }
 }
 ```

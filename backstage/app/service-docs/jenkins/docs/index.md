@@ -26,7 +26,7 @@ Jenkins is an open-source automation server for building CI/CD pipelines.
 ```json
 {
   "crossplane_apps": {
-    "jenkins": true
+    "jenkins": { "enabled": true }
   }
 }
 ```

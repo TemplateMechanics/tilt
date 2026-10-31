@@ -41,7 +41,9 @@ metadata:
     backstage.io/techdocs-ref: dir:./cert-manager/
     dev.tilt/resource: cert-manager
     dev.tilt/namespace: cert-manager
-    dev.tilt/config-key: flux_apps.cert-manager
+    # No dev.tilt/config-key: cert-manager is core and has no tilt-config.json
+    # entry. It pointed at flux_apps.cert-manager, which was removed because
+    # disabling it let the auto-cleanup delete the platform's own PKI.
     grafana/dashboard-selector: "title == 'cert-manager'"
   tags:
     - certificates
@@ -270,9 +272,8 @@ metadata:
     - policy
     - security
     - kyverno
-  links:
-    - url: https://policy-reporter.localhost
-      title: Policy Reporter UI
+  # No links: no HTTPRoute serves policy-reporter.localhost, so a link here led
+  # to the Gateway with nothing behind it. The docs give the port-forward.
 spec:
   type: service
   lifecycle: production
@@ -549,7 +550,7 @@ metadata:
     - authentication
     - oauth
   links:
-    - url: https://keycloak.localhost
+    - url: https://auth.localhost
       title: Keycloak Admin Console
 spec:
   type: service

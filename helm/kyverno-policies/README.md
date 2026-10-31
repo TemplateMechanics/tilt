@@ -27,7 +27,8 @@ Kyverno and read the actual reports before trusting the list:
 
 | Component | Needs | Policy it violates |
 |---|---|---|
-| `istio-cni-node`, `ztunnel` | privileged, host network, host paths | `disallow-privileged-containers`, `disallow-host-namespaces`, `disallow-host-path` |
+| `istio-cni-node`, `ztunnel` | added capabilities (`NET_ADMIN`, `SYS_ADMIN`), host paths | `disallow-capabilities`, `disallow-host-path` |
+| `istio-ambient-node-prep` (kind only) | privileged, host PID namespace | `disallow-privileged-containers`, `disallow-host-namespaces` |
 | `alloy`, `wazuh-filebeat` | host paths for log collection | `disallow-host-path` |
 | kind's `local-path-provisioner` | host paths for volumes | `disallow-host-path` |
 
@@ -43,8 +44,12 @@ working:
 kubectl patch clusterpolicy disallow-privileged-containers \
   --type merge -p '{"spec":{"validationFailureAction":"Enforce"}}'
 kubectl -n hello delete pod -l app.kubernetes.io/name=hello   # still fine
-kubectl -n istio-system rollout restart daemonset/ztunnel     # now refused
+kubectl -n istio-system rollout restart daemonset/istio-ambient-node-prep   # now refused
 ```
+
+ztunnel and istio-cni are not privileged: Istio 1.28's charts set
+`privileged: false` and add `NET_ADMIN` and `SYS_ADMIN` instead, so this policy
+lets them through. Enforce `disallow-capabilities` to see them refused.
 
 The refusal names the policy and the rule. Put it back with `"Audit"`.
 

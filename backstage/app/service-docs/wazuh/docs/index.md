@@ -67,7 +67,7 @@ Wazuh is deployed as a three-component stack with a Filebeat DaemonSet for log c
 ```json
 {
   "raw_apps": {
-    "wazuh": true
+    "wazuh": { "enabled": true }
   }
 }
 ```

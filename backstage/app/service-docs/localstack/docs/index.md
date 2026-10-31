@@ -26,7 +26,7 @@ LocalStack provides a fully functional local cloud stack emulating AWS services 
 ```json
 {
   "crossplane_apps": {
-    "localstack": true
+    "localstack": { "enabled": true }
   }
 }
 ```

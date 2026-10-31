@@ -53,12 +53,20 @@ Policy Reporter is deployed via Flux HelmRelease with:
 
 ```yaml
 values:
-  kyvernoPlugin:
-    enabled: true
+  plugin:
+    kyverno:
+      enabled: true
   ui:
     enabled: true
-    plugins:
-      kyverno: true
+```
+
+## Accessing
+
+The platform has no HTTPRoute for the UI yet, so there is no `policy-reporter.localhost`. Port-forward instead:
+
+```bash
+kubectl -n policy-reporter port-forward svc/policy-reporter-ui 8082:8080
+# then open http://localhost:8082
 ```
 
 ## Enabling
@@ -66,7 +74,7 @@ values:
 ```json
 {
   "flux_apps": {
-    "policy-reporter": true
+    "policy-reporter": { "enabled": true }
   }
 }
 ```

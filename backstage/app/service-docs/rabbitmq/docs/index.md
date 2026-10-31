@@ -26,7 +26,7 @@ RabbitMQ is a reliable open-source message broker supporting AMQP, MQTT, and STO
 ```json
 {
   "raw_apps": {
-    "rabbitmq": true
+    "rabbitmq": { "enabled": true }
   }
 }
 ```

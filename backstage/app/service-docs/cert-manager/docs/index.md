@@ -8,9 +8,9 @@ cert-manager automates the management and issuance of TLS certificates in Kubern
 |----------|-------|
 | **Namespace** | `cert-manager` |
 | **Type** | Certificate Management |
-| **Default** | Disabled |
-| **Config Key** | `flux_apps.cert-manager` |
-| **Deployment** | Flux HelmRelease |
+| **Default** | Always on (core) |
+| **Config Key** | none: it cannot be turned off |
+| **Deployment** | Flux HelmRelease (`cert-manager` resource in `tilt/core.tilt`) |
 
 
 ## Official Documentation
@@ -22,26 +22,11 @@ cert-manager automates the management and issuance of TLS certificates in Kubern
 
 ## Purpose
 
-cert-manager adds certificates and certificate issuers as resource types in Kubernetes, simplifying the process of obtaining, renewing, and using certificates. In the dev platform, it can be used alongside or instead of the manual certificate generation.
+cert-manager adds certificates and certificate issuers as resource types in Kubernetes, simplifying the process of obtaining, renewing, and using certificates. In the dev platform it *is* the PKI: it runs the local root and intermediate CAs (`helm/cert-manager/pki/`) and issues the Gateway's certificate, so every `*.localhost` route depends on it.
 
 ## Enabling
 
-```json
-// tilt-config.json
-{
-  "flux_apps": {
-    "cert-manager": true
-  }
-}
-```
-
-Or via the config server API:
-
-```bash
-curl -X PATCH https://localhost:10351/config \
-  -H "Content-Type: application/json" \
-  -d '{"flux_apps": {"cert-manager": true}}'
-```
+Nothing to enable. cert-manager is installed on every profile and has no entry in `tilt-config.json`. It used to be a toggleable `flux_apps` entry, and with `enabled: false` the auto-cleanup deleted it straight after the platform created it. The Gateway kept serving its already-issued certificate, so nothing looked wrong until that certificate needed renewing.
 
 ## Components
 
@@ -53,18 +38,9 @@ curl -X PATCH https://localhost:10351/config \
 
 ## Usage
 
-### Create a self-signed Issuer
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: selfsigned-issuer
-spec:
-  selfSigned: {}
-```
-
 ### Request a Certificate
+
+Use the platform's `local-intermediate-ca` ClusterIssuer, the one the Gateway's certificate comes from. A new self-signed issuer would issue a certificate just as readily, but nothing trusts it, so clients fail verification.
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -75,7 +51,7 @@ metadata:
 spec:
   secretName: my-cert-tls
   issuerRef:
-    name: selfsigned-issuer
+    name: local-intermediate-ca
     kind: ClusterIssuer
   commonName: my-service.localhost
   dnsNames:

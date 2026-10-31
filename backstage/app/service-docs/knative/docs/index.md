@@ -85,7 +85,7 @@ Provides event-driven architecture primitives:
 ```json
 {
   "raw_apps": {
-    "knative": true
+    "knative": { "enabled": true }
   }
 }
 ```

@@ -26,7 +26,7 @@ Langfuse is an open-source LLM engineering platform for tracing, analytics, prom
 ```json
 {
   "crossplane_apps": {
-    "langfuse": true
+    "langfuse": { "enabled": true }
   }
 }
 ```

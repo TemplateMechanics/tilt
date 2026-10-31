@@ -10,7 +10,7 @@ Keycloak is an open-source identity and access management solution providing SSO
 | **Type** | Identity & Access Management |
 | **Default** | Disabled |
 | **Config Key** | `raw_apps.keycloak` |
-| **Console** | [keycloak.localhost](https://keycloak.localhost) |
+| **Console** | [auth.localhost](https://auth.localhost) |
 | **Deployment** | Kustomize (raw manifests) |
 
 
@@ -45,23 +45,23 @@ Keycloak is an open-source identity and access management solution providing SSO
 ```json
 {
   "raw_apps": {
-    "keycloak": true
+    "keycloak": { "enabled": true }
   }
 }
 ```
 
 ## Accessing
 
-- **Admin Console**: [https://keycloak.localhost](https://keycloak.localhost)
+- **Admin Console**: [https://auth.localhost](https://auth.localhost)
 - **Default credentials**: `admin` / `admin`
-- **OIDC Discovery**: `https://keycloak.localhost/realms/<realm>/.well-known/openid-configuration`
+- **OIDC Discovery**: `https://auth.localhost/realms/<realm>/.well-known/openid-configuration`
 
 ## Default Credentials
 
 | Service | Username | Password |
 |---------|----------|----------|
 | Keycloak Admin | `admin` | `admin` |
-| PostgreSQL | `keycloak` | `keycloak` |
+| PostgreSQL (`kc_db`) | `kc_user` | `kc-dev-password` |
 
 ## Common Operations
 
@@ -76,8 +76,8 @@ Keycloak is an open-source identity and access management solution providing SSO
 
 ```bash
 # Using the Admin REST API
-curl -X POST "https://keycloak.localhost/admin/realms/master/clients" \
-  -H "Authorization: Bearer $(curl -s -X POST 'https://keycloak.localhost/realms/master/protocol/openid-connect/token' \
+curl -X POST "https://auth.localhost/admin/realms/master/clients" \
+  -H "Authorization: Bearer $(curl -s -X POST 'https://auth.localhost/realms/master/protocol/openid-connect/token' \
     -d 'grant_type=password&client_id=admin-cli&username=admin&password=admin' | jq -r .access_token)" \
   -H "Content-Type: application/json" \
   -d '{
@@ -90,7 +90,7 @@ curl -X POST "https://keycloak.localhost/admin/realms/master/clients" \
 ### Get an Access Token
 
 ```bash
-curl -X POST "https://keycloak.localhost/realms/master/protocol/openid-connect/token" \
+curl -X POST "https://auth.localhost/realms/master/protocol/openid-connect/token" \
   -d "grant_type=password" \
   -d "client_id=admin-cli" \
   -d "username=admin" \
@@ -120,5 +120,5 @@ kubectl logs -n keycloak -l app=keycloak --tail=50
 kubectl exec -n keycloak deploy/keycloak -- /opt/keycloak/bin/kc.sh show-config
 
 # Test OIDC endpoint
-curl https://keycloak.localhost/realms/master/.well-known/openid-configuration | jq .
+curl https://auth.localhost/realms/master/.well-known/openid-configuration | jq .
 ```

@@ -57,7 +57,7 @@ Uses `sickcodes/docker-osx:ventura` with:
 ```json
 {
   "raw_apps": {
-    "macos": true
+    "macos": { "enabled": true }
   }
 }
 ```
@@ -66,8 +66,8 @@ Requires KubeVirt to be enabled:
 ```json
 {
   "raw_apps": {
-    "kubevirt": true,
-    "macos": true
+    "kubevirt": { "enabled": true },
+    "macos": { "enabled": true }
   }
 }
 ```

@@ -74,7 +74,7 @@ OpenCost provides cost breakdowns across multiple dimensions:
 ```json
 {
   "flux_apps": {
-    "opencost": true
+    "opencost": { "enabled": true }
   }
 }
 ```

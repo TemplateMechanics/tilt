@@ -41,7 +41,7 @@ note() { printf '        %s\n' "$*"; }
 echo "Student pre-flight — $(date '+%Y-%m-%d %H:%M')"
 echo
 echo "== tools"
-for t in kind kubectl helm flux tilt python curl openssl; do
+for t in kind kubectl helm flux tilt python curl openssl node npm; do
     if command -v "$t" >/dev/null 2>&1; then ok "$t found"
     else bad "$t is not on PATH"; note "see the Prerequisites table in README.md"; fi
 done
@@ -49,6 +49,27 @@ if command -v python >/dev/null 2>&1; then
     if python -c 'import yaml' >/dev/null 2>&1; then ok "Python module PyYAML found"
     else bad "Python module PyYAML is missing"; note "install it with: python -m pip install pyyaml"; fi
 fi
+
+# `platform.sh hello` (lab 01) and `platform.sh check` drive installed Google
+# Chrome, not Playwright's own Chromium: scripts/validate/browser-check.mjs
+# launches channel 'chrome' so the check uses the OS trust store. These are the
+# places Playwright 1.56 looks for it (playwright-core's server/registry).
+find_chrome() {
+    local c v
+    for c in "/opt/google/chrome/chrome" "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; do
+        [ -x "$c" ] && { echo "$c"; return 0; }
+    done
+    for v in "${LOCALAPPDATA:-}" "${PROGRAMFILES:-}" "$(printenv 'PROGRAMFILES(X86)' 2>/dev/null)" \
+             "${HOMEDRIVE:+$HOMEDRIVE\\Program Files}" "${HOMEDRIVE:+$HOMEDRIVE\\Program Files (x86)}"; do
+        [ -n "$v" ] || continue
+        c="$v\\Google\\Chrome\\Application\\chrome.exe"
+        command -v cygpath >/dev/null 2>&1 && c=$(cygpath -u "$c")
+        [ -f "$c" ] && { echo "$c"; return 0; }
+    done
+    return 1
+}
+if chrome=$(find_chrome); then ok "Google Chrome found ($chrome)"
+else bad "Google Chrome not found where Playwright looks for it"; note "platform.sh hello and check need it: https://www.google.com/chrome/"; fi
 
 # bash 3.x (macOS's system bash) cannot run these scripts.
 if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ]; then ok "bash ${BASH_VERSION%%(*}"

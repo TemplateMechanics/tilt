@@ -8,9 +8,10 @@ else
     echo "Flux CLI already installed"
 fi
 
-# Install Flux on the cluster
-echo "Installing Flux on the cluster..."
-flux install
+# Install Flux on the cluster. Pinned to match FLUX_VERSION in tilt/lib.tilt:
+# a bare `flux install` deploys whatever controllers the local CLI carries.
+echo "Installing Flux v2.9.5 on the cluster..."
+flux install --version=v2.9.5
 
 # Wait for Flux to be ready
 echo "Waiting for Flux to be ready..."
