@@ -71,6 +71,7 @@ spec:
                     enabled:
                       type: boolean
                       default: true
+                      description: "Not read by the Composition: setting it changes nothing. The HTTPRoute is always created."
                     serviceName:
                       type: string
                       description: "Service name to route traffic to (defaults to app name)"
@@ -79,10 +80,10 @@ spec:
                       description: "Service port"
                       default: 80
                     alternativeDomains:
+                      description: "Not read by the Composition: setting it changes nothing. The HTTPRoute serves spec.domain only."
                       type: array
                       items:
                         type: string
-                      description: "Alternative domains"
                 
                 # Monitoring configuration
                 monitoring:
@@ -92,18 +93,23 @@ spec:
                     enabled:
                       type: boolean
                       default: true
+                      description: "Not read by the Composition: setting it changes nothing. The ServiceMonitor is always created."
                     metrics:
                       type: boolean
                       default: true
+                      description: "Not read by the Composition: setting it changes nothing."
                     logs:
                       type: boolean
                       default: true
+                      description: "Not read by the Composition: setting it changes nothing."
                     traces:
                       type: boolean
                       default: false
+                      description: "Not read by the Composition: setting it changes nothing."
                     metricsPort:
                       type: integer
                       default: 9090
+                      description: "Not read by the Composition: setting it changes nothing."
                     metricsPath:
                       type: string
                       default: "/metrics"

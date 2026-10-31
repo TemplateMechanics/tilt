@@ -97,19 +97,29 @@ local_resource(
         NAMES=$(kubectl kustomize ./helm/repositories/ | python -c "import sys,yaml; print(' '.join(d['metadata']['name'] for d in yaml.safe_load_all(sys.stdin) if d and d.get('kind')=='HelmRepository'))")
         EXPECTED=$(echo $NAMES | wc -w | tr -d ' ')
         echo "Applying $EXPECTED HelmRepositories from helm/repositories/ (will retry until all exist)..."
+        # Success needs a clean apply as well as every name existing. Checking
+        # names alone passed an edit that failed to apply to a repository that
+        # already existed: the old object was still there, so nothing looked
+        # missing. The apply may fail while Flux's CRDs settle, hence the retry.
         for i in $(seq 1 30); do
-            kubectl apply -k ./helm/repositories/ 2>&1 || true
+            APPLIED=yes
+            kubectl apply -k ./helm/repositories/ 2>&1 || APPLIED=no
             sleep 3
             MISSING=""
             for n in $NAMES; do kubectl get helmrepository "$n" -n flux-system >/dev/null 2>&1 || MISSING="$MISSING $n"; done
-            if [ -z "$MISSING" ]; then
+            if [ -z "$MISSING" ] && [ "$APPLIED" = yes ]; then
                 echo "✓ $EXPECTED/$EXPECTED HelmRepositories from helm/repositories/ exist ($(kubectl get helmrepository -n flux-system --no-headers 2>/dev/null | wc -l | tr -d ' ') on the cluster in total)"
                 exit 0
             fi
-            echo "  Attempt $i/30, still missing:$MISSING"
+            echo "  Attempt $i/30: apply succeeded: $APPLIED; still missing:${MISSING:- none}"
         done
-        echo "Timeout: HelmRepositories still missing:$MISSING"; exit 1
+        echo "Timeout after 30 attempts. Last apply succeeded: $APPLIED; still missing:${MISSING:- none}"; exit 1
     """),
+    # Without deps a local_resource runs once at `tilt up` and never again, so
+    # an edit here reached only clusters started after it while Tilt stayed
+    # green (Tilt's docs: "a local resource without deps runs only once").
+    # ROOT, not "./": deps resolve relative to this file.
+    deps=[ROOT + "/helm/repositories"],
     labels=["Platform"],
     resource_deps=["flux-install"]
 )
@@ -169,6 +179,11 @@ local_resource(
             && echo "istio GatewayClass registered" \
             || { echo "ERROR: istio GatewayClass missing - Gateway resources would be accepted and never programmed"; exit 1; }
     """),
+    # Without deps this ran once at `tilt up` and never again (see
+    # helm-repositories). base and overlays only: the gateway/ subfolder has
+    # its own resource, and watching it here would re-run all of Istio on
+    # every Gateway edit.
+    deps=[ROOT + "/helm/istio/base", ROOT + "/helm/istio/overlays"],
     labels=["Infrastructure"],
     resource_deps=["flux-install", "gateway-api-crds", "helm-repositories"],
 )
@@ -181,6 +196,10 @@ local_resource(
         kubectl -n cert-manager rollout status deployment/cert-manager-webhook --timeout=180s
         echo "cert-manager ready"
     """),
+    # Without deps this ran once at `tilt up` and never again (see
+    # helm-repositories). base and overlays only: pki/ and crl/ have their own
+    # resources.
+    deps=[ROOT + "/helm/cert-manager/base", ROOT + "/helm/cert-manager/overlays"],
     labels=["Infrastructure"],
     resource_deps=["flux-install", "helm-repositories"],
 )
@@ -228,7 +247,20 @@ local_resource(
     cmd=sh("""
         kubectl apply -k ./examples/hello-world
         kubectl -n hello rollout status deploy/hello --timeout=180s
-        kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}'             | grep -q True && echo "hello.localhost is routed"             || { echo "ERROR: HTTPRoute not accepted by the Gateway"; kubectl -n hello describe httproute hello; exit 1; }
+        # Accepted alone is not "routed": a route whose backendRef names a
+        # Service that does not exist is still Accepted, with ResolvedRefs
+        # False, and requests to it fail (Gateway API route status). Both must
+        # be True. The controller writes status after the apply, so give it
+        # up to 30s rather than reading once.
+        for i in $(seq 1 30); do
+            A=$(kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null)
+            R=$(kubectl -n hello get httproute hello -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null)
+            [ "$A" = True ] && [ "$R" = True ] && { echo "hello.localhost is routed (Accepted and ResolvedRefs)"; exit 0; }
+            sleep 1
+        done
+        echo "ERROR: HTTPRoute not fully routed - Accepted=${A:-none}, ResolvedRefs=${R:-none}"
+        kubectl -n hello describe httproute hello
+        exit 1
     """),
     # Re-apply on edit, for the same reason as istio-gateway above. Lab 02
     # has students edit httproute.yaml, and this is what applies it.

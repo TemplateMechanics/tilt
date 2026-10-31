@@ -14,6 +14,12 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: tiltdev
 nodes:
   - role: control-plane
+    # Pinned by digest, as kind's release notes require ("You *must* use the
+    # @sha256 digest to guarantee an image built for this release"). Without an
+    # image line the version was whichever kind happened to be installed, so
+    # the same file built different Kubernetes versions on different laptops.
+    # This is kind v0.32.0's default for Kubernetes 1.36.1; it needs kind 0.32+.
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
     # The Istio gateway is reached through a NodePort Service pinned to
     # 30080/30443 (helm/istio/gateway/overlays/kind). kind publishes those node
     # ports to the host here. There is no load balancer on kind, so without
@@ -35,3 +41,4 @@ nodes:
   # a real cluster rather than a single box. Both Alloy and ztunnel run per node;
   # with one node a learner never sees that.
   - role: worker
+    image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5

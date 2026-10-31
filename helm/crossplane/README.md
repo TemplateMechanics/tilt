@@ -23,7 +23,7 @@ The `DevApplication` is a custom resource that simplifies deploying applications
 
 - ✅ Helm chart deployment via Flux HelmRelease
 - ✅ Automatic Gateway API HTTPRoute, with TLS terminated at the shared Gateway
-- ✅ Prometheus ServiceMonitor (optional)
+- ✅ Prometheus ServiceMonitor (always created; `monitoring.metricsPath` is the only monitoring field it reads)
 - ✅ Namespace creation
 - ✅ Consistent naming and labeling
 
@@ -71,7 +71,13 @@ When you create a `DevApplication`, Crossplane automatically provisions:
 2. **HelmRelease** - Flux HelmRelease deploying your chart
 3. **HTTPRoute** - attaches to istio-system/localhost-gateway for `spec.domain` over HTTPS.
    The Gateway holds the certificate, so the route names no TLS Secret.
-4. **ServiceMonitor** - Prometheus scraping (if `monitoring.enabled: true`)
+4. **ServiceMonitor** - Prometheus scraping, always created. Only `monitoring.metricsPath` is read.
+
+Seven fields are accepted by the schema and not read by the Composition, so
+setting them changes nothing: `ingress.enabled`, `ingress.alternativeDomains`,
+`monitoring.enabled`, `monitoring.metrics`, `monitoring.logs`,
+`monitoring.traces` and `monitoring.metricsPort`. `ingress.enabled: false`
+still gets an HTTPRoute. Each says so in `kubectl explain devapplication.spec`.
 
 ## How It Works with Tilt
 
