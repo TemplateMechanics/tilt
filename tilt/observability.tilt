@@ -26,6 +26,10 @@ local_resource(
         kubectl logs -n kube-system -l app.kubernetes.io/name=metrics-server --tail=20 2>/dev/null
         exit 1
     """),
+    # Without deps this ran once at `tilt up` and never again, so an edit
+    # reached only clusters started after it. ROOT, not "./": deps resolve
+    # relative to this file.
+    deps=[ROOT + "/helm/metrics-server"],
     labels=["Infrastructure"],
     links=[],
     resource_deps=["flux-install"],
@@ -46,6 +50,8 @@ local_resource(
         [ "$AMBIENT" -eq 0 ] && echo "WARNING: nothing is in the mesh - see helm/istio/README-ambient.md"
         exit 0
     """),
+    # Without deps this ran once at `tilt up` and never again (see metrics-server).
+    deps=[ROOT + "/helm/kiali"],
     labels=["Infrastructure"],
     links=["https://kiali.localhost"],
     resource_deps=["istio-gateway"],

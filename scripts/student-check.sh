@@ -94,8 +94,8 @@ if command -v kubectl >/dev/null 2>&1; then
     # first "minor" is the client's and the second the server's.
     minors() { sed -n 's/.*"minor": *"\([0-9]*\).*/\1/p'; }
     cv=$(kubectl version --client -o json 2>/dev/null | minors | head -1)
-    # Prefer the running cluster; kind/cluster.yaml pins no node image, so the
-    # version is whatever the installed kind defaults to.
+    # Prefer the running cluster; without one, the version pinned by
+    # kind/cluster.yaml's node image.
     want=$(kubectl --context "$CONTEXT" version -o json 2>/dev/null | minors | sed -n 2p)
     [ -n "$want" ] || want=$(grep -oE 'kindest/node:v1\.[0-9]+' "$ROOT/kind/cluster.yaml" 2>/dev/null | head -1 | grep -oE '[0-9]+$')
     # Both must be plain integers before any arithmetic. A bad parse once

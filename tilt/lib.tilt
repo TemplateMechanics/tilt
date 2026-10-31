@@ -67,7 +67,9 @@ def sh(script):
 # Watch the config file so Tilt reloads when Backstage changes it
 watch_file(ROOT + "/tilt-config.json")
 
-# Default config (used if tilt-config.json doesn't exist or is malformed)
+# Default config, used only if tilt-config.json does not exist. A malformed
+# file is not a fallback: Tilt's read_json makes any other read error a
+# Tiltfile load error, which is the loud failure you want.
 DEFAULT_CONFIG = {
     "crossplane_apps": {
         "harbor": {"enabled": False}, "jenkins": {"enabled": False},
@@ -107,7 +109,7 @@ DEFAULT_CONFIG = {
 }
 
 def load_config():
-    """Load config from tilt-config.json, falling back to defaults."""
+    """Load config from tilt-config.json, or the defaults if it does not exist."""
     config_raw = read_json(ROOT + "/tilt-config.json", DEFAULT_CONFIG)
     
     # Convert rich config format to simple True/False for backward compatibility

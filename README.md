@@ -371,7 +371,7 @@ is the checklist to work through *before* the day.
 | Tool | Version | Installation |
 |------|---------|--------------|
 | A container daemon | Latest | Docker Desktop is the tested default; Podman also works. See [docs/CONTAINER-RUNTIMES.md](docs/CONTAINER-RUNTIMES.md) |
-| kind | 0.20+ | https://kind.sigs.k8s.io/docs/user/quick-start/ — the only tested path. `helm/*/overlays/docker-desktop/` exists for Docker Desktop's built-in Kubernetes and is **not** exercised by CI or by any run of this platform; treat it as a starting point, not a supported path. |
+| kind | 0.32+ | https://kind.sigs.k8s.io/docs/user/quick-start/ — the only tested path. `kind/cluster.yaml` pins the node image to Kubernetes 1.36.1 by digest, which kind 0.32 and later can create. `helm/*/overlays/docker-desktop/` exists for Docker Desktop's built-in Kubernetes and is **not** exercised by CI or by any run of this platform; treat it as a starting point, not a supported path. |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
 | Flux CLI | 2.0+ | https://fluxcd.io/docs/installation/ |
