@@ -23,11 +23,11 @@ spec:
     # Node Exporter — disabled on Docker Desktop (incompatible with macOS/Windows)
     # The subchart inclusion is controlled by "nodeExporter.enabled" (the
     # condition key in the parent chart's Chart.yaml), NOT by
-    # "prometheus-node-exporter.enabled" which is a subchart-internal value.
+    # "prometheus-node-exporter.enabled" which is a subchart-internal value, so
+    # that one is not set: it changed nothing, and scripts/ci/check-chart-values.py
+    # fails on values the chart ignores.
     # =========================================================================
     nodeExporter:
-      enabled: false
-    prometheus-node-exporter:
       enabled: false
 
     # =========================================================================

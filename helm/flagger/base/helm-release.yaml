@@ -45,5 +45,4 @@ spec:
         memory: 512Mi
 
     # No Slack/Teams webhook on a local platform; alerts go to the events log.
-    slack:
-      enabled: false
+    # The chart has no slack.enabled: Slack is off because slack.url is unset.

@@ -30,12 +30,13 @@ spec:
     dapr_sidecar_injector:
       enabled: true
       sidecarRunAsNonRoot: true
+    # No enabled or replicaCount: chart 1.14.4 always installs placement and
+    # sentry, and placement's replica count follows global.ha.enabled (off
+    # here, so 1). Both keys were ignored; changing them left the render
+    # identical.
     dapr_placement:
-      enabled: true
       runAsNonRoot: true
-      replicaCount: 1
     dapr_operator:
       runAsNonRoot: true
     dapr_sentry:
-      enabled: true
       runAsNonRoot: true
