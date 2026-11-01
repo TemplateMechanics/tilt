@@ -63,27 +63,24 @@ local_resource(
         kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
         echo "✓ All Flux controllers ready"
 
-        # Detect available Flux API versions and patch YAMLs to match
-        # Prefer GA versions (v2, v1) over beta (v2beta2, v1beta2) — sort by length so shorter (GA) wins
-        echo "Detecting Flux API versions..."
-        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
-        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
-        echo "  HelmRelease API: $HR_API"
-        echo "  HelmRepository API: $SR_API"
-
-        if [ -n "$HR_API" ]; then
-            echo "Patching HelmRelease YAMLs to use $HR_API..."
-            find ./helm -name '*.yaml' -exec grep -l 'helm.toolkit.fluxcd.io' {} \\; | while read f; do
-                sed -i.bak "s|helm.toolkit.fluxcd.io/[a-z0-9]*|$HR_API|g" "$f" && rm -f "$f.bak"
-            done
-        fi
-        if [ -n "$SR_API" ]; then
-            echo "Patching HelmRepository YAMLs to use $SR_API..."
-            find ./helm -name '*.yaml' -exec grep -l 'source.toolkit.fluxcd.io' {} \\; | while read f; do
-                sed -i.bak "s|source.toolkit.fluxcd.io/[a-z0-9]*|$SR_API|g" "$f" && rm -f "$f.bak"
-            done
-        fi
-        echo "✓ Flux API versions aligned"
+        # Check, never rewrite. This used to detect the cluster's Flux API
+        # versions and sed every HelmRelease and HelmRepository under helm/ to
+        # match. With the CLI pinned it could only rewrite files to what they
+        # already said, and it still rewrote all 71 on every run. Each write
+        # trips the deps of every resource watching helm/: on a cluster built
+        # from empty, the second flux-install run (finished 02:34:18) was
+        # followed from 02:35:33 by cert-manager, cloudnative-pg,
+        # external-secrets, flagger, istio, kiali, metrics-server and
+        # helm-repositories each re-running, about four minutes of work. On
+        # Windows the rewrite also changed line endings, so git status showed
+        # 71 modified files nobody had edited.
+        for api in helm.toolkit.fluxcd.io/v2 source.toolkit.fluxcd.io/v1; do
+            kubectl api-versions | grep -qx "$api" || {
+                echo "ERROR: the cluster does not serve $api, which every HelmRelease/HelmRepository in helm/ uses"
+                exit 1
+            }
+        done
+        echo "✓ Flux serves helm.toolkit.fluxcd.io/v2 and source.toolkit.fluxcd.io/v1"
     """),
     labels=["Infrastructure"]
 )
