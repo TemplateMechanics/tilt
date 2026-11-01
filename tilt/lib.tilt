@@ -180,11 +180,13 @@ def k8s_kustomize_simple(path, name, labels=[], links=[], resource_deps=[]):
 
 GATEWAY_API_VERSION = "v1.3.0"
 
-# A bare `flux install` deploys the controllers built into whichever Flux CLI
-# is on the laptop, and flux-install (tilt/core.tilt) auto-installs the latest
-# CLI. Two
-# students a week apart could get different controllers from the same commit.
-# Pinned, a different CLI downloads this release's manifests instead.
+# The Flux CLI version the platform requires. `flux install` deploys the
+# controllers built into the CLI that runs it, so the CLI is the pin:
+# flux-install (tilt/core.tilt) installs this version when no CLI is present
+# and stops with instructions when another one is. Pinning with
+# `flux install --version` instead was tried and does not work: a CLI refuses
+# any other minor version, so every student with a newer CLI failed at the
+# first resource.
 FLUX_VERSION = "v2.9.5"
 
 def gateway_platform():
