@@ -23,24 +23,38 @@ k8s_namespace("tracing")
 local_resource(
     "flux-install",
     cmd=sh("""
-        # Check if Flux CLI is available; install it if not
+        # The CLI is what is pinned, not `flux install --version`. A CLI only
+        # installs its own minor version: v2.10.0 refuses --version=v2.9.5
+        # ("targeted version 'v2.9.5' is not compatible with your current
+        # version of flux (2.10.0)"), and on Windows even v2.9.5 asked for
+        # v2.9.0 fails ("CreateFile ... flux-system.yaml: The specified path is
+        # invalid"). So the platform
+        # needs this exact CLI and runs a bare `flux install`, which uses the
+        # manifests built into it.
+        want=""" + FLUX_VERSION + """
         if ! command -v flux >/dev/null 2>&1; then
-            echo "Flux CLI not found — installing..."
-            if command -v brew >/dev/null 2>&1; then
-                brew install fluxcd/tap/flux
-            elif command -v choco >/dev/null 2>&1; then
-                choco install flux -y
+            echo "Flux CLI not found - installing $want..."
+            # No brew branch: fluxcd/tap only carries the latest release.
+            if command -v choco >/dev/null 2>&1; then
+                choco install flux --version="${want#v}" -y
             elif command -v curl >/dev/null 2>&1; then
-                curl -s https://fluxcd.io/install.sh | bash
+                curl -s https://fluxcd.io/install.sh | FLUX_VERSION="${want#v}" bash
             else
-                echo "ERROR: Cannot install Flux CLI. Install it manually:"
+                echo "ERROR: Cannot install Flux CLI $want. Install it manually:"
                 echo "  https://fluxcd.io/flux/installation/#install-the-flux-cli"
                 exit 1
             fi
         fi
+        have=$(flux version --client 2>/dev/null | sed -n 's/^flux: *//p')
+        if [ "$have" != "$want" ]; then
+            echo "ERROR: Flux CLI is ${have:-unknown}; this platform pins $want (FLUX_VERSION in tilt/lib.tilt)."
+            echo "  Windows:      choco upgrade flux --version=${want#v} --allow-downgrade -y"
+            echo "  macOS/Linux:  curl -s https://fluxcd.io/install.sh | sudo FLUX_VERSION=${want#v} bash"
+            exit 1
+        fi
 
-        echo "Installing / upgrading Flux """ + FLUX_VERSION + """ on cluster..."
-        flux install --version=""" + FLUX_VERSION + """
+        echo "Installing / upgrading Flux $want on cluster..."
+        flux install
 
         echo "Waiting for all Flux controllers to be ready..."
         kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
@@ -49,27 +63,24 @@ local_resource(
         kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
         echo "✓ All Flux controllers ready"
 
-        # Detect available Flux API versions and patch YAMLs to match
-        # Prefer GA versions (v2, v1) over beta (v2beta2, v1beta2) — sort by length so shorter (GA) wins
-        echo "Detecting Flux API versions..."
-        HR_API=$(kubectl api-versions | grep helm.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
-        SR_API=$(kubectl api-versions | grep source.toolkit.fluxcd.io | awk '{print length, $0}' | sort -n | head -1 | awk '{print $2}')
-        echo "  HelmRelease API: $HR_API"
-        echo "  HelmRepository API: $SR_API"
-
-        if [ -n "$HR_API" ]; then
-            echo "Patching HelmRelease YAMLs to use $HR_API..."
-            find ./helm -name '*.yaml' -exec grep -l 'helm.toolkit.fluxcd.io' {} \\; | while read f; do
-                sed -i.bak "s|helm.toolkit.fluxcd.io/[a-z0-9]*|$HR_API|g" "$f" && rm -f "$f.bak"
-            done
-        fi
-        if [ -n "$SR_API" ]; then
-            echo "Patching HelmRepository YAMLs to use $SR_API..."
-            find ./helm -name '*.yaml' -exec grep -l 'source.toolkit.fluxcd.io' {} \\; | while read f; do
-                sed -i.bak "s|source.toolkit.fluxcd.io/[a-z0-9]*|$SR_API|g" "$f" && rm -f "$f.bak"
-            done
-        fi
-        echo "✓ Flux API versions aligned"
+        # Check, never rewrite. This used to detect the cluster's Flux API
+        # versions and sed every HelmRelease and HelmRepository under helm/ to
+        # match. With the CLI pinned it could only rewrite files to what they
+        # already said, and it still rewrote all 71 on every run. Each write
+        # trips the deps of every resource watching helm/: on a cluster built
+        # from empty, the second flux-install run (finished 02:34:18) was
+        # followed from 02:35:33 by cert-manager, cloudnative-pg,
+        # external-secrets, flagger, istio, kiali, metrics-server and
+        # helm-repositories each re-running, about four minutes of work. On
+        # Windows the rewrite also changed line endings, so git status showed
+        # 71 modified files nobody had edited.
+        for api in helm.toolkit.fluxcd.io/v2 source.toolkit.fluxcd.io/v1; do
+            kubectl api-versions | grep -qx "$api" || {
+                echo "ERROR: the cluster does not serve $api, which every HelmRelease/HelmRepository in helm/ uses"
+                exit 1
+            }
+        done
+        echo "✓ Flux serves helm.toolkit.fluxcd.io/v2 and source.toolkit.fluxcd.io/v1"
     """),
     labels=["Infrastructure"]
 )
