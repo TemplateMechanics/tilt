@@ -16,3 +16,7 @@ scripts/validate/package-lock.json
 
 # Exported platform root CA and other per-machine artefacts.
 .local/
+
+# Python bytecode from running scripts/ci/*.py locally
+__pycache__/
+*.pyc
