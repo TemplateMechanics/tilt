@@ -60,7 +60,7 @@
 
     ```yaml
     # helm/repositories/my-repo.yaml
-    apiVersion: source.toolkit.fluxcd.io/v1beta2
+    apiVersion: source.toolkit.fluxcd.io/v1
     kind: HelmRepository
     metadata:
       name: my-repo
@@ -74,7 +74,7 @@
 
     ```yaml
     # helm/my-service/helm-release.yaml
-    apiVersion: helm.toolkit.fluxcd.io/v2beta2
+    apiVersion: helm.toolkit.fluxcd.io/v2
     kind: HelmRelease
     metadata:
       name: my-service
