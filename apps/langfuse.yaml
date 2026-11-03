@@ -102,26 +102,19 @@ spec:
           limits:
             cpu: 500m
             memory: 1Gi
-      # Redis configuration
+      # Redis configuration. `deploy`, as for postgresql; `enabled` was ignored.
       redis:
-        enabled: true
+        deploy: true
         auth:
           enabled: false  # Disable auth for dev simplicity
-      # Service configuration
-      service:
-        type: ClusterIP
-        port: 3000
-      # Disable built-in ingress (Crossplane creates IngressRoute)
-      ingress:
-        enabled: false
-      # Resources
-      resources:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-        limits:
-          cpu: 1000m
-          memory: 1Gi
+      # Removed: top-level service, ingress and resources blocks. Chart 1.5.41
+      # reads none of them (its keys are langfuse.web.service,
+      # langfuse.ingress and langfuse.web/worker.resources), so rendering with
+      # or without them, or with different values, gave identical manifests.
+      # The 1Gi limit they described was never applied. Moving it to
+      # langfuse.web.resources would cap a container that has only run
+      # unbounded, during migrations that already outlast its probes, so it is
+      # left for a change that can be tested on a cluster.
   ingress:
     enabled: true
     serviceName: langfuse-web

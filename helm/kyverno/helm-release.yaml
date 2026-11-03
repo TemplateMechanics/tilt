@@ -21,9 +21,8 @@ spec:
   upgrade:
     remediation:
       retries: 5
-  values:
-    rbac:
-      create: true
-      serviceAccount:
-        create: true
-        name: kyverno
+  # No values. The top-level rbac block that was here (rbac.create,
+  # rbac.serviceAccount.create/name: kyverno) is not read by chart 3.x, which
+  # configures RBAC and service accounts per controller
+  # (admissionController.rbac, backgroundController.rbac, ...). Changing it
+  # left the render identical, and nothing refers to a "kyverno" account.

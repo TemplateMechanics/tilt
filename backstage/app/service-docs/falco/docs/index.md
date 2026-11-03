@@ -44,7 +44,7 @@ Falco monitors system calls at the kernel level to detect:
 │     Falcosidekick               │
 │  Event forwarder & enricher     │
 │  Exposes Prometheus metrics     │
-│  (:2801 API / :8082 metrics)    │
+│  (:2801 API + /metrics)         │
 └──────────┬──────────────────────┘
            │
     ┌──────┴──────┐
@@ -65,11 +65,12 @@ Prometheus    Wazuh Filebeat
 
 ## Falcosidekick
 
-Falcosidekick is enabled as a sidecar that:
+Falcosidekick runs as its own Deployment (`falco-falcosidekick`) that:
 
 - Receives events from Falco
-- Exposes Prometheus metrics on port 8082
-- Provides a REST API on port 2801
+- Provides a REST API on port 2801, and serves its Prometheus metrics at `/metrics` on the same port
+
+Falco itself serves its own metrics on port 8765 through the `falco-metrics` Service.
 
 ### Prometheus Metrics
 
@@ -91,7 +92,7 @@ A Grafana dashboard is available in the **Security** folder showing:
 
 Two ServiceMonitors scrape metrics from:
 
-- **falco-exporter** — kernel-level event metrics
+- **falco** — Falco's own metrics, from the `falco-metrics` Service on port 8765 (the separate falco-exporter chart is not used)
 - **falcosidekick** — event forwarding and output metrics
 
 ## Integration with Wazuh

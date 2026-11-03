@@ -6,9 +6,14 @@ metadata:
   labels:
     app.kubernetes.io/name: falco
 spec:
+  # falco-exporter was a separate chart; Falco 7.x serves metrics itself from
+  # the falco-metrics Service, so the old selector matched nothing and Falco's
+  # metrics were never scraped while the monitor sat there looking configured.
+  # Only that Service carries the `type` label.
   selector:
     matchLabels:
-      app.kubernetes.io/name: falco-exporter
+      app.kubernetes.io/name: falco
+      type: falco-metrics
   namespaceSelector:
     matchNames:
       - falco

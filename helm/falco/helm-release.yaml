@@ -59,11 +59,13 @@ spec:
         enabled: false
       prometheusRules:
         enabled: false
+    # Falco's own metrics are served on 8765 by the falco-metrics Service.
+    # There is no metrics.service.port in this chart; a `port: 8082` here was
+    # ignored, and the docs repeated it.
     metrics:
       enabled: true
       service:
         create: true
-        port: 8082
         labels: {}
         annotations: {}
 

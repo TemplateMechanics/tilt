@@ -13,5 +13,10 @@ spec:
     matchLabels:
       app.kubernetes.io/name: opentelemetry-collector
   endpoints:
+    # The collector's own health (otelcol_*).
     - port: metrics
+      interval: 30s
+    # Application metrics received over OTLP, re-exposed by the prometheus
+    # exporter. Without this endpoint they reached the collector and stopped.
+    - port: prometheus
       interval: 30s
