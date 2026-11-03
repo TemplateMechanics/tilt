@@ -45,6 +45,15 @@ for t in kind kubectl helm flux tilt python curl openssl node npm; do
     if command -v "$t" >/dev/null 2>&1; then ok "$t found"
     else bad "$t is not on PATH"; note "see the Prerequisites table in README.md"; fi
 done
+# flux-install stops on any Flux CLI but the pinned one, so catch it here, the
+# night before, rather than at the first resource on the day.
+if command -v flux >/dev/null 2>&1; then
+    flux_want=$(sed -n 's/^FLUX_VERSION = "\(.*\)"/\1/p' "$ROOT/tilt/lib.tilt")
+    flux_have=$(flux version --client 2>/dev/null | sed -n 's/^flux: *//p')
+    if [ -n "$flux_want" ] && [ "$flux_have" = "$flux_want" ]; then ok "Flux CLI $flux_have (the pinned version)"
+    else bad "Flux CLI is ${flux_have:-unknown}; the platform needs ${flux_want:-the version in tilt/lib.tilt}"
+         note "see the Flux CLI row of the Prerequisites table in README.md"; fi
+fi
 if command -v python >/dev/null 2>&1; then
     if python -c 'import yaml' >/dev/null 2>&1; then ok "Python module PyYAML found"
     else bad "Python module PyYAML is missing"; note "install it with: python -m pip install pyyaml"; fi

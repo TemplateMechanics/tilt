@@ -374,7 +374,7 @@ is the checklist to work through *before* the day.
 | kind | 0.32+ | https://kind.sigs.k8s.io/docs/user/quick-start/ — the only tested path. `kind/cluster.yaml` pins the node image to Kubernetes 1.36.1 by digest, which kind 0.32 and later can create. `helm/*/overlays/docker-desktop/` exists for Docker Desktop's built-in Kubernetes and is **not** exercised by CI or by any run of this platform; treat it as a starting point, not a supported path. |
 | Tilt | 0.33+ | https://docs.tilt.dev/install.html |
 | Helm | 3.12+ | https://helm.sh/docs/intro/install/ |
-| Flux CLI | 2.0+ (the controllers are pinned to v2.9.5 by `FLUX_VERSION` in `tilt/lib.tilt`) | https://fluxcd.io/docs/installation/ |
+| Flux CLI | exactly 2.9.5 (`FLUX_VERSION` in `tilt/lib.tilt`) | `choco install flux --version=2.9.5 -y`, or `curl -s https://fluxcd.io/install.sh \| sudo FLUX_VERSION=2.9.5 bash`. The CLI decides which Flux controllers get installed, and it refuses to install any other minor version, so a newer CLI stops `flux-install` with these instructions. `flux-install` installs 2.9.5 itself if no CLI is present. |
 | bash | 4+ | Built in on macOS/Linux. On Windows, Git Bash from https://git-scm.com/download/win — `platform.sh` and the lab scripts are bash, and do not run in PowerShell or cmd.exe |
 | kubectl | within one minor of the cluster | https://kubernetes.io/docs/tasks/tools/ — kind here runs Kubernetes 1.36, and an older kubectl prints a version-skew warning on *every* command, which students will chase |
 | Python + PyYAML | Python 3.10+ | Used by Tilt, manifest checks, and data-parsing labs. `python` must invoke Python 3; install the module with `python -m pip install pyyaml`. |
