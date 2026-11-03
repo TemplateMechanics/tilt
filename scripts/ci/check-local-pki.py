@@ -2,6 +2,7 @@
 """Fail closed if the local PKI loses its revocation or hardening contract."""
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -90,8 +91,14 @@ require("@sha256:" in container.get("image", ""), "CRL server image must be pinn
 # The alternate kind topology maps plaintext HTTP to 8080. Prove the renderer
 # embeds that port before issuance instead of leaving an unreachable CDP.
 environment = dict(os.environ, CRL_BASE_URL="http://crl.localhost:8080")
+# shutil.which, not a bare "bash": on Windows, CreateProcess searches
+# System32 before PATH and finds WSL's bash.exe stub. On a machine whose
+# default WSL distro has no usable bash that fails with "execvpe(/bin/bash)
+# failed: No such file or directory", and this check failed on Windows for
+# every branch, main included, while it passed on Linux.
+# shutil.which walks PATH and finds the Git Bash running platform.sh.
 rendered = subprocess.run(
-    ["bash", "scripts/apply-local-pki.sh", "--render"],
+    [shutil.which("bash") or "bash", "scripts/apply-local-pki.sh", "--render"],
     check=True,
     capture_output=True,
     text=True,
