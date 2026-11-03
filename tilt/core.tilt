@@ -48,19 +48,30 @@ local_resource(
         have=$(flux version --client 2>/dev/null | sed -n 's/^flux: *//p')
         if [ "$have" != "$want" ]; then
             echo "ERROR: Flux CLI is ${have:-unknown}; this platform pins $want (FLUX_VERSION in tilt/lib.tilt)."
+            echo "  The flux on your PATH: $(command -v flux)"
             echo "  Windows:      choco upgrade flux --version=${want#v} --allow-downgrade -y"
             echo "  macOS/Linux:  curl -s https://fluxcd.io/install.sh | sudo FLUX_VERSION=${want#v} bash"
+            # Homebrew's flux sits earlier on PATH than install.sh's /usr/local/bin,
+            # so installing the pinned one alone leaves this error in place.
+            echo "  If that path is Homebrew's: brew uninstall flux, then the line above"
             exit 1
         fi
 
+        # Each step stops the resource on failure. sh() runs bash without set -e, so
+        # these used to fall through: with flux install failing and every wait timing
+        # out, this printed "All Flux controllers ready" and went green, and the
+        # failure surfaced later, somewhere else, as a HelmRepository that never synced.
         echo "Installing / upgrading Flux $want on cluster..."
-        flux install
+        flux install || { echo "ERROR: flux install failed (output above)"; exit 1; }
 
         echo "Waiting for all Flux controllers to be ready..."
-        kubectl -n flux-system wait --for=condition=available deployment/source-controller --timeout=120s
-        kubectl -n flux-system wait --for=condition=available deployment/helm-controller --timeout=120s
-        kubectl -n flux-system wait --for=condition=available deployment/kustomize-controller --timeout=120s
-        kubectl -n flux-system wait --for=condition=available deployment/notification-controller --timeout=120s
+        for d in source-controller helm-controller kustomize-controller notification-controller; do
+            kubectl -n flux-system wait --for=condition=available deployment/$d --timeout=120s || {
+                echo "ERROR: $d did not become available in 120s"
+                kubectl -n flux-system get pods
+                exit 1
+            }
+        done
         echo "✓ All Flux controllers ready"
 
         # Check, never rewrite. This used to detect the cluster's Flux API
@@ -74,8 +85,11 @@ local_resource(
         # helm-repositories each re-running, about four minutes of work. On
         # Windows the rewrite also changed line endings, so git status showed
         # 71 modified files nobody had edited.
+        # Read once, and separately from the check: an unreachable cluster used to be
+        # reported as "does not serve", sending people after the wrong problem.
+        apis=$(kubectl api-versions) || { echo "ERROR: could not reach the cluster to list its API versions"; exit 1; }
         for api in helm.toolkit.fluxcd.io/v2 source.toolkit.fluxcd.io/v1; do
-            kubectl api-versions | grep -qx "$api" || {
+            printf '%s\n' "$apis" | grep -qx "$api" || {
                 echo "ERROR: the cluster does not serve $api, which every HelmRelease/HelmRepository in helm/ uses"
                 exit 1
             }
