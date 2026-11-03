@@ -75,17 +75,25 @@ for app, enabled in CONFIG["flux_apps"].items():
         ]
         if releases:
             waits = "\n".join([
-                'wait_hr {0} {1} || {{ echo "ERROR: HelmRelease {0}/{1} is not Ready"; kubectl -n {0} get helmrelease {1}; exit 1; }}'.format(r[0], r[1])
+                # 600s, not wait_hr's 300s default: Tilt doesn't retry a failed
+                # local_resource, so a first install that was only slow (ollama,
+                # trivy) stayed red until someone triggered it by hand.
+                'wait_hr {0} {1} 600s || {{ echo "ERROR: HelmRelease {0}/{1} is not Ready"; kubectl -n {0} get helmrelease {1}; exit 1; }}'.format(r[0], r[1])
                 for r in releases
             ])
         else:
-            # velero ships raw manifests, not a HelmRelease.
-            waits = 'kubectl -n {0} wait --for=condition=Available deployment --all --timeout=300s || {{ echo "ERROR: deployments in {0} are not Available"; exit 1; }}'.format(ns)
+            # An app with no HelmRelease (today only velero, which ships raw
+            # manifests) waits for its Deployments instead. `wait --all` on a
+            # namespace with none succeeds, so having none is an error here.
+            waits = ('kubectl -n {0} get deployment -o name | grep -q . || {{ echo "ERROR: no HelmRelease and no Deployment in {0}, so nothing to wait for"; exit 1; }}\n' +
+                     'kubectl -n {0} wait --for=condition=Available deployment --all --timeout=600s || {{ echo "ERROR: deployments in {0} are not Available"; exit 1; }}').format(ns)
         local_resource(
             # kyverno keeps its own name because kyverno-policies depends on
             # it; the rest keep "-status", which the Backstage plugin looks up.
             app if app == "kyverno" else "{}-status".format(app),
-            cmd=sh(WAIT_HR + waits + "\nkubectl -n {} get pods".format(ns)),
+            # Pods are listed where the releases put them: 1pass's namespace map
+            # says 1password-system while its HelmRelease lives in 1password.
+            cmd=sh(WAIT_HR + waits + "".join(["\nkubectl -n {} get pods".format(n) for n in sorted(set([r[0] for r in releases] or [ns]))])),
             # Re-runs when the app changes: Tilt applies the edit through
             # uncategorized, and without this nothing waited for the result. A
             # failed Falco wait stayed red after the fix that made it Ready.
