@@ -49,7 +49,7 @@ wrong. It is not a trust problem; it is a **hostname mismatch**, because
 it (a wildcard directly under a single-label parent is rejected by every
 verifier). Run the check that exists for exactly this:
 ```
-python scripts/ci/check-route-hostnames.py
+python3 scripts/ci/check-route-hostnames.py
 ```
 Add `hi.localhost` to `dnsNames` in `helm/istio/gateway/base/certificate.yaml`,
 apply it, wait ~30s for cert-manager to reissue, and reload.

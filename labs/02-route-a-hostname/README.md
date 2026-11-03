@@ -35,7 +35,7 @@ a browser and mean opposite things.
 This repo has a check for exactly this omission. Run it and read the message:
 
 ```
-python scripts/ci/check-route-hostnames.py
+python3 scripts/ci/check-route-hostnames.py
 ```
 
 ## Fix
