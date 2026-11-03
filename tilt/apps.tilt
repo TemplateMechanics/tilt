@@ -46,55 +46,72 @@ FLUX_LABEL_MAP = {
     "thanos": "Observability",
 }
 
+# Each enabled app's objects stay in Tilt's own k8s_yaml, so they live in the
+# "uncategorized" resource, and each app gets a resource that waits for its
+# HelmRelease(s) to be Ready. Two bugs this replaces, both seen on a running
+# cluster:
+#   - kyverno's wait loop ran before uncategorized had applied Kyverno, and Tilt
+#     does not apply uncategorized while a serial local_resource is building.
+#     It timed out after five minutes, every time, and kyverno-policies never
+#     ran. Now each wait depends on uncategorized and runs in parallel.
+#   - "-status" ran `kubectl get pods | head -5`, which exits 0 with no pods:
+#     dapr-status was green with the dapr HelmRelease not Ready.
+# Why not apply each app from its own local_resource instead: Tilt then
+# garbage-collects what uncategorized used to own. Tried on a running cluster,
+# it deleted every enabled app's namespace and HelmRelease the moment the
+# Tiltfile reloaded, and the re-apply failed against the terminating
+# namespaces. Keeping Tilt as the owner means an upgrade deletes nothing.
 for app, enabled in CONFIG["flux_apps"].items():
     if enabled:
         ns = FLUX_NAMESPACE_MAP.get(app, app)
         label = FLUX_LABEL_MAP.get(app, "Flux-Apps")
         k8s_namespace(ns)
         k8s_yaml(kustomize(ROOT + "/helm/{}/".format(app)), allow_duplicates=True)
-        
-        # For kyverno, we need to wait for it to be fully installed before policies can apply
+
+        releases = [
+            (o["metadata"].get("namespace", ns), o["metadata"]["name"])
+            for o in decode_yaml_stream(kustomize(ROOT + "/helm/{}".format(app)))
+            if o and o.get("kind") == "HelmRelease"
+        ]
+        if releases:
+            waits = "\n".join([
+                'wait_hr {0} {1} || {{ echo "ERROR: HelmRelease {0}/{1} is not Ready"; kubectl -n {0} get helmrelease {1}; exit 1; }}'.format(r[0], r[1])
+                for r in releases
+            ])
+        else:
+            # velero ships raw manifests, not a HelmRelease.
+            waits = 'kubectl -n {0} wait --for=condition=Available deployment --all --timeout=300s || {{ echo "ERROR: deployments in {0} are not Available"; exit 1; }}'.format(ns)
+        local_resource(
+            # kyverno keeps its own name because kyverno-policies depends on
+            # it; the rest keep "-status", which the Backstage plugin looks up.
+            app if app == "kyverno" else "{}-status".format(app),
+            cmd=sh(WAIT_HR + waits + "\nkubectl -n {} get pods".format(ns)),
+            # Re-runs when the app changes: Tilt applies the edit through
+            # uncategorized, and without this nothing waited for the result. A
+            # failed Falco wait stayed red after the fix that made it Ready.
+            deps=[ROOT + "/helm/{}".format(app)],
+            labels=[label],
+            links=["https://{}.localhost".format(app)],
+            # A wait only reads, so it can run beside other resources, and it
+            # must start after uncategorized has applied what it waits for.
+            allow_parallel=True,
+            resource_deps=["helm-repositories", "uncategorized"]
+        )
         if app == "kyverno":
-            local_resource(
-                app,
-                cmd=sh("""
-                    echo "Waiting for Kyverno HelmRelease to be ready..."
-                    for i in $(seq 1 150); do
-                        if kubectl get crd clusterpolicies.kyverno.io >/dev/null 2>&1; then
-                            echo "✓ Kyverno CRDs exist, checking pods..."
-                            if kubectl get pods -n kyverno -l app.kubernetes.io/instance=kyverno 2>/dev/null | grep -q "Running"; then
-                                echo "✓ Kyverno is ready!"
-                                kubectl get pods -n kyverno | head -5
-                                exit 0
-                            fi
-                        fi
-                        echo "  Attempt $i/150..."; sleep 2
-                    done
-                    echo "Timeout waiting for Kyverno"; exit 1
-                """),
-                labels=[label],
-                links=["https://{}.localhost".format(app)],
-                resource_deps=["helm-repositories"]
-            )
-            # Apply policies after kyverno is ready
+            # The policies need Kyverno's CRDs, which its HelmRelease installs.
             local_resource(
                 "kyverno-policies",
                 cmd=sh("""
                     echo "Applying Kyverno policies..."
-                    kubectl apply -k ./helm/kyverno-policies/
+                    kubectl apply -k ./helm/kyverno-policies/ || { echo "ERROR: the policies did not apply"; exit 1; }
                     echo "✓ Policies applied"
                     kubectl get clusterpolicy | head -5
                 """),
+                # Without deps this ran once at `tilt up` and never again (see
+                # helm-repositories in core.tilt).
+                deps=[ROOT + "/helm/kyverno-policies"],
                 labels=["Security"],
                 resource_deps=[app]
-            )
-        else:
-            local_resource(
-                "{}-status".format(app),
-                cmd=sh("kubectl get pods -n {} | head -5".format(ns)),
-                labels=[label],
-                links=["https://{}.localhost".format(app)],
-                resource_deps=["helm-repositories"]
             )
 
 ###############################################################################
