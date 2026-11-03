@@ -8,7 +8,7 @@
 . "$(dirname "$0")/../lib.sh"
 cert="$ROOT/helm/istio/gateway/base/certificate.yaml"
 
-python - "$cert" <<'PYEOF'
+"$PY" - "$cert" <<'PYEOF'
 import io, sys
 p = sys.argv[1]
 s = io.open(p, encoding="utf-8").read()

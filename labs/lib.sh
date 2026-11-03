@@ -9,6 +9,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/python.sh"
 CONTEXT="${CONTEXT:-kind-tiltdev}"
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
 K="kubectl --context ${CONTEXT}"

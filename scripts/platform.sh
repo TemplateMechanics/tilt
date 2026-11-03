@@ -18,6 +18,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/python.sh"
 cd "$ROOT"
 
 # The cluster name, and therefore the kube context. Overridable so a second
@@ -61,8 +62,9 @@ url_port() { [ "$GATEWAY_PORT" = "443" ] && echo "" || echo ":${GATEWAY_PORT}"; 
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 need_python_yaml() {
-    python -c 'import yaml' >/dev/null 2>&1 || {
-        echo "missing Python module: PyYAML (install with: python -m pip install pyyaml)" >&2
+    [ -n "$PY" ] || { echo "missing: python3 (or python)" >&2; exit 1; }
+    "$PY" -c 'import yaml' >/dev/null 2>&1 || {
+        echo "missing Python module: PyYAML (install with: $PY -m pip install pyyaml, or your OS's python3-yaml package)" >&2
         exit 1
     }
 }
@@ -102,7 +104,7 @@ podman_preflight() {
 
 cmd_up() {
     need kind; need kubectl; need tilt; need helm; need flux
-    need python; need curl; need openssl
+    need curl; need openssl
     need_python_yaml
     podman_preflight
     if cluster_exists; then
@@ -158,7 +160,7 @@ cmd_check() {
 }
 
 cmd_ci() {
-    need python; need kubectl
+    need kubectl
     need_python_yaml
     local fail=0
     echo "== kustomize build =="
@@ -169,10 +171,10 @@ cmd_ci() {
     done < <(find . -name kustomization.yaml -not -path "./backstage/app/node_modules/*" \
                -not -path "*/skeleton/*" -not -path "./archive/*" | sort)
     echo "  $pass passed, $fail failed"
-    echo "== routed hostnames have SANs =="; python scripts/ci/check-route-hostnames.py || fail=$((fail+1))
-    echo "== local PKI revocation ==";       python scripts/ci/check-local-pki.py        || fail=$((fail+1))
-    echo "== charts pinned ==";              python scripts/ci/check-chart-pins.py     || fail=$((fail+1))
-    echo "== scripts executable in git ==";  python scripts/ci/check-exec-bits.py      || fail=$((fail+1))
+    echo "== routed hostnames have SANs =="; "$PY" scripts/ci/check-route-hostnames.py || fail=$((fail+1))
+    echo "== local PKI revocation ==";       "$PY" scripts/ci/check-local-pki.py        || fail=$((fail+1))
+    echo "== charts pinned ==";              "$PY" scripts/ci/check-chart-pins.py     || fail=$((fail+1))
+    echo "== scripts executable in git ==";  "$PY" scripts/ci/check-exec-bits.py      || fail=$((fail+1))
     [ "$fail" -eq 0 ] && echo "all checks passed" || { echo "$fail failure(s)"; exit 1; }
 }
 

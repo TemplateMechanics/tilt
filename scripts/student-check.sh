@@ -11,6 +11,7 @@
 # Safe to run at any time. It reads; it changes nothing and pulls nothing.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/python.sh"
 CONTEXT="${CONTEXT:-kind-tiltdev}"
 CLUSTER="${CLUSTER:-tiltdev}"
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
@@ -41,7 +42,7 @@ note() { printf '        %s\n' "$*"; }
 echo "Student pre-flight — $(date '+%Y-%m-%d %H:%M')"
 echo
 echo "== tools"
-for t in kind kubectl helm flux tilt python curl openssl node npm; do
+for t in kind kubectl helm flux tilt curl openssl node npm; do
     if command -v "$t" >/dev/null 2>&1; then ok "$t found"
     else bad "$t is not on PATH"; note "see the Prerequisites table in README.md"; fi
 done
@@ -54,9 +55,12 @@ if command -v flux >/dev/null 2>&1; then
     else bad "Flux CLI is ${flux_have:-unknown}; the platform needs ${flux_want:-the version in tilt/lib.tilt}"
          note "see the Flux CLI row of the Prerequisites table in README.md"; fi
 fi
-if command -v python >/dev/null 2>&1; then
-    if python -c 'import yaml' >/dev/null 2>&1; then ok "Python module PyYAML found"
-    else bad "Python module PyYAML is missing"; note "install it with: python -m pip install pyyaml"; fi
+if [ -n "$PY" ]; then
+    ok "$PY found ($("$PY" --version 2>&1))"
+    if "$PY" -c 'import yaml' >/dev/null 2>&1; then ok "Python module PyYAML found"
+    else bad "Python module PyYAML is missing"; note "install it with: $PY -m pip install pyyaml, or your OS's python3-yaml package"; fi
+else
+    bad "no working Python 3 on PATH (tried python3, then python)"; note "see the Prerequisites table in README.md"
 fi
 
 # `platform.sh hello` (lab 01) and `platform.sh check` drive installed Google

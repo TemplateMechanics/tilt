@@ -6,5 +6,5 @@ if $K -n hello get httproute hello -o jsonpath='{.spec.hostnames[*]}' 2>/dev/nul
 assert_san_present hi.localhost
 assert_tls_ok hi.localhost
 assert_http hi.localhost / 200
-( cd "$ROOT" && python scripts/ci/check-route-hostnames.py >/dev/null 2>&1 ) && pass "check-route-hostnames.py passes" || fail "check-route-hostnames.py fails"
+( cd "$ROOT" && "$PY" scripts/ci/check-route-hostnames.py >/dev/null 2>&1 ) && pass "check-route-hostnames.py passes" || fail "check-route-hostnames.py fails"
 summary

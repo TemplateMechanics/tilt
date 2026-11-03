@@ -20,7 +20,7 @@ esac
 # 3. Prometheus has a target for it, and that target is up. An object with no
 #    target is the silent state this lab exists to make visible.
 n=$(gw prometheus.localhost '/api/v1/targets?state=active' 2>/dev/null \
-    | python -c "import json,sys
+    | "$PY" -c "import json,sys
 try: ts=json.load(sys.stdin)['data']['activeTargets']
 except Exception: ts=[]
 print(sum(1 for t in ts if t['labels'].get('job')=='hello' and t.get('health')=='up'))" 2>/dev/null)
@@ -33,7 +33,7 @@ print(sum(1 for t in ts if t['labels'].get('job')=='hello' and t.get('health')==
 #    traffic for the length of a coffee break. This measures how long ago the
 #    last successful scrape was; once the series is stale the query is empty
 #    and age falls through to 999, a failure.
-age=$(gw prometheus.localhost '/api/v1/query?query=time()%20-%20max(timestamp(up%7Bjob%3D%22hello%22%7D))' 2>/dev/null | python -c "import json,sys
+age=$(gw prometheus.localhost '/api/v1/query?query=time()%20-%20max(timestamp(up%7Bjob%3D%22hello%22%7D))' 2>/dev/null | "$PY" -c "import json,sys
 try:
     r=json.load(sys.stdin)['data']['result']; print(int(float(r[0]['value'][1])) if r else 999)
 except Exception: print(999)" 2>/dev/null)
