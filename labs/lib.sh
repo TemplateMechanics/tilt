@@ -9,6 +9,10 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/python.sh"
+# Said once, up front: without it a lab reported "no healthy target" or "check
+# fails" when the truth was that nothing could be checked at all.
+[ -n "$PY" ] || echo "WARNING: no Python 3 found (tried python3, then python); checks that parse output will fail" >&2
 CONTEXT="${CONTEXT:-kind-tiltdev}"
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
 K="kubectl --context ${CONTEXT}"

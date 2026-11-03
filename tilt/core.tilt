@@ -119,7 +119,11 @@ local_resource(
         # helm/ gave 69 because it counted mentions in comments and dashboard
         # JSON. Names from the rendered output are exact, and this resource has
         # no business counting repositories it did not apply.
-        NAMES=$(kubectl kustomize ./helm/repositories/ | python -c "import sys,yaml; print(' '.join(d['metadata']['name'] for d in yaml.safe_load_all(sys.stdin) if d and d.get('kind')=='HelmRepository'))")
+        . ./scripts/lib/python.sh
+        NAMES=$(kubectl kustomize ./helm/repositories/ | "$PY" -c "import sys,yaml; print(' '.join(d['metadata']['name'] for d in yaml.safe_load_all(sys.stdin) if d and d.get('kind')=='HelmRepository'))")
+        # Empty means nothing was read (no Python, no PyYAML, a broken kustomize),
+        # not that there's nothing to check: with 0 expected, every check below passed.
+        [ -n "$NAMES" ] || { echo "ERROR: could not read the HelmRepository names from helm/repositories/ (is python3 with PyYAML installed?)"; exit 1; }
         EXPECTED=$(echo $NAMES | wc -w | tr -d ' ')
         echo "Applying $EXPECTED HelmRepositories from helm/repositories/ (will retry until all exist)..."
         # Success needs a clean apply as well as every name existing. Checking

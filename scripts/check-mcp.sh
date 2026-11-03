@@ -9,6 +9,7 @@
 # when one is called.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/lib/python.sh"
 cd "$ROOT" || { echo "ERROR: cannot cd to $ROOT"; exit 1; }
 
 fail=0
@@ -36,7 +37,7 @@ else
     exit 1
 fi
 
-cmd=$(python - <<'PY'
+cmd=$("$PY" - <<'PY'
 import io, json, os
 cfg = json.load(io.open('.mcp.json', encoding='utf-8'))
 g = cfg['mcpServers']['grafana']
@@ -55,7 +56,7 @@ out=$(printf '%s\n%s\n%s\n' \
 echo "$out" | grep -q '"tools"\|"serverInfo"' && ok "MCP handshake completed" || bad "no response to initialize"
 
 # The tool call is the real test - it is the first thing that needs credentials.
-if echo "$out" | python -c "
+if echo "$out" | "$PY" -c "
 import sys, json
 for l in sys.stdin:
     l = l.strip()
