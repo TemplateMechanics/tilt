@@ -171,7 +171,8 @@ def main():
         return check(repos, releases, work)
     finally:
         # Each run pulls every chart (about 39 MB); left behind, they piled up in TEMP.
-        shutil.rmtree(work, ignore_errors=True)
+        # Said out loud if it fails (read-only files on Windows), not swallowed.
+        shutil.rmtree(work, onerror=lambda f, p, e: print("warning: could not delete %s: %s" % (p, e[1]), file=sys.stderr))
 
 
 def check(repos, releases, work):
