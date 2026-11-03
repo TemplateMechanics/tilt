@@ -34,6 +34,7 @@ import os
 import subprocess
 import sys
 import tarfile
+import shutil
 import tempfile
 
 try:
@@ -158,8 +159,22 @@ def changed(values, path):
 
 
 def main():
+    # Relative globs below: run from anywhere else, this found 0 releases, printed
+    # "0 releases, 0 problem(s)" and passed, checking nothing.
+    os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     repos, releases = inventory()
+    if not releases:
+        print("FAIL: no HelmRelease found under helm/ or apps/, so nothing was checked")
+        return 1
     work = tempfile.mkdtemp(prefix="chart-values-")
+    try:
+        return check(repos, releases, work)
+    finally:
+        # Each run pulls every chart (about 39 MB); left behind, they piled up in TEMP.
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def check(repos, releases, work):
     env = dict(os.environ, **{k: os.path.join(work, "helm", k.lower()) for k in
                               ("HELM_CACHE_HOME", "HELM_CONFIG_HOME", "HELM_DATA_HOME")})
     failures = []
