@@ -44,10 +44,25 @@ spec:
         # and ClickHouse migrations on a laptop-sized cluster. Its log showed a
         # clean start-up right to the moment it was killed, which reads as a crash
         # and is not one.
+        #
+        # 180s / 10 failures (280s before the first kill) was raised from that
+        # and was still not enough, and the result is worse than a slow start.
+        # On a cluster built from empty the kill landed mid-migration: the
+        # liveness kill at 01:54:45Z and the _prisma_migrations row for
+        # 20240718011735_observation_view_add_prompt_name_and_version, started
+        # 01:54:45.486 and never finished, 228 of 424 applied. Every later
+        # start then refused with Prisma P3009 ("migrate found failed
+        # migrations in the target database"), a crash loop no restart fixes.
+        # The chart (1.5.41) has no startupProbe, so the liveness probe gets
+        # 15 minutes (600s + 30 x 10s). A hung web pod restarting late costs
+        # little here; a half-applied migration needs someone in psql.
+        # Recovery if it happens: delete that migration's row (finished_at is
+        # null) from _prisma_migrations and restart langfuse-web; the
+        # remaining 196 then applied in 67s.
         web:
           livenessProbe:
-            initialDelaySeconds: 180
-            failureThreshold: 10
+            initialDelaySeconds: 600
+            failureThreshold: 30
           readinessProbe:
             initialDelaySeconds: 60
             failureThreshold: 20
