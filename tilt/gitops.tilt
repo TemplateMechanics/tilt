@@ -253,6 +253,8 @@ local_resource(
 local_resource(
     "crossplane-providers",
     cmd=sh("kubectl apply -f ./helm/crossplane/providers/providers.yaml && echo '✓ Providers applied'"),
+    # Without deps this ran once at `tilt up` and never again (see flagger below).
+    deps=[ROOT + "/helm/crossplane/providers/providers.yaml"],
     labels=["Platform"],
     resource_deps=["crossplane-core-ready"]
 )
@@ -292,6 +294,8 @@ local_resource(
 local_resource(
     "crossplane-rbac",
     cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/rbac.yaml && echo '✓ RBAC applied'"),
+    # Without deps this ran once at `tilt up` and never again (see flagger below).
+    deps=[ROOT + "/helm/crossplane/providers/configs/rbac.yaml"],
     labels=["Platform"],
     resource_deps=["crossplane-providers-ready"]
 )
@@ -299,6 +303,8 @@ local_resource(
 local_resource(
     "crossplane-provider-configs",
     cmd=sh("kubectl apply -f ./helm/crossplane/providers/configs/provider-configs.yaml && echo '✓ ProviderConfigs applied'"),
+    # Without deps this ran once at `tilt up` and never again (see flagger below).
+    deps=[ROOT + "/helm/crossplane/providers/configs/provider-configs.yaml"],
     labels=["Platform"],
     resource_deps=["crossplane-rbac"]
 )
@@ -306,6 +312,9 @@ local_resource(
 local_resource(
     "crossplane-compositions",
     cmd=sh("kubectl apply -k ./helm/crossplane/compositions/ && echo '✓ Compositions applied'"),
+    # Without deps this ran once at `tilt up` and never again (see flagger below).
+    # The whole directory, since -k reads its kustomization and everything it lists.
+    deps=[ROOT + "/helm/crossplane/compositions"],
     labels=["Platform"],
     resource_deps=["crossplane-provider-configs"]
 )
@@ -325,6 +334,8 @@ if enabled_crossplane:
     local_resource(
         "crossplane-applications",
         cmd=sh(apply_cmds + " && echo '✓ DevApplications applied'"),
+        # Exactly the files applied: one apps/<name>.yaml per enabled app.
+        deps=[ROOT + "/apps/{}.yaml".format(app) for app in enabled_crossplane],
         labels=["Applications"],
         resource_deps=["crossplane-compositions"]
     )
