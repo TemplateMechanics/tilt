@@ -39,6 +39,7 @@ spec:
     - auth.localhost
     - azurite.localhost
     - backstage.localhost
+    - bookmarks.localhost
     - cert-manager.localhost
     - client.localhost
     - dapr.localhost
