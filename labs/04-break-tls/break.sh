@@ -51,7 +51,18 @@ case "${1:-}" in
         security delete-certificate -Z "$fp" "$keychain" \
           && echo "removed root CA $fp from the macOS user keychain"
         ;;
-      Linux)  sudo rm -f /usr/local/share/ca-certificates/dev-root-ca.crt && sudo update-ca-certificates >/dev/null && echo "removed root CA from Linux store" ;;
+      Linux)
+        # Under WSL the CA lives in the Windows user store (trust-ca.sh), and
+        # deleting from it raises the same confirmation dialog as above.
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+          echo "Under WSL this step is interactive. Run in a terminal and click Yes:"
+          echo "  certutil.exe -delstore -user Root $fp"
+          echo "Or see the failure without touching your store at all:"
+          echo "  ./labs/04-break-tls/probe.sh hello.localhost --untrusted"
+          exit 2
+        fi
+        sudo rm -f "/usr/local/share/ca-certificates/dev-root-ca-${CONTEXT#kind-}.crt" /usr/local/share/ca-certificates/dev-root-ca.crt \
+          && sudo update-ca-certificates >/dev/null && echo "removed root CA from Linux store" ;;
     esac
     ;;
   *) echo "usage: break.sh mismatch|trust"; exit 2 ;;
