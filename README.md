@@ -33,7 +33,9 @@ minutes. When Tilt shows `hello-world` green:
 - **<https://hello.localhost>** — your first app, over HTTPS, in the mesh
 - <https://grafana.localhost> — metrics and logs (admin / admin)
 - <https://kiali.localhost> — the service mesh
-- <http://localhost:10350> — the Tilt dashboard
+- <https://headlamp.localhost> — the cluster itself, with the Flux plugin; no sign-in, capped permissions ([why](helm/headlamp/README.md))
+- <https://tilt.localhost> — the Tilt dashboard (also <http://localhost:10350>)
+- <https://bookmarks.localhost> — a start page linking all of the above
 
 Start with [`examples/hello-world/`](examples/hello-world/README.md). It is four
 files, and its README walks through breaking each one. Then work through
@@ -75,10 +77,28 @@ Everything beyond the always-on core is off by default — including Backstage,
 whose first build takes 20+ minutes. Turn services on in `tilt-config.json` once
 the platform is up, not before.
 
-> **Ports:** services are on 443/80 by default. If something on your machine
-> already owns those (another kind cluster, a local web server), use the
-> alternate config and every URL gains `:8443`:
-> `KIND_CONFIG=kind/cluster-alt-ports.yaml GATEWAY_PORT=8443 ./scripts/platform.sh up`
+### Ports are yours to choose
+
+Services are on 443/80 and Tilt on 10350 by default. Any free ports work —
+pick them when something else already owns the defaults, or to run a second
+platform beside the first:
+
+```bash
+GATEWAY_PORT=9443 GATEWAY_HTTP_PORT=9080 TILT_PORT=10390 CLUSTER=second ./scripts/platform.sh up
+```
+
+| Variable | Default | What it moves |
+|---|---|---|
+| `GATEWAY_PORT` | 443 | Every `https://<name>.localhost` URL gains `:<port>` |
+| `GATEWAY_HTTP_PORT` | 80 (8080 with 8443) | Plain HTTP, used for certificate revocation lists; required for any other `GATEWAY_PORT` |
+| `TILT_PORT` | 10350 | The Tilt UI; `tilt.localhost` follows it |
+| `CLUSTER` | tiltdev | The kind cluster and kube context name |
+
+`up` writes the kind config with those host ports, so the cluster and the URLs
+cannot disagree; an existing cluster published on a different port is refused
+with the fix. `KIND_CONFIG=<file>` still overrides the generated config. A
+cluster keeps the ports it was created with — `reset` to change them. The
+bookmarks page keeps whatever port it was opened on, so its links follow.
 
 ## Architecture
 

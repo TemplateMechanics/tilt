@@ -1,0 +1,12 @@
+# No selector: Tilt is a process on the host, not a pod. The endpoint is the
+# host-side relay (scripts/tilt-ui-forward.py), written by tilt/core.tilt.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tilt
+  namespace: tilt-ui
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP

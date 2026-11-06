@@ -68,6 +68,7 @@ spec:
     - rabbitmq.localhost
     - redis.localhost
     - thanos.localhost
+    - tilt.localhost
     - tilt-config.localhost
     - wazuh.localhost
     - wordpress.localhost

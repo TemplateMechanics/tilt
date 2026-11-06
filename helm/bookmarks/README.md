@@ -4,9 +4,9 @@ The learner start page at **https://bookmarks.localhost** is in the **minimal**
 profile. It is a static, unauthenticated list of resources, not a Kubernetes
 control plane, service health monitor or credential store.
 
-- Headlamp: `https://headlamp.localhost` (read-only learner token; see
+- Headlamp: `https://headlamp.localhost` (no sign-in, capped permissions; see
   `helm/headlamp/README.md`)
-- Tilt: `http://localhost:10350`
+- Tilt: `https://tilt.localhost` (`http://localhost:<TILT_PORT>` also works)
 - Hello World: `https://hello.localhost`
 - Grafana, Kiali, Prometheus: require `PROFILE=observability`.
 - Interactive lessons: `https://learn.curiouspandas.dev`.
@@ -14,8 +14,9 @@ control plane, service health monitor or credential store.
 
 The HTML and styles are local, no fonts, scripts or media are fetched from
 third-party domains. Clicking an external link is an intentional navigation.
-The script rewrites local HTTPS links to preserve alternate gateway ports
-(e.g. `:8443`). The Tilt UI link is tied to Tilt's default port (10350).
+The script rewrites local HTTPS links to keep whatever gateway port the page
+was opened on, so every link works at any `GATEWAY_PORT`. The Tilt link goes
+through the gateway too, so it no longer depends on `TILT_PORT`.
 
 The page is served by unprivileged NGINX with no Kubernetes service-account
 token, dropped capabilities, a read-only root filesystem and a memory-backed
