@@ -271,6 +271,32 @@ local_resource(
     resource_deps=["istio-gateway"],
 )
 
+# Headlamp is part of the learner's baseline: a real, visual view of the
+# cluster should be available even in the minimal profile. The Helm chart
+# remains Flux-managed; Tilt owns only application and readiness.
+local_resource(
+    "headlamp",
+    cmd=sh(WAIT_HR + """
+        set -e
+        kubectl apply -k ./helm/headlamp/
+        wait_hr headlamp headlamp 600s
+        kubectl -n headlamp rollout status deployment/headlamp --timeout=180s
+        # An accepted route with unresolved backends is not a working UI.
+        for i in $(seq 1 30); do
+            A=$(kubectl -n headlamp get httproute headlamp -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)
+            R=$(kubectl -n headlamp get httproute headlamp -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)
+            [ "$A" = True ] && [ "$R" = True ] && { echo "headlamp.localhost is routed"; exit 0; }
+            sleep 1
+        done
+        echo "ERROR: Headlamp route unresolved - Accepted=${A:-none}, ResolvedRefs=${R:-none}" >&2
+        exit 1
+    """),
+    deps=[ROOT + "/helm/headlamp"],
+    labels=["Developer-Portal"],
+    links=["https://headlamp.localhost"],
+    resource_deps=["helm-repositories", "istio-gateway"],
+)
+
 local_resource(
     "hello-world",
     cmd=sh("""
