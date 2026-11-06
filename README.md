@@ -1,5 +1,7 @@
 # Tilt Development Environment
 
+**Learners:** Start at [https://bookmarks.localhost](https://bookmarks.localhost) once the minimal cluster is running. The page links to Headlamp, Tilt, troubleshooting dashboards and the hands-on labs.
+
 A comprehensive Kubernetes development environment using [Tilt](https://tilt.dev/), demonstrating three deployment patterns with 25+ services. Includes a [Backstage](https://backstage.io/) developer portal with a custom plugin that serves as a GUI control plane for toggling infrastructure on and off.
 
 ## Quick Start

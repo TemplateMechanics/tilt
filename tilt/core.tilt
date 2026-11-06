@@ -334,3 +334,26 @@ local_resource(
     labels=["Infrastructure"],
     resource_deps=["hello-world", "local-ca-crls"],
 )
+
+# Browser-friendly first stop for every hands-on learner, including minimal.
+local_resource(
+    "bookmarks",
+    cmd=sh("""
+        set -e
+        kubectl apply -k ./helm/bookmarks/
+        kubectl -n bookmarks rollout status deployment/bookmarks --timeout=180s
+        # Accepted alone can hide a nonexistent backend Service.
+        for i in $(seq 1 30); do
+            A=$(kubectl -n bookmarks get httproute bookmarks -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)
+            R=$(kubectl -n bookmarks get httproute bookmarks -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)
+            [ "$A" = True ] && [ "$R" = True ] && { echo "bookmarks.localhost is routed"; exit 0; }
+            sleep 1
+        done
+        echo "ERROR: Bookmarks route unresolved - Accepted=${A:-none}, ResolvedRefs=${R:-none}" >&2
+        exit 1
+    """),
+    deps=[ROOT + "/helm/bookmarks"],
+    labels=["Developer-Portal"],
+    links=["https://bookmarks.localhost"],
+    resource_deps=["istio-gateway"],
+)

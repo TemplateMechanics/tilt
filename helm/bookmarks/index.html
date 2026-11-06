@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Curious Pandas learner links for the local Tilt Kubernetes lab.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; connect-src 'none'">
+  <title>Bookmarks · Curious Pandas Kubernetes Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to bookmarks</a>
+  <div class="shell">
+    <header class="masthead">
+      <a class="brand" href="https://learn.curiouspandas.dev" aria-label="Curious Pandas learning site">
+        <span class="brand-mark" aria-hidden="true">CP</span>
+        <span>CURIOUS <strong>PANDAS</strong><span class="brand-sub">KUBERNETES LAB</span></span>
+      </a>
+      <span class="environment">LOCAL LEARNING ENVIRONMENT</span>
+    </header>
+    <main id="main">
+      <div class="hero">
+        <div class="eyebrow"><span class="dot" aria-hidden="true"></span> START HERE</div>
+        <h1>Learn by <em>breaking things.</em></h1>
+        <p>One place for your local cluster, debugging tools, and hands-on lessons. Break the lab. Find the evidence. Fix it.</p>
+        <a class="hero-cta" data-local-host="headlamp" href="https://headlamp.localhost">Explore your cluster <span aria-hidden="true">↗</span></a>
+      </div>
+      <section aria-labelledby="core-title">
+        <div class="section-heading"><h2 id="core-title">Your first stops</h2><span>MINIMAL PROFILE</span></div>
+        <div class="cards">
+          <a class="card primary" data-local-host="headlamp" href="https://headlamp.localhost">
+            <span class="card-icon" aria-hidden="true">◈</span><span class="tag">CLUSTER</span><h3>Headlamp</h3>
+            <p>See pods, workloads, namespaces and events. Use a short-lived, read-only learner token to sign in.</p>
+            <span class="destination">headlamp.localhost <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" href="http://localhost:10350">
+            <span class="card-icon" aria-hidden="true">⌘</span><span class="tag">WORKFLOW</span><h3>Tilt dashboard</h3>
+            <p>Follow builds, workloads, local resources and deployment logs as the cluster changes.</p>
+            <span class="destination">localhost:10350 <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" data-local-host="hello" href="https://hello.localhost">
+            <span class="card-icon" aria-hidden="true">⬡</span><span class="tag">FIRST APP</span><h3>Hello world</h3>
+            <p>Trace a real HTTPS request through Gateway, HTTPRoute, Service and Deployment.</p>
+            <span class="destination">hello.localhost <span aria-hidden="true">↗</span></span>
+          </a>
+        </div>
+      </section>
+      <section aria-labelledby="observe-title">
+        <div class="section-heading"><h2 id="observe-title">Observe &amp; debug</h2><span>OBSERVABILITY PROFILE</span></div>
+        <div class="cards">
+          <a class="card" data-local-host="grafana" href="https://grafana.localhost">
+            <span class="card-icon" aria-hidden="true">▥</span><span class="tag">METRICS · LOGS</span><h3>Grafana</h3>
+            <p>Explore dashboards, logs and traces. A quiet dashboard isn't proof that the system is healthy.</p>
+            <span class="destination">grafana.localhost <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" data-local-host="kiali" href="https://kiali.localhost">
+            <span class="card-icon" aria-hidden="true">⥁</span><span class="tag">SERVICE MESH</span><h3>Kiali</h3>
+            <p>Inspect Istio ambient mesh membership and the service graph, not just application status.</p>
+            <span class="destination">kiali.localhost <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" data-local-host="prometheus" data-local-path="/targets" href="https://prometheus.localhost/targets">
+            <span class="card-icon" aria-hidden="true">◎</span><span class="tag">SCRAPE TARGETS</span><h3>Prometheus</h3>
+            <p>Check whether metrics are actually being collected. Perfect for the missing-target lab.</p>
+            <span class="destination">prometheus.localhost/targets <span aria-hidden="true">↗</span></span>
+          </a>
+        </div>
+      </section>
+      <section aria-labelledby="learn-title">
+        <div class="section-heading"><h2 id="learn-title">Keep learning</h2><span>FREE · OPEN SOURCE</span></div>
+        <div class="cards">
+          <a class="card" href="https://learn.curiouspandas.dev">
+            <span class="card-icon" aria-hidden="true">✳</span><span class="tag">INTERACTIVE</span><h3>Curious Pandas Learn</h3>
+            <p>Practice debugging and engineering concepts in your browser, then try them in the real cluster.</p>
+            <span class="destination">learn.curiouspandas.dev <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" href="https://github.com/TemplateMechanics/tilt/tree/main/labs">
+            <span class="card-icon" aria-hidden="true">▤</span><span class="tag">HANDS-ON LABS</span><h3>Break it on purpose</h3>
+            <p>Ten graded exercises covering routing, TLS, the mesh, autoscaling and hidden failures.</p>
+            <span class="destination">github.com/TemplateMechanics/tilt <span aria-hidden="true">↗</span></span>
+          </a>
+          <a class="card" href="https://github.com/TemplateMechanics/tilt/blob/main/docs/STUDENT-SETUP.md">
+            <span class="card-icon" aria-hidden="true">◷</span><span class="tag">PREPARATION</span><h3>Student setup guide</h3>
+            <p>Check tools and cluster readiness before starting a workshop or recording session.</p>
+            <span class="destination">Student setup on GitHub <span aria-hidden="true">↗</span></span>
+          </a>
+        </div>
+      </section>
+      <aside class="notice" aria-label="Availability note">
+        <strong>A link isn't a health check.</strong> Some tools require <code>PROFILE=observability</code> or a more advanced Tilt profile. Start the local cluster before visiting them. In alternate-port mode, local HTTPS links automatically use the current gateway port.
+      </aside>
+    </main>
+    <footer><span>CURIOUS PANDAS · LEARN BY BREAKING THINGS</span><span>LOCAL-ONLY · NO ACCOUNTS · NO TRACKING</span></footer>
+  </div>
+</body>
+</html>

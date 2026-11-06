@@ -1,0 +1,42 @@
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#090d16;color:#e9f0f5;line-height:1.55}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 70% -12%,#1a4141 0,transparent 45%),radial-gradient(ellipse at 0 35%,#192041 0,transparent 38%),#090d16;min-height:100vh}
+a{color:inherit}
+a:focus-visible{outline:3px solid #76e8cf;outline-offset:4px}
+.skip-link{position:absolute;left:12px;top:-80px;background:#76e8cf;color:#061112;padding:10px 14px;z-index:10}
+.skip-link:focus{top:12px}
+.shell{max-width:1160px;margin:auto;padding:26px 32px 28px}
+.masthead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff24;padding-bottom:22px;gap:18px}
+.brand{display:flex;gap:12px;align-items:center;text-decoration:none;font-size:15px;line-height:1.15;letter-spacing:.1em;font-weight:800}
+.brand strong{color:#87f2d7}
+.brand-mark{background:#84ebd0;color:#071e22;border-radius:12px;font-size:18px;font-weight:900;display:grid;place-items:center;width:49px;height:49px;letter-spacing:-.07em}
+.brand-sub{display:block;color:#8393a3;font-size:10px;font-weight:650;margin-top:5px;letter-spacing:.17em}
+.environment{font-size:10px;letter-spacing:.16em;border:1px solid #4e968f77;border-radius:100px;padding:8px 12px;color:#a6e8d6}
+.hero{max-width:800px;padding:84px 0 62px}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.2em;color:#82e2ce;display:flex;align-items:center;gap:9px}
+.dot{height:8px;width:8px;display:inline-block;border-radius:50%;background:#85f2d4;box-shadow:0 0 16px #85f2d4}
+h1{font-size:clamp(40px,6vw,72px);line-height:1.08;letter-spacing:-.055em;margin:18px 0}
+h1 em{font-style:normal;color:#88eed0}
+.hero p{font-size:18px;color:#b7c7d4;max-width:650px;margin:0 0 28px}
+.hero-cta{display:inline-flex;align-items:center;gap:14px;padding:12px 20px;background:#86f0d0;color:#082a2b;font-weight:850;text-decoration:none;border-radius:12px}
+.hero-cta:hover{background:#b4ffe5}
+section{margin-bottom:54px}
+.section-heading{display:flex;justify-content:space-between;align-items:baseline;gap:15px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #ffffff20}
+.section-heading h2{margin:0;font-size:21px;letter-spacing:-.02em}
+.section-heading>span{font-size:11px;font-weight:800;letter-spacing:.13em;color:#86a1b4}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+.card{display:flex;flex-direction:column;align-items:flex-start;min-height:260px;border:1px solid #354050a0;border-radius:16px;padding:24px;text-decoration:none;background:linear-gradient(140deg,#182434c4,#101720e0);transition:border-color .15s,transform .15s}
+.card:hover{border-color:#75cdb9;transform:translateY(-3px)}
+.card.primary{border-color:#4c9b94;background:linear-gradient(135deg,#1a4848,#132331 70%)}
+.card-icon{display:grid;place-items:center;border-radius:12px;background:#254b4b;color:#9df5d9;width:42px;height:42px;font-size:23px;margin-bottom:15px}
+.tag{font-size:10px;color:#8debd4;letter-spacing:.14em;font-weight:850}
+.card h3{margin:5px 0 7px;font-size:22px;letter-spacing:-.025em}
+.card p{color:#b1c1ce;font-size:14px;margin:0 0 28px}
+.destination{margin-top:auto;font-size:12px;font-weight:750;color:#9be7d5;overflow-wrap:anywhere}
+.notice{border:1px solid #4b627d;border-left:3px solid #85e2ce;border-radius:10px;background:#142030;padding:17px 20px;color:#c3d2dd;font-size:14px}
+.notice strong{color:#ffffff}
+code{font-size:.94em;color:#b5f4e8}
+footer{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:60px;padding:24px 0 5px;border-top:1px solid #ffffff24;color:#8193a5;font-size:10px;font-weight:750;letter-spacing:.14em}
+@media(max-width:800px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{padding-top:60px}.environment{display:none}}
+@media(max-width:560px){.shell{padding:20px 18px}.cards{grid-template-columns:1fr}.card{min-height:220px}.hero{padding-top:48px;padding-bottom:45px}.hero p{font-size:16px}.section-heading>span{font-size:9px}footer{margin-top:40px}}
+@media(prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
