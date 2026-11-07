@@ -39,6 +39,7 @@ spec:
     - auth.localhost
     - azurite.localhost
     - backstage.localhost
+    - bookmarks.localhost
     - cert-manager.localhost
     - client.localhost
     - dapr.localhost
@@ -67,6 +68,7 @@ spec:
     - rabbitmq.localhost
     - redis.localhost
     - thanos.localhost
+    - tilt.localhost
     - tilt-config.localhost
     - wazuh.localhost
     - wordpress.localhost

@@ -1,0 +1,83 @@
+# What Headlamp's own service account may do. With no login prompt
+# (helm-release.yaml) this is what every visitor gets, so it is sized for
+# breaking things on a teaching cluster without a route to the node.
+#
+# Read: the built-in `view` role - everything namespaced except Secrets,
+# including pod logs - plus what charts aggregate into it (Flux, cert-manager,
+# Kyverno, External Secrets, metrics). The read rules below add the
+# cluster-scoped and CRD kinds `view` leaves out, so those pages are not empty
+# "Forbidden" views.
+#
+# Write, deliberately only: delete pods (a restart you can watch) and the
+# scale subresource (replicas, nothing else). Not granted, and each would undo
+# the point of the cap:
+#   - create pods / pods/exec / pods/attach / pods/ephemeralcontainers: a
+#     privileged pod or a shell is the path to the node.
+#   - patch/update on Deployments etc.: that edits the pod template, the same
+#     path. So Headlamp's "Restart" and "Edit" are refused; delete the pod.
+#   - patch on Flux objects: a HelmRelease's values are installed by
+#     helm-controller as cluster-admin. So the Flux plugin's Reconcile and
+#     Suspend buttons are refused; `flux reconcile` from a terminal works.
+#   - Secrets: `view` omits them on purpose; so does this.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-learner
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.istio.io", "security.istio.io", "telemetry.istio.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Lab 08 is about a ServiceMonitor that scrapes nothing; it should be visible.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["flagger.app"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "statefulsets/scale", "replicasets/scale"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: headlamp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-learner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-learner
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: headlamp

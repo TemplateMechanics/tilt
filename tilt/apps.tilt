@@ -62,6 +62,10 @@ FLUX_LABEL_MAP = {
 # Tiltfile reloaded, and the re-apply failed against the terminating
 # namespaces. Keeping Tilt as the owner means an upgrade deletes nothing.
 for app, enabled in CONFIG["flux_apps"].items():
+    # Headlamp is deployed by core.tilt for every profile. Ignore legacy
+    # tilt-config.json entries so the full profile does not apply it twice.
+    if app == "headlamp":
+        continue
     if enabled:
         ns = FLUX_NAMESPACE_MAP.get(app, app)
         label = FLUX_LABEL_MAP.get(app, "Flux-Apps")

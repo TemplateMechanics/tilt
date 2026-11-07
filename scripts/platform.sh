@@ -28,10 +28,12 @@ cd "$ROOT"
 CLUSTER="${CLUSTER:-tiltdev}"
 CONTEXT="kind-${CLUSTER}"
 # 10350 is Tilt's default. A second Tilt on the same machine (another repo,
-# another cluster) collides silently — override with TILT_PORT.
+# another cluster) collides silently — override with TILT_PORT. Exported
+# because the Tiltfile reads it too: tilt.localhost relays to this port.
 TILT_PORT="${TILT_PORT:-10350}"
-# 443 is the default and gives portless URLs. Set GATEWAY_PORT=8443 together
-# with KIND_CONFIG=kind/cluster-alt-ports.yaml when 443/80 are taken locally.
+# 443 is the default and gives portless URLs. Any free port works: set
+# GATEWAY_PORT (and GATEWAY_HTTP_PORT, except for 443 and 8443) and the kind
+# config is generated with those host ports, so the two cannot disagree.
 GATEWAY_PORT="${GATEWAY_PORT:-443}"
 # Certificate revocation is fetched over plaintext HTTP even though services
 # use HTTPS. Keep the two host-port mappings paired for the supported kind
@@ -51,8 +53,29 @@ if [ "$GATEWAY_HTTP_PORT" = "80" ]; then
 else
     CRL_BASE_URL="${CRL_BASE_URL:-http://crl.localhost:${GATEWAY_HTTP_PORT}}"
 fi
-export CLUSTER CONTEXT GATEWAY_PORT GATEWAY_HTTP_PORT CRL_BASE_URL
-KIND_CONFIG="${KIND_CONFIG:-kind/cluster.yaml}"
+export CLUSTER CONTEXT TILT_PORT GATEWAY_PORT GATEWAY_HTTP_PORT CRL_BASE_URL
+# Without KIND_CONFIG, the host ports come from GATEWAY_PORT/GATEWAY_HTTP_PORT:
+# kind/cluster.yaml with its two hostPorts rewritten. Before this, a
+# GATEWAY_PORT that did not match the kind file still started, then printed
+# and certified URLs on a port nothing listened on.
+if [ -n "${KIND_CONFIG:-}" ]; then
+    KIND_CONFIG_DESC="$KIND_CONFIG"
+elif [ "$GATEWAY_PORT" = "443" ] && [ "$GATEWAY_HTTP_PORT" = "80" ]; then
+    KIND_CONFIG=kind/cluster.yaml
+    KIND_CONFIG_DESC="$KIND_CONFIG"
+else
+    KIND_CONFIG="$(mktemp "${TMPDIR:-/tmp}/kind-${CLUSTER}.XXXXXX.yaml")"
+    trap 'rm -f "$KIND_CONFIG"' EXIT
+    sed -e "s/^\( *hostPort:\) 80$/\1 ${GATEWAY_HTTP_PORT}/" \
+        -e "s/^\( *hostPort:\) 443$/\1 ${GATEWAY_PORT}/" kind/cluster.yaml > "$KIND_CONFIG"
+    # The rewrite matches literal lines; if cluster.yaml changes shape, fail
+    # here rather than create a cluster on 80/443 that the URLs do not use.
+    grep -q "hostPort: ${GATEWAY_PORT}$" "$KIND_CONFIG" && grep -q "hostPort: ${GATEWAY_HTTP_PORT}$" "$KIND_CONFIG" || {
+        echo "could not set host ports ${GATEWAY_PORT}/${GATEWAY_HTTP_PORT} in kind/cluster.yaml" >&2
+        exit 2
+    }
+    KIND_CONFIG_DESC="kind/cluster.yaml with host ports ${GATEWAY_PORT}/${GATEWAY_HTTP_PORT}"
+fi
 # Which tiers Tilt brings up: minimal | observability | gitops | full.
 # minimal is the default on purpose — it is the ten-minute path to a working
 # app, and everything above it can be added later without restarting.
@@ -70,6 +93,21 @@ need_python_yaml() {
 }
 
 cluster_exists() { kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; }
+
+# A cluster keeps the host port it was created with. Starting Tilt against one
+# published elsewhere gives a healthy platform at URLs that do not answer, so
+# compare the existing mapping with GATEWAY_PORT and stop on a mismatch.
+check_gateway_port() {
+    local cli="${KIND_EXPERIMENTAL_PROVIDER:-docker}" actual
+    actual=$("$cli" port "${CLUSTER}-control-plane" 30443/tcp 2>/dev/null | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -1)
+    if [ -z "$actual" ]; then
+        echo "warning: could not read the gateway port of '$CLUSTER' with $cli; not checked" >&2
+    elif [ "$actual" != "$GATEWAY_PORT" ]; then
+        echo "cluster '$CLUSTER' publishes the gateway on $actual, but GATEWAY_PORT is $GATEWAY_PORT." >&2
+        echo "  Use GATEWAY_PORT=$actual, or 'reset' to recreate it on $GATEWAY_PORT." >&2
+        exit 2
+    fi
+}
 
 # Podman only. netavark 2.x builds one `inet netavark` table whose NAT chains
 # open with `fib daddr type local`, so a kernel without nft_fib_inet cannot
@@ -109,8 +147,9 @@ cmd_up() {
     podman_preflight
     if cluster_exists; then
         echo "kind cluster '$CLUSTER' already exists"
+        check_gateway_port
     else
-        echo "creating kind cluster '$CLUSTER' from $KIND_CONFIG"
+        echo "creating kind cluster '$CLUSTER' from $KIND_CONFIG_DESC"
         kind create cluster --name "$CLUSTER" --config "$KIND_CONFIG" --wait 120s
     fi
     kubectl config use-context "$CONTEXT" >/dev/null
@@ -134,7 +173,7 @@ cmd_reset() {
         echo "destroying kind cluster '$CLUSTER'"
         kind delete cluster --name "$CLUSTER"
     fi
-    echo "recreating from $KIND_CONFIG"
+    echo "recreating from $KIND_CONFIG_DESC"
     kind create cluster --name "$CLUSTER" --config "$KIND_CONFIG" --wait 120s
     kubectl config use-context "$CONTEXT" >/dev/null
     echo

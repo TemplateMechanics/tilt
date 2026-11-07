@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tilt-ui
+# The EndpointSlice is not here: its address (the kind network's gateway) and
+# port (TILT_PORT) are only known on the host, so tilt/core.tilt applies it.
+resources:
+  - namespace.yaml
+  - service.yaml
+  - httproute.yaml

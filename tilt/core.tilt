@@ -271,6 +271,32 @@ local_resource(
     resource_deps=["istio-gateway"],
 )
 
+# Headlamp is part of the learner's baseline: a real, visual view of the
+# cluster should be available even in the minimal profile. The Helm chart
+# remains Flux-managed; Tilt owns only application and readiness.
+local_resource(
+    "headlamp",
+    cmd=sh(WAIT_HR + """
+        set -e
+        kubectl apply -k ./helm/headlamp/
+        wait_hr headlamp headlamp 600s
+        kubectl -n headlamp rollout status deployment/headlamp --timeout=180s
+        # An accepted route with unresolved backends is not a working UI.
+        for i in $(seq 1 30); do
+            A=$(kubectl -n headlamp get httproute headlamp -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)
+            R=$(kubectl -n headlamp get httproute headlamp -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)
+            [ "$A" = True ] && [ "$R" = True ] && { echo "headlamp.localhost is routed"; exit 0; }
+            sleep 1
+        done
+        echo "ERROR: Headlamp route unresolved - Accepted=${A:-none}, ResolvedRefs=${R:-none}" >&2
+        exit 1
+    """),
+    deps=[ROOT + "/helm/headlamp"],
+    labels=["Developer-Portal"],
+    links=["https://headlamp.localhost"],
+    resource_deps=["helm-repositories", "istio-gateway"],
+)
+
 local_resource(
     "hello-world",
     cmd=sh("""
@@ -307,4 +333,88 @@ local_resource(
     deps=[ROOT + "/scripts/trust-ca.sh"],
     labels=["Infrastructure"],
     resource_deps=["hello-world", "local-ca-crls"],
+)
+
+# https://tilt.localhost - the Tilt UI through the same gateway as everything
+# else. Tilt is a host process, so the route's backend is a selector-less
+# Service whose one endpoint is a relay on the kind network's gateway address
+# (scripts/tilt-ui-forward.py says why not `tilt up --host 0.0.0.0`).
+# TILT_PORT is the variable `tilt up` itself reads; platform.sh exports it. If
+# Tilt is started with a different --port, the check below fails instead of
+# routing to whatever else answers on that port.
+local_resource(
+    "tilt-ui-relay",
+    serve_cmd=sh("""
+        GW=$("${KIND_EXPERIMENTAL_PROVIDER:-docker}" network inspect kind -f '{{range .IPAM.Config}}{{.Gateway}} {{end}}' | tr ' ' '\\n' | grep -m1 -E '^[0-9]+[.]')
+        [ -n "$GW" ] || { echo "ERROR: no IPv4 gateway on the kind docker network" >&2; exit 1; }
+        exec python3 -u ./scripts/tilt-ui-forward.py "$GW" "${TILT_PORT:-10350}"
+    """),
+    deps=[ROOT + "/scripts/tilt-ui-forward.py"],
+    labels=["Developer-Portal"],
+)
+
+local_resource(
+    "tilt-ui",
+    cmd=sh("""
+        set -e
+        PORT="${TILT_PORT:-10350}"
+        GW=$("${KIND_EXPERIMENTAL_PROVIDER:-docker}" network inspect kind -f '{{range .IPAM.Config}}{{.Gateway}} {{end}}' | tr ' ' '\\n' | grep -m1 -E '^[0-9]+[.]')
+        kubectl apply -k ./helm/tilt-ui/
+        kubectl apply -f - <<EOF
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: tilt-host
+  namespace: tilt-ui
+  labels:
+    kubernetes.io/service-name: tilt
+    endpointslice.kubernetes.io/managed-by: tiltfile
+addressType: IPv4
+ports:
+  - name: http
+    port: $PORT
+    protocol: TCP
+endpoints:
+  - addresses: ["$GW"]
+EOF
+        # Through the gateway, not to localhost: this proves route, SAN, relay
+        # and Tilt together. The body must be Tilt's own page, because a
+        # gateway 503 or another server's 200 is not the Tilt UI.
+        URL="https://tilt.localhost$( [ "${GATEWAY_PORT:-443}" = 443 ] || echo ":$GATEWAY_PORT" )/"
+        for i in $(seq 1 30); do
+            if curl -sk --max-time 5 "$URL" | grep -q '<title>Tilt</title>'; then
+                echo "tilt.localhost serves the Tilt UI on port $PORT"; exit 0
+            fi
+            sleep 2
+        done
+        echo "ERROR: $URL did not return the Tilt UI. Is Tilt on port $PORT (TILT_PORT)?" >&2
+        exit 1
+    """),
+    deps=[ROOT + "/helm/tilt-ui"],
+    labels=["Developer-Portal"],
+    links=["https://tilt.localhost"],
+    resource_deps=["istio-gateway", "tilt-ui-relay"],
+)
+
+# Browser-friendly first stop for every hands-on learner, including minimal.
+local_resource(
+    "bookmarks",
+    cmd=sh("""
+        set -e
+        kubectl apply -k ./helm/bookmarks/
+        kubectl -n bookmarks rollout status deployment/bookmarks --timeout=180s
+        # Accepted alone can hide a nonexistent backend Service.
+        for i in $(seq 1 30); do
+            A=$(kubectl -n bookmarks get httproute bookmarks -o jsonpath='{.status.parents[0].conditions[?(@.type=="Accepted")].status}' 2>/dev/null || true)
+            R=$(kubectl -n bookmarks get httproute bookmarks -o jsonpath='{.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}' 2>/dev/null || true)
+            [ "$A" = True ] && [ "$R" = True ] && { echo "bookmarks.localhost is routed"; exit 0; }
+            sleep 1
+        done
+        echo "ERROR: Bookmarks route unresolved - Accepted=${A:-none}, ResolvedRefs=${R:-none}" >&2
+        exit 1
+    """),
+    deps=[ROOT + "/helm/bookmarks"],
+    labels=["Developer-Portal"],
+    links=["https://bookmarks.localhost"],
+    resource_deps=["istio-gateway"],
 )

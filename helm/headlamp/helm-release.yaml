@@ -33,9 +33,58 @@ spec:
         cpu: 500m
         memory: 512Mi
     config:
-      # Local development only. Anyone who can reach the gateway is already on
-      # this machine, and an auth prompt in front of a teaching UI is friction
-      # with no security benefit here. Do not carry this to a shared cluster.
+      # No login prompt: every visitor acts as this pod's service account. A
+      # comment here used to promise that while setting nothing that did it, so
+      # the token prompt stayed. The gateway answers on the host's 127.0.0.1
+      # only (WSL relays localhost; the LAN and tailnet addresses refuse), so
+      # "anyone who reaches it" means this machine. Do not carry this to a
+      # shared cluster: there it hands one identity to everyone.
+      unsafeUseServiceAccountToken: true
       pluginsDir: /headlamp/plugins
     serviceAccount:
       create: true
+    # The chart's default binds this account to cluster-admin. With no login
+    # that would give any page or process reaching headlamp.localhost a way to
+    # start a privileged pod, which on kind reaches the node, the WSL VM and
+    # the Windows files mounted there. learner-rbac.yaml grants the
+    # deliberately smaller set instead.
+    clusterRoleBinding:
+      create: false
+    # The Flux plugin, fetched by a pinned URL and refused unless its SHA-256
+    # matches. Not the chart's pluginsManager: that runs `npx
+    # @headlamp-k8s/pluginctl@latest` in node:lts-alpine on every start, so
+    # what gets installed changes without a commit. To upgrade, change the
+    # version and the hash together; a wrong hash stops the pod in Init rather
+    # than serving a UI with the plugin quietly missing.
+    initContainers:
+      - name: flux-plugin
+        image: alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            url=https://github.com/headlamp-k8s/plugins/releases/download/flux-0.7.0/headlamp-k8s-flux-0.7.0.tar.gz
+            sum=837dc962a4ca485b86b010e5a3463d3ffc71c51778125394f006a210921b7c65
+            wget -q -O /headlamp/plugins/flux.tgz "$url"
+            echo "$sum  /headlamp/plugins/flux.tgz" | sha256sum -c -
+            tar -xzf /headlamp/plugins/flux.tgz -C /headlamp/plugins
+            rm /headlamp/plugins/flux.tgz
+            test -s /headlamp/plugins/flux/main.js
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          runAsGroup: 101
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: plugins
+            mountPath: /headlamp/plugins
+    volumes:
+      - name: plugins
+        emptyDir:
+          sizeLimit: 32Mi
+    volumeMounts:
+      - name: plugins
+        mountPath: /headlamp/plugins
+        readOnly: true

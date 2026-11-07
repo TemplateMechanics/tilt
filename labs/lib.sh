@@ -64,9 +64,18 @@ assert_os_trust() { # assert_os_trust <host>
         fi
         ;;
       *)
-        code=$(curl -sS --max-time 15 \
-            --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" \
-            -o /dev/null -w '%{http_code}' "$(url "$host" /)" 2>/dev/null)
+        # Under WSL the browser trusts what Windows trusts, and that is where
+        # scripts/trust-ca.sh installs the CA (user store, no admin), so ask
+        # Windows: System32's curl.exe verifies with schannel and that store.
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+            code=$(/mnt/c/Windows/System32/curl.exe -sS --max-time 15 --ssl-revoke-best-effort \
+                --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" \
+                -o NUL -w '%{http_code}' "$(url "$host" /)" 2>/dev/null)
+        else
+            code=$(curl -sS --max-time 15 \
+                --resolve "${host}:${GATEWAY_PORT}:127.0.0.1" \
+                -o /dev/null -w '%{http_code}' "$(url "$host" /)" 2>/dev/null)
+        fi
         code="${code:-000}"
         if [ "$code" = "000" ]; then
             fail "OS trust store rejects the chain or the endpoint is unreachable"
