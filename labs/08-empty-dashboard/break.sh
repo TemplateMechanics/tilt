@@ -10,6 +10,6 @@ echo "Nothing will report an error. Look for yourself:"
 echo "  kubectl -n monitoring get servicemonitor hello        # exists, looks fine"
 echo "  kubectl -n hello get svc hello -o yaml | grep -A2 ports"
 echo
-echo "Then ask Prometheus what it is actually scraping (admin/admin):"
+echo "Then ask Prometheus what it is actually scraping (no sign-in needed):"
 echo "  https://prometheus.localhost/targets"
 echo "Give it ~60s: Prometheus reloads its config on a timer, not instantly."
