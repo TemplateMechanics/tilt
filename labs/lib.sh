@@ -146,13 +146,20 @@ assert_route_accepted() { # <ns> <httproute>
 # jsonpath. jsonpath needs the dots escaped and the escaping did not survive
 # the shell layers, so lab 03 reported the label missing while it was plainly
 # set. go-template needs no escaping at all.
+#
+# `with` guards both lookups. `index` on a pod with no annotations at all is
+# an error, and kubectl prints that error, with the whole pod as JSON, on
+# stdout: a pod that had just left the mesh failed lab 03 correctly but
+# under 200 lines of JSON. A key missing from a map that does exist printed
+# "<no value>", which then read as if it were the value. Both now come back
+# empty and are shown as <unset>.
 assert_ns_label() { # <ns> <label> <value>
-    local v; v=$($K get ns "$1" -o go-template="{{index .metadata.labels \"$2\"}}" 2>/dev/null)
+    local v; v=$($K get ns "$1" -o go-template="{{with .metadata.labels}}{{with index . \"$2\"}}{{.}}{{end}}{{end}}" 2>/dev/null)
     [ "$v" = "$3" ] && pass "namespace $1 has $2=$3" || fail "namespace $1 has $2='${v:-<unset>}' (wanted $3)"
 }
 
 assert_pod_annotation() { # <ns> <selector> <annotation> <value>
-    local v; v=$($K -n "$1" get pods -l "$2" -o go-template="{{range .items}}{{index .metadata.annotations \"$3\"}}{{break}}{{end}}" 2>/dev/null)
+    local v; v=$($K -n "$1" get pods -l "$2" -o go-template="{{range .items}}{{with .metadata.annotations}}{{with index . \"$3\"}}{{.}}{{end}}{{end}}{{break}}{{end}}" 2>/dev/null)
     [ "$v" = "$4" ] && pass "pod $1 [$2] has $3=$4" || fail "pod $1 [$2] has $3='${v:-<unset>}' (wanted $4)"
 }
 
