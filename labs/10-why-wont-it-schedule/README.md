@@ -109,9 +109,31 @@ The grader checks the quota still exists for exactly that reason.
 
 **Then wait.** Raising the quota does not un-stick the Deployment immediately:
 the ReplicaSet backs off exponentially after repeated `FailedCreate` and retries
-on its own schedule. Measured on this cluster it took over three minutes of
-nothing happening. That interval is not a second bug, and it is worth feeling
+on its own schedule. That interval is not a second bug, and it is worth feeling
 once — it is why "I fixed it and nothing changed" is so often premature.
+
+How long is mostly luck. The pause doubles with every refused attempt, and the
+attempts all happen in the first few seconds after the break, so the wait is
+counted from the break and not from your fix. Measured on this platform:
+
+| refused attempts | six ready, counted from the break |
+| --- | --- |
+| not counted (fewer) | 77 s |
+| 17 | 636 s |
+
+Raising the quota 100 seconds into that second run changed nothing for another
+nine minutes.
+
+You do not have to sit it out. The ReplicaSet tries again as soon as anything
+touches it:
+
+```
+kubectl -n lab10 annotate rs -l app=quota-demo lab10/nudge=1
+```
+
+Measured: three ready for 30 seconds after the quota was raised, then six
+ready 4 seconds after that command. `fix.sh` does not do this for you, because
+the wait is the lesson.
 
 ## Check
 
