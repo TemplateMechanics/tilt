@@ -10,8 +10,10 @@ browser says (it says the same thing for both).
 ./labs/04-break-tls/break.sh mismatch
 ```
 
-This removes `hello.localhost` from the certificate; cert-manager reissues
-within ~30 s. Reload <https://hello.localhost>: certificate error.
+This removes `hello.localhost` from the certificate. cert-manager reissues in
+a few seconds (about 7 measured, three runs), and the script returns only once
+the new certificate is the one being served. Reload <https://hello.localhost>:
+certificate error.
 
 ```
 ./labs/04-break-tls/probe.sh hello.localhost
