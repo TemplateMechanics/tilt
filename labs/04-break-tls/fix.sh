@@ -13,7 +13,14 @@ import io, sys
 p = sys.argv[1]
 s = io.open(p, encoding="utf-8").read()
 if "    - hello.localhost\n" not in s:
-    s = s.replace("    - harbor.localhost\n", "    - harbor.localhost\n    - hello.localhost\n", 1)
+    # Back where it came from: after headlamp. It used to go after harbor, one
+    # line too early, so the certificate was right and `git status` showed the
+    # file as changed for ever after a lab that claims to put things back.
+    # harbor stays as the fallback for a list that has lost headlamp.
+    for after in ("    - headlamp.localhost\n", "    - harbor.localhost\n"):
+        if after in s:
+            s = s.replace(after, after + "    - hello.localhost\n", 1)
+            break
     io.open(p, "w", encoding="utf-8", newline="\n").write(s)
 PYEOF
 grep -q '^    - hello\.localhost$' "$cert" || { echo "ERROR: could not restore hello.localhost in $cert"; exit 1; }

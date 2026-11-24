@@ -10,7 +10,14 @@ case "${1:-}" in
     grep -q '^    - hello\.localhost$' "$cert" && { echo "ERROR: SAN still present in $cert"; exit 1; }
     $K apply -k "$ROOT/helm/istio/gateway/overlays/${PLATFORM_OVERLAY:-kind}" >/dev/null
     echo "removed hello.localhost from the cert; waiting for cert-manager to reissue..."
-    if wait_for 120 reissue bash -c "echo | openssl s_client -connect 127.0.0.1:${GATEWAY_PORT} -servername hello.localhost 2>/dev/null | openssl x509 -noout -ext subjectAltName 2>/dev/null | grep -qv 'DNS:hello.localhost'"; then
+    # Read the names first, then test them. This used to end in
+    # `grep -qv 'DNS:hello.localhost'`, which is true if ANY line lacks the
+    # name, and the heading line "X509v3 Subject Alternative Name:" always
+    # does. So the wait never waited: it said "no longer lists hello.localhost"
+    # at once, and a probe run straight after still got the old certificate and
+    # "Verify return code: 0 (ok)". An empty answer (nothing listening) must
+    # not count as the name being gone either.
+    if wait_for 120 reissue bash -c "s=\$(echo | openssl s_client -connect 127.0.0.1:${GATEWAY_PORT} -servername hello.localhost 2>/dev/null | openssl x509 -noout -ext subjectAltName 2>/dev/null); [ -n \"\$s\" ] && ! printf '%s' \"\$s\" | grep -q 'DNS:hello.localhost'"; then
         echo "served certificate no longer lists hello.localhost. Now: ./labs/04-break-tls/probe.sh hello.localhost"
     else
         echo "ERROR: certificate still lists hello.localhost after 120s"; exit 1
